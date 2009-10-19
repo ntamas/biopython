@@ -28,6 +28,13 @@ class GOTermTests(unittest.TestCase):
             )
 
 
+    def test_repr(self):
+        self.assertEqual(
+                GO.ontology.GOTerm('GO:1234567').__repr__(),
+                '<GOTerm: GO:1234567>'
+        )
+
+
 if __name__ == "__main__":
     runner = unittest.TextTestRunner(verbosity = 2)
     unittest.main(testRunner=runner)

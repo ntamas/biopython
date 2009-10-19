@@ -48,7 +48,7 @@ class GOTerm(object):
 
     """
 
-    def __init__(self):
+    def __init__(self, goid, name='', ontology=None):
         """
 
         :Parameters:
@@ -61,9 +61,13 @@ class GOTerm(object):
 
         """
 
-        self._validate_goid(goid)
+        _validate_goid(goid)
         self.goid = goid
         self.name = name
         self.ontology = ontology
 
 
+    def __repr__(self):
+
+        outstr = "<%s: %s>" % (self.__class__.__name__, self.goid)
+        return outstr
