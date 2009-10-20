@@ -9,9 +9,11 @@ Tests for the GO package.
 import unittest
 from Bio import GO
 
-class GOTermTests(unittest.TestCase):
 
-    def test_validate_goid_raises_error(self):
+class OntologyFunctionsTests(unittest.TestCase):
+
+    def test_validate_and_normalize_go_id_raises_error(self):
+
         invalid_ids = [
                 "Australopithecus",
                 "GO:1",
@@ -23,15 +25,28 @@ class GOTermTests(unittest.TestCase):
         for invalid_id in invalid_ids:
             self.assertRaises(
                     ValueError,
-                    GO.ontology._validate_goid,
+                    GO.ontology._validate_and_normalize_go_id,
                     invalid_id
             )
 
 
+    def test_validate_and_normalize_go_id(self):
+
+        cases = (('GO:1234567', '1234567'))
+        expected = 'GO:1234567'
+        for case in cases:
+            self.assertEqual(
+                    GO.ontology._validate_and_normalize_go_id(case),
+                    expected
+            )
+
+
+class TermTests(unittest.TestCase):
+
     def test_repr(self):
         self.assertEqual(
-                GO.ontology.GOTerm('GO:1234567').__repr__(),
-                '<GOTerm: GO:1234567>'
+                GO.ontology.Term('GO:1234567').__repr__(),
+                '<Term: GO:1234567>'
         )
 
 
