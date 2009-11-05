@@ -91,6 +91,11 @@ def Parse( handle, load_obsolete=True ):
             else:
                 if len(line) > 1:
                     raise FormatError( "unparsed line: %s" % (line) )
+    #get the last entry
+    if len( curStanza ):
+        if load_obsolete or curStanza.get( 'is_obsolete', ['false'] )[0] == 'false':
+            newTerm = parseStanza( curStanza )
+            termHash[ newTerm.identifier ] = newTerm
 
     ont = ontology.Ontology("GO")
     for term in termHash:
