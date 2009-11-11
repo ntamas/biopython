@@ -44,10 +44,27 @@ class OntologyFunctionsTests(unittest.TestCase):
 class TermTests(unittest.TestCase):
 
     def test_repr(self):
+
         self.assertEqual(
                 GO.ontology.Term('GO:1234567').__repr__(),
                 '<Term: GO:1234567>'
         )
+
+
+    def test_cmp(self):
+
+        cases = (
+            ('1', '2', -1),
+            ('1', '1', 0),
+            ('2', '1', 1)
+        )
+        for id1, id2, expected in cases:
+            term1 = GO.ontology.Term(id1)
+            term2 = GO.ontology.Term(id2)
+            self.assertEqual(
+                    term1.__cmp__(term2),
+                    expected
+            )
 
 
 if __name__ == "__main__":
