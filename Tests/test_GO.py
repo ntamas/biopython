@@ -8,6 +8,7 @@ Tests for the GO package.
 
 import unittest
 from Bio import GO
+from Bio.GO.Parsers import oboparser
 
 
 class OntologyFunctionsTests(unittest.TestCase):
@@ -65,6 +66,47 @@ class TermTests(unittest.TestCase):
                     term1.__cmp__(term2),
                     expected
             )
+
+
+class OboparserFundamentalParsingTests(unittest.TestCase):
+
+    def test_value_comment(self):
+        case = 'alcohol dehydrogenase ! important for this weekend'
+        expected = 'alcohol dehydrogenase'
+        result = oboparser.value.parseString(case)[0]
+        self.assertEqual(result, expected)
+
+
+    def test_value_multi_line(self):
+        case = '''alcohol \\
+                dehydrogenase ! important for this weekend'''
+        expected = 'alcohol dehydrogenase'
+        result = oboparser.value.parseString(case)[0]
+        self.assertEqual(result, expected)
+
+
+    def test_tag_value_comment(self):
+        case = ('some_name: alcohol dehydrogenase ! important for this '
+                'weekend ')
+        expected = {
+                'tag': 'some_name',
+                'value': 'alcohol dehydrogenase',
+                'comment': 'important for this weekend'
+        }
+        result = oboparser.tag_value_pair.parseString(case).asDict()
+        self.assertEqual(result, expected)
+
+
+    def test_tag_value_comment_multi_line(self):
+        case = '''some_name: alcohol \
+                dehydrogenase ! important for this weekend '''
+        expected = {
+                'tag': 'some_name',
+                'value': 'alcohol dehydrogenase',
+                'comment': 'important for this weekend'
+        }
+        result = oboparser.tag_value_pair.parseString(case).asDict()
+        self.assertEqual(result, expected)
 
 
 if __name__ == "__main__":
