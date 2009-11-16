@@ -11,6 +11,7 @@ __email__ = 'chris DOT lasher <AT> gmail DOT com'
 
 from Bio.GO import ontology
 
+"""
 from pyparsing import (
         Word,
         alphas,
@@ -46,3 +47,56 @@ value.setParseAction(lambda tokens: ''.join((t.lstrip() for t in
     tokens)))
 tag_value_pair = tag('tag') + Suppress(':') + value('value') + \
         Optional(comment('comment'))
+"""
+
+import re
+import string
+
+
+class FormatError(Exception):
+    pass
+
+def parseStanza( stanza ):
+    #print stanza
+    term = None
+    if stanza['type'][0] == 'Term':
+        term = ontology.GOTerm( stanza['id'][0], name=stanza['name'][0] )
+    else:
+        term = ontology.Term( stanza['id'][0] )
+    return term
+
+
+def Parse( handle, load_obsolete=True ):
+    curStanza = {}
+    termHash = {}
+    reStanzaStart = re.compile(r'^\[(.*)\]\s*$')
+    reComment     = re.compile(r'\!.*$')
+    reTagLine     = re.compile(r'^(\w+):\s*(.*)$')
+    for line in handle:
+        res = reStanzaStart.search(line)
+        if res:
+            if len( curStanza ):
+                if load_obsolete or curStanza.get( 'is_obsolete', ['false'] )[0] == 'false':
+                    newTerm = parseStanza( curStanza )
+                    termHash[ newTerm.identifier ] = newTerm
+            curStanza = { 'type' : [res.group(1)] }
+        elif len( curStanza ):
+            res = reTagLine.search( reComment.sub("", line) )
+            if res:
+                [tag, value] = res.groups()
+                try:
+                    curStanza[tag].append( value )
+                except KeyError:
+                    curStanza[ tag ] = [ value ]
+            else:
+                if len(line) > 1:
+                    raise FormatError( "unparsed line: %s" % (line) )
+
+    ont = ontology.Ontology("GO")
+    for term in termHash:
+        ont.add_term( termHash[ term ] )
+    #print len(termHash)
+    return ont
+            
+    
+    
