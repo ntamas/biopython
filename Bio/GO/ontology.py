@@ -100,7 +100,7 @@ class Ontology(object):
         self.authority = authority
         self.identifier = identifier
         self.engine = engine
-
+        self.termHash = {}
 
     def __repr__(self):
 
@@ -109,12 +109,14 @@ class Ontology(object):
 
 
     def add_term(self, term):
-
+        self.termHash[ term.identifier ] = term
         pass
 
+    def get_term( self, id ):
+        return self.termHash[ id ]
 
     def remove_term(self, term):
-
+        del self.termHash[ term ]
         pass
 
 

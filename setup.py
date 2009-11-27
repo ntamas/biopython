@@ -217,6 +217,8 @@ PACKAGES = [
     'Bio.GA.Mutation',
     'Bio.GA.Repair',
     'Bio.GA.Selection',
+    'Bio.GO',
+    'Bio.GO.Parsers',
     'Bio.GenBank',
     'Bio.Geo',
     'Bio.GFF',
