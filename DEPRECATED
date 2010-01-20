@@ -7,6 +7,13 @@ Python 2.3
 No longer supported as of Release 1.51, having triggered a warning with
 Release 1.50, with a mention in the release notes for Release 1.49.
 
+Bio.Restriction.DNAUtils and check_bases
+========================================
+This module (originally in C) offered complement and antiparallel functions
+(duplicating functionality in Bio.Seq) and a rather odd function called
+check_bases (also available as Bio.Restriction.Restriction.check_bases).
+Deprecated in Release 1.53.
+
 Bio.Blast.NCBIStandalone.blastall, blastpgp and rpsblast
 ========================================================
 These command line tools calling functions were declared obsolete in Release
@@ -19,6 +26,12 @@ NCBI "legacy" BLAST tool wrappers FastacmdCommandline, BlastallCommandline,
 BlastpgpCommandline and RpsBlastCommandline were declared obsolete in Release
 1.53, having been replace with wrappers for the new NCBI BLAST+ tools (e.g.
 NcbiblastpCommandline and NcbipsiblastCommandline).
+
+Bio.EMBOSS.Applications
+=======================
+The wrappers for the "old" EMBOSS PHYLIP tools (e.g. eneighbor) were declared
+obsolete in Biopython 1.52, please use the wrappers for the "new" EMBOSS
+PHYLIP tools (e.g. fneighbor) instead.
 
 Bio.Clustalw
 ============
@@ -95,9 +108,9 @@ Please use the methods or functions in Bio.Seq instead.
 
 Bio.mathfns, Bio.stringfns and Bio.listfns (and their C code variants)
 ==========================================
-Declared obsolete in Release 1.49.
-Bio.mathfns and Bio.stringfns were deprecated in Release 1.50
-Bio.listfns was deprecated in Release 1.53
+Declared obsolete in Release 1.49. Bio.mathfns and Bio.stringfns were
+deprecated in Release 1.50, Bio.listfns was deprecated in Release 1.53.
+The three C implementations were all removed in Release 1.53.
 
 Bio.distance (and Bio.cdistance)
 ================================
@@ -288,11 +301,14 @@ in Release 1.31, and removed in Release 1.43.  Function 'translate' was
 deprecated in Release 1.49, and removed in Release 1.53. Use the functions
 and methods in Bio.Seq instead.
 
-Bio.GFF
+Bio.GFF (for accessing a MySQL database created with BioPerl, etc)
 =======
 The functions 'forward_complement' and 'antiparallel' in Bio.GFF.easy have
 been deprecated as of Release 1.31, and removed in Release 1.43.
 Use the functions 'complement' and 'reverse_complement' in Bio.Seq instead.
+
+The whole of the old Bio.GFF module was deprecated in Release 1.53
+(with the intention of reusing this name space for a GFF parser).
 
 Bio.sequtils
 ============
@@ -334,3 +350,10 @@ Bio.utils
 Functions 'translate', 'translate_to_stop', 'back_translate', 'transcribe',
 and 'back_transcribe' were deprecated in Release 1.49, and removed in Release
 1.53. Function 'ungap' was deprecated in Release 1.53.
+
+Bio.Motif
+=========
+CompareAceParser and CompareAceConsumer from Bio.Motif.Parsers.AlignAce were
+deprecated in Release 1.53. AlignAceConsumer, AlignAceParser, and
+AlignAceScanner were declared obsolete in Release 1.53; their functionality is
+now available through a read() function in Bio.Motif.Parsers.AlignAce.

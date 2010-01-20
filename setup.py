@@ -262,6 +262,7 @@ PACKAGES = [
     'Bio.SubsMat',
     'Bio.SVDSuperimposer',
     'Bio.SwissProt',
+    'Bio.Phylo',
     'Bio.UniGene',
     'Bio.Wise',
     #Other top level packages,
@@ -280,17 +281,6 @@ if os.name == 'java' :
     EXTENSIONS = []
 else :
     EXTENSIONS = [
-    Extension('Bio.clistfns',
-              ['Bio/clistfnsmodule.c']
-              ),
-    Extension('Bio.cmathfns',
-              ['Bio/cmathfnsmodule.c',
-               'Bio/csupport.c'],
-              include_dirs=["Bio"]
-              ),
-    Extension('Bio.cstringfns',
-              ['Bio/cstringfnsmodule.c']
-              ),
     Extension('Bio.cpairwise2',
               ['Bio/cpairwise2module.c',
                'Bio/csupport.c'],
@@ -315,9 +305,6 @@ else :
 #              ),
     Extension('Bio.Nexus.cnexus',
               ['Bio/Nexus/cnexus.c']
-              ),
-    Extension('Bio.Restriction.DNAUtils',
-              ['Bio/Restriction/DNAUtils.c']
               ),
     ]
 
@@ -346,7 +333,7 @@ setup(
         },
     packages=PACKAGES,
     ext_modules=EXTENSIONS,
-    package_data = {'Bio.Entrez': ['DTDs/*.dtd'],
+    package_data = {'Bio.Entrez': ['DTDs/*.dtd', 'DTDs/*.ent', 'DTDs/*.mod'],
                     'Bio.PopGen': ['SimCoal/data/*.par'],
                    },
     #install_requires = ['numpy>=1.0'],
