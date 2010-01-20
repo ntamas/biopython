@@ -68,39 +68,32 @@ class GOTerm(Term):
         super(GOTerm, self).__init__(identifier, name, ontology)
 
 
-class Relationship(object):
+class GeneOntologyNX(object):
     """
-    This class represents relationships between two terms in an
-    ontology.
-
-    """
-
-    pass
-
-
-class Ontology(object):
-    """
-    This class represents a basic ontology.
+    This class represents a gene ontology using NetworkX as the
+    underlying graph framework.
 
     """
 
-    def __init__(self, name, authority=None, identifier=None,
-            engine=None):
+    def __init__(self, name, authority=None, identifier=None):
         """
-
         :Parameters:
         - `name`: name for the ontology
         - `authority`: the name of the authority for this ontology
         - `identifier`: an identifier for the ontology
-        - `engine`: the querying engine for the ontology
 
         """
-
         self.name = name
         self.authority = authority
         self.identifier = identifier
-        self.engine = engine
-        self.termHash = {}
+        # The NetworkX directed graph will serve as the backbone for
+        # operations.
+        import networkx
+        self._internal_dag = networkx.DiGraph()
+        # We'll use this so we can retrieve terms by their identifier
+        # strings, too.
+        self._identifier_dict = {}
+
 
     def __repr__(self):
 
@@ -109,18 +102,40 @@ class Ontology(object):
 
 
     def add_term(self, term):
-        self.termHash[ term.identifier ] = term
-        pass
+        """Add a term to the ontology.
 
-    def get_term( self, id ):
-        return self.termHash[ id ]
+        :Parameters:
+        - `term`: a `GOTerm` instance
+
+        """
+        if term.identifier in self._identifier_dict:
+            raise ValueError("Term %s already exists in ontology." %
+                    term.identifier)
+        self._identifier_dict[term.identifier] = term
+        self._internal_dag.add_node(term)
+
+
+    def get_term_by_id(self, term_id):
+        """Retrieve a term from the ontology by its identifier.
+
+        :Parameters:
+        - `term_id`: a GO identifier (e.g., "GO:1234567")
+        """
+        return self._identifier_dict[term_id]
+
 
     def remove_term(self, term):
-        del self.termHash[ term ]
-        pass
+        """Add a term to the ontology.
+
+        :Parameters:
+        - `term`: a `GOTerm` instance
+
+        """
+        del self._identifier_dict[term.identifier]
+        self._internal_dag.remove_node(term)
 
 
-    def add_relationship(self, term1, term2, relationship):
+    def add_relationship(self, term1, term2, relationship_type):
         """
         Add a relationship between two terms to the ontology.
 
@@ -135,20 +150,14 @@ class Ontology(object):
         :Parameters:
         - `term1`: the subject term
         - `term2`: the object term
-        - `relationship`: the predicate term [should be a `Relationship`
-          instance]
+        - `relationship`: the predicate term (relationship type)
 
         """
 
-        # TODO: write unit test for ValueError
-        if not isinstance(relationship, Relationship):
-            raise ValueError("relationship should be a Relationship "
-                    "instance.")
-
-        # TODO: add everything else...
+        pass
 
 
-    def remove_relationship(self, term1, term2, relationship):
+    def remove_relationship(self, term1, term2, relationship_type):
         """
         Remove a relationship between two terms from the ontology.
 
@@ -158,8 +167,7 @@ class Ontology(object):
         :Parameters:
         - `term1`: the subject term
         - `term2`: the object term
-        - `relationship`: the predicate term [should be a `Relationship`
-          instance]
+        - `type`
 
         """
 
