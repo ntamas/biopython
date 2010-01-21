@@ -40,11 +40,6 @@ class Term(object):
         return outstr
 
 
-    def __cmp__(self, other):
-
-        return cmp(self.identifier, other.identifier)
-
-
 class GOTerm(Term):
     """
     A class to represent a term in the Gene Ontology.
