@@ -15,6 +15,15 @@ __email__ = 'chris DOT lasher <AT> gmail DOT com'
 NUM_GO_ID_DIGITS = 7
 
 
+class InternalStorageInconsistentError(Exception):
+    """An exception to be raised when an ontology's internal storage
+    data structures show inconsistent (conflicting) states of one or
+    more terms being stored.
+
+    """
+    pass
+
+
 class Term(object):
     """A generic term class."""
 
@@ -28,14 +37,12 @@ class Term(object):
           an `Ontology` instance]
 
         """
-
         self.identifier = identifier
         self.name = name
         self.ontology = ontology
 
 
     def __repr__(self):
-
         outstr = "<%s: %s>" % (self.__class__.__name__, self.identifier)
         return outstr
 
@@ -46,26 +53,23 @@ class GOTerm(Term):
 
     """
 
-    def __init__(self, identifier, name=None, ontology=None):
+    def __init__(self, goid, name=None, ontology=None):
         """
-
         :Parameters:
-        - `identifier`: the GO ID for the term. Should be a string of
-          the form "GO:<digits>" or simply "<digits>", where digits is a
-          zero-padded seven digit identifier
-        - `name`: the name of the GO term
+        - `goid`: the GO ID for the term. Should be a string of the form
+          `'GO:<digits>'` or simply `'<digits>'`, where `<digits>` is a
+          zero-padded seven digit identifier (e.g., `'GO:0006955'`)
+        - `name`: the name of the GO term (e.g., `'immune response'`)
         - `ontology`: the ontology that the term belongs to [should be
           an `Ontology` instance]
 
         """
-
-        identifier = _validate_and_normalize_go_id(identifier)
-        super(GOTerm, self).__init__(identifier, name, ontology)
+        self.goid = _validate_and_normalize_go_id(goid)
+        super(GOTerm, self).__init__(goid, name, ontology)
 
 
 class GeneOntologyNX(object):
-    """
-    This class represents a gene ontology using NetworkX as the
+    """This class represents a gene ontology using NetworkX as the
     underlying graph framework.
 
     """
@@ -91,9 +95,71 @@ class GeneOntologyNX(object):
 
 
     def __repr__(self):
-
         outstr = "<%s: %s>" % (self.__class__.__name__, self.name)
         return outstr
+
+
+    def _test_existence_in_internal_storage(self, term):
+        """Check on the state of storage of a given term within all the
+        internal storage structures.
+
+        Returns a tuple of storage states, where `True` represents that
+        a term is stored by a storage structure, and `False` represents
+        it is not stored.
+
+        :Parameters:
+        - `term`: a `GOTerm` instance
+
+        """
+        storage_states = (
+                term in self._internal_dag,
+                term.identifier in self._identifier_dict
+            )
+        return storage_states
+
+
+    def __contains__(self, term):
+        """Check to see if a term is present in the ontology.
+
+        This allows doing a membership test using the `in` operator in
+        Python, e.g., `if term in ontology: ...`.
+
+        Raises `InternalStorageInconsistentError` in the event that
+        internal storage shows inconsistent states of storage for the
+        given term.
+
+        :Parameters:
+        - `term`: a `GOTerm` instance
+
+        """
+        storage_states = self._test_existence_in_internal_storage(term)
+        # if all storage structures report existence, we're in a sane
+        # state; return True
+        if all(storage_states):
+            return True
+        # if all storage structures report no existence, we're in a sane
+        # state; return False
+        elif not any(storage_states):
+            return False
+        # if neither of those are true, something went horribly awry;
+        # raise an error
+        else:
+            raise InternalStorageInconsistentError("Term %s has"
+                    " inconsistent states of storage." % term)
+
+
+    def has_term(self, term)
+        """Check to see if a term is present in the ontology.
+
+        Raises `InternalStorageInconsistentError` in the event that
+        internal storage shows inconsistent states of storage for the
+        given term.
+
+        :Parameters:
+        - `term`: a `GOTerm` instance
+
+        """
+        return self.__contains__(term)
 
 
     def add_term(self, term):
@@ -130,9 +196,20 @@ class GeneOntologyNX(object):
         self._internal_dag.remove_node(term)
 
 
-    def add_relationship(self, term1, term2, relationship_type):
+    def has_relationship(self, term1, term2):
+        """Check to see if the ontology has a relationship.
+
+        :Parameters:
+        - `term1`: the subject term; a GOTerm instance
+        - `term2`: the object term; a GOTerm instance
+
         """
-        Add a relationship between two terms to the ontology.
+        edge_exists = self._internal_dag.has_edge(term1, term2)
+        return edge_exists
+
+
+    def add_relationship(self, term1, term2, relationship_type):
+        """Add a relationship between two terms to the ontology.
 
         Ontologies are composed of triples in the following form:
 
@@ -143,13 +220,17 @@ class GeneOntologyNX(object):
         We represent this as `term1 relationship term2`.
 
         :Parameters:
-        - `term1`: the subject term
-        - `term2`: the object term
+        - `term1`: the subject term; a GOTerm instance
+        - `term2`: the object term; a GOTerm instance
         - `relationship`: the predicate term (relationship type)
 
         """
-
-        pass
+        # add the terms to the internal storage if they're not already
+        # there
+        for term in (term1, term2):
+            if term not in self:
+                self.add_term(term)
+        self._internal_dag.add_edge(term1, term2, relationship)
 
 
     def remove_relationship(self, term1, term2, relationship_type):
@@ -165,8 +246,11 @@ class GeneOntologyNX(object):
         - `type`
 
         """
-
-        pass
+        try:
+            self._internal_dag.remove_edge(term1, term2)
+        except:
+            #TODO
+            pass
 
 
     def orphaned_terms(self):
@@ -175,7 +259,7 @@ class GeneOntologyNX(object):
         other terms in the ontology.
 
         """
-
+        #TODO
         pass
 
 

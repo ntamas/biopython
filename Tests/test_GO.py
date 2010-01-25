@@ -43,12 +43,84 @@ class OntologyFunctionsTests(unittest.TestCase):
 
 
 class TermTests(unittest.TestCase):
+    """Test cases for GO.ontology.Term."""
 
     def test_repr(self):
 
         self.assertEqual(
                 GO.ontology.Term('GO:1234567').__repr__(),
                 '<Term: GO:1234567>'
+        )
+
+
+class GeneOntologyNXTests(unittest.TestCase):
+    """Test cases for GO.ontology.GeneOntologyNX."""
+
+
+    def setUp(self):
+        self.ontology = GO.ontology.GeneOntologyNX('biological_process')
+        GOTerm = GO.ontology.GOTerm
+        self.terms = (
+                GOTerm('GO:0008150', 'biological_process',
+                    self.ontology),
+                GOTerm('GO:0051704', 'multi-organism process',
+                    self.ontology),
+                GOTerm('GO:0043901', 'negative regulation of '
+                    'multi-organism process', self.ontology)
+            )
+
+
+    def test_term_stored_conistently(self):
+
+        term = self.terms[0]
+        result = self.ontology._test_existence_in_internal_storage(term)
+        self.assertEqual(
+                result,
+                (False, False)
+        )
+
+        self.ontology.add_term(term)
+        result = self.ontology._test_existence_in_internal_storage(term)
+        self.assertEqual(
+                result,
+                (True, True)
+        )
+
+        del self.ontology._identifier_dict[term.goid]
+        result = self.ontology._test_existence_in_internal_storage(term)
+        self.assertEqual(
+                result,
+                (True, False)
+        )
+
+
+    def test_contains(self):
+
+        term = self.terms[0]
+        result = self.ontology.__contains__(term)
+        self.assertEqual(
+                result,
+                False
+        )
+
+        self.ontology.add_term(term)
+        result = self.ontology.__contains__(term)
+        self.assertEqual(
+                result,
+                True
+        )
+
+
+
+    def test_contains_raises_InternalStorageInconsistentError(self):
+
+        term = self.terms[0]
+        self.ontology.add_term(term)
+        del self.ontology._identifier_dict[term.goid]
+        self.assertRaises(
+                GO.ontology.InternalStorageInconsistentError,
+                self.ontology.__contains__,
+                term
         )
 
 
