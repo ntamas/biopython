@@ -42,14 +42,14 @@ class OntologyFunctionsTests(unittest.TestCase):
             )
 
 
-class TermTests(unittest.TestCase):
-    """Test cases for GO.ontology.Term."""
+class GOTermTests(unittest.TestCase):
+    """Test cases for GO.ontology.GOTerm."""
 
     def test_repr(self):
 
         self.assertEqual(
-                GO.ontology.Term('GO:1234567').__repr__(),
-                '<Term: GO:1234567>'
+                GO.ontology.GOTerm('GO:1234567', 'somethingase').__repr__(),
+                '<GOTerm: GO:1234567-somethingase>'
         )
 
 
@@ -86,7 +86,7 @@ class GeneOntologyNXTests(unittest.TestCase):
                 (True, True)
         )
 
-        del self.ontology._identifier_dict[term.goid]
+        del self.ontology._goid_dict[term.goid]
         result = self.ontology._test_existence_in_internal_storage(term)
         self.assertEqual(
                 result,
@@ -116,7 +116,7 @@ class GeneOntologyNXTests(unittest.TestCase):
 
         term = self.terms[0]
         self.ontology.add_term(term)
-        del self.ontology._identifier_dict[term.goid]
+        del self.ontology._goid_dict[term.goid]
         self.assertRaises(
                 GO.ontology.InternalStorageInconsistentError,
                 self.ontology.__contains__,

@@ -1,10 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: UTF-8 -*-
 
-"""
-Classes for the Gene Ontology.
-
-"""
+"""Classes for the Gene Ontology."""
 
 __author__ = 'Chris Lasher'
 __email__ = 'chris DOT lasher <AT> gmail DOT com'
@@ -24,30 +21,7 @@ class InternalStorageInconsistentError(Exception):
     pass
 
 
-class Term(object):
-    """A generic term class."""
-
-    def __init__(self, identifier, name=None, ontology=None):
-        """
-
-        :Parameters:
-        - `identifier`: a unique identifier for the term
-        - `name`: an optional name for the term
-        - `ontology`: the ontology that the term belongs to [should be
-          an `Ontology` instance]
-
-        """
-        self.identifier = identifier
-        self.name = name
-        self.ontology = ontology
-
-
-    def __repr__(self):
-        outstr = "<%s: %s>" % (self.__class__.__name__, self.identifier)
-        return outstr
-
-
-class GOTerm(Term):
+class GOTerm(object):
     """
     A class to represent a term in the Gene Ontology.
 
@@ -65,7 +39,14 @@ class GOTerm(Term):
 
         """
         self.goid = _validate_and_normalize_go_id(goid)
-        super(GOTerm, self).__init__(goid, name, ontology)
+        self.name = name
+        self.ontology = ontology
+
+
+    def __repr__(self):
+        outstr = "<%s: %s-%s>" % (self.__class__.__name__, self.goid,
+                self.name)
+        return outstr
 
 
 class GORelationship(object):
@@ -165,9 +146,9 @@ class GeneOntologyNX(object):
         # operations.
         import networkx
         self._internal_dag = networkx.DiGraph()
-        # We'll use this so we can retrieve terms by their identifier
+        # We'll use this so we can retrieve terms by their GO ID
         # strings, too.
-        self._identifier_dict = {}
+        self._goid_dict = {}
 
 
     def __repr__(self):
@@ -189,7 +170,7 @@ class GeneOntologyNX(object):
         """
         storage_states = (
                 term in self._internal_dag,
-                term.identifier in self._identifier_dict
+                term.goid in self._goid_dict
             )
         return storage_states
 
@@ -245,20 +226,20 @@ class GeneOntologyNX(object):
         - `term`: a `GOTerm` instance
 
         """
-        if term.identifier in self._identifier_dict:
+        if term.goid in self._goid_dict:
             raise ValueError("Term %s already exists in ontology." %
-                    term.identifier)
-        self._identifier_dict[term.identifier] = term
+                    term.goid)
+        self._goid_dict[term.goid] = term
         self._internal_dag.add_node(term)
 
 
     def get_term_by_id(self, term_id):
-        """Retrieve a term from the ontology by its identifier.
+        """Retrieve a term from the ontology by its GO ID.
 
         :Parameters:
         - `term_id`: a GO identifier (e.g., "GO:1234567")
         """
-        return self._identifier_dict[term_id]
+        return self._goid_dict[term_id]
 
 
     def remove_term(self, term):
@@ -268,7 +249,7 @@ class GeneOntologyNX(object):
         - `term`: a `GOTerm` instance
 
         """
-        del self._identifier_dict[term.identifier]
+        del self._goid_dict[term.goid]
         self._internal_dag.remove_node(term)
 
 
@@ -346,7 +327,7 @@ def _validate_and_normalize_go_id(go_id):
     Raises a ValueError if `go_id` is not a string of seven digits,
     optionally preceded by the prefix "GO:".
 
-    Returns an identifier guaranteed to be prefixed with "GO:".
+    Returns a GO ID guaranteed to be prefixed with "GO:".
 
     """
 
