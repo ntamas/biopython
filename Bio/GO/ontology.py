@@ -68,6 +68,82 @@ class GOTerm(Term):
         super(GOTerm, self).__init__(goid, name, ontology)
 
 
+class GORelationship(object):
+    """A generic class to represent a GO relationship between two terms
+    in the ontology.
+
+    """
+
+    def __repr__(self):
+        outstr = "<%s>" % self.__class__.__name__
+        return outstr
+
+
+class InheritableGORelationship(GORelationship):
+    """A generic class to represent an inheritable GO relationship.
+
+    An inheritable relationship between two terms implies the subject
+    term inherits properties from the object term. Currently, two
+    relationships exist for this: the 'is_a' and 'part_of'
+    relationships.
+
+    """
+    pass
+
+
+class IsARelationship(InheritableGORelationship):
+    """A class representing the 'is_a' GO relationship.
+
+    This relationship is an inheritable relationship. If Term A "is_a"
+    Term B, then everything that applies to Term B also applies to Term
+    A.
+
+    """
+    pass
+
+
+class PartOfRelationship(InheritableGORelationship):
+    """A class representing the 'part_of' GO relationship.
+
+    This relationship is an inheritable relationship. If Term A "is_a"
+    Term B, then everything that applies to Term B also applies to Term
+    A.
+
+    """
+    pass
+
+
+class RegulatesRelationship(GORelationship):
+    """A class representing the 'regulates' GO relationship.
+
+    This relationship is not an inheritable relationship.
+
+    """
+    pass
+
+
+class PositivelyRegulatesRelationship(RegulatesRelationship):
+    """A class representing the 'positively_regulates' GO relationship.
+
+    This relationship is an inheritable relationship. If Term A "is_a"
+    Term B, then everything that applies to Term B also applies to Term
+    A.
+
+    """
+    pass
+
+
+class NegativelyRegulatesRelationship(RegulatesRelationship):
+    """A class representing the 'negatively_regulates' GO relationship.
+
+    This relationship is an inheritable relationship. If Term A "is_a"
+    Term B, then everything that applies to Term B also applies to Term
+    A.
+
+    """
+    pass
+
+
 class GeneOntologyNX(object):
     """This class represents a gene ontology using NetworkX as the
     underlying graph framework.
@@ -148,7 +224,7 @@ class GeneOntologyNX(object):
                     " inconsistent states of storage." % term)
 
 
-    def has_term(self, term)
+    def has_term(self, term):
         """Check to see if a term is present in the ontology.
 
         Raises `InternalStorageInconsistentError` in the event that
