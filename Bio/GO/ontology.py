@@ -27,26 +27,50 @@ class GOTerm(object):
 
     """
 
-    def __init__(self, goid, name=None, ontology=None):
-        """
-        :Parameters:
-        - `goid`: the GO ID for the term. Should be a string of the form
-          `'GO:<digits>'` or simply `'<digits>'`, where `<digits>` is a
-          zero-padded seven digit identifier (e.g., `'GO:0006955'`)
-        - `name`: the name of the GO term (e.g., `'immune response'`)
-        - `ontology`: the ontology that the term belongs to [should be
-          an `Ontology` instance]
+    __slots__ = ("id", "name", "tags", "ontology")
 
+    def __init__(self, identifier, name=None, tags=None, ontology=None):
         """
-        self.goid = _validate_and_normalize_go_id(goid)
-        self.name = name
+        Creates a new Gene Ontology term.
+
+        :Parameters:
+        - `identifier`: the GO ID for the term. Should be a string of the
+          form `'GO:<digits>'` or simply `'<digits>'`, where `<digits>`
+          is a zero-padded seven digit identifier (e.g., `'GO:0006955'`)
+        - `name`: the name of the GO term (e.g., `'immune response'`)
+        - `tags`: a dict containing the tags associated with this Gene
+          Ontology terms. These tags usually come from the stanza that
+          defines the term in the ontology file.
+        - `ontology`: the ontology which contains this GO term. In general,
+          you should not pass anything other than ``None`` here, as the
+          preferred way is to construct the term first and then add it
+          later to an ontology using `Ontology.add_term()`. The latter
+          should take care of setting the `ontology` field of the term
+          properly.
+        """
+        self.id = _validate_and_normalize_go_id(identifier)
+
+        if name:
+            self.name = name
+        else:
+            self.name = ""
+
+        if tags:
+            self.tags = dict(tags)
+        else:
+            self.tags = {}
+
         self.ontology = ontology
 
 
     def __repr__(self):
-        outstr = "<%s: %s-%s>" % (self.__class__.__name__, self.goid,
-                self.name)
-        return outstr
+        """String representation of a GO term"""
+        return "%s(%r, %r, %r, %r)" % (self.__class__.__name__,
+                self.id, self.name, self.tags, self.ontology)
+
+    def __str__(self):
+        """Returns just the ID of the GO term"""
+        return self.id
 
 
 class GORelationship(object):
@@ -125,7 +149,123 @@ class NegativelyRegulatesRelationship(RegulatesRelationship):
     pass
 
 
-class GeneOntologyNX(object):
+class Ontology(object):
+    """This abstract class specifies the interface that all the
+    ontology classes should satisfy.
+    """
+
+    def add_term(self, term):
+        """Adds the given `term` to this ontology.
+        
+        :Parameters:
+        - `term`: the term to be added; an instance of `GOTerm`.
+        """
+        raise NotImplementedError
+
+    def get_term_by_id(self, term_id):
+        """Retrieves the given term from this ontology using its unique ID.
+
+        Terms in an ontology have a primary ID and may have several alternative
+        IDs. This method can be used to look up terms based on both their primary
+        or their alternative IDs.
+
+        :Parameters:
+        - `term_id`: the primary or an alternative ID of a term we are
+          looking for.
+
+        :Returns:
+        the `GOTerm` corresponding to the given `term_id`.
+        """
+        raise NotImplementedError
+
+    def has_term(self, term):
+        """Checks whether the given term is in this ontology or not.
+        
+        :Parameters:
+        - `term`: the term to look for; an instance of `GOTerm`.
+        """
+        raise NotImplementedError
+
+    def remove_term(self, term):
+        """Removes the given term from this ontology.
+        
+        :Parameters:
+        - `term`: the term to remove; an instance of `GOTerm`.
+        """
+        raise NotImplementedError
+
+    def add_relationship(self, term1, term2, relationship):
+        """Add a relationship between two terms to the ontology.
+
+        Ontologies are composed of triples in the following form:
+
+            `<SUBJECT> <PREDICATE> <OBJECT>`
+
+        e.g., ``"mitochondrion is_a organelle"``
+
+        We represent this as `term1 relationship term2`.
+
+        :Parameters:
+        - `subject_term`: the subject term; an instance of `GOTerm`.
+        - `object_term`: the object term; an instance of `GOTerm`.
+        - `relationship`: the predicate term (relationship type)
+        """
+        raise NotImplementedError
+
+    def get_relationships(self, subject_term, object_term):
+        """Returns all the relationships that were added to the two
+        given terms.
+
+        :Parameters:
+        - `subject_term`: the subject term; an instance of `GOTerm`.
+        - `object_term`: the object term; an instance of `GOTerm`.
+
+        :Returns:
+        a (possibly empty) list of relationships where `subject_term`
+        stands as the subject and `object_term` stands as the object.
+        """
+        raise NotImplementedError
+
+    def has_relationship(self, subject_term, object_term, relationship=GORelationship):
+        """Checks whether there exists a relationship between the
+        two given terms.
+
+        :Parameters:
+        - `subject_term`: the subject term; an instance of `GOTerm`.
+        - `object_term`: the object term; an instance of `GOTerm`.
+        - `relationship`: the type of relationship we are interested in.
+        """
+        return any(isinstance(rel, relationship) \
+                for rel in self.get_relationships(subject_term, object_term))
+
+    def remove_relationship(self, subject_term, object_term, relationship):
+        """
+        Remove a relationship between two terms from the ontology.
+
+        See `add_relationship()` for an explanation of the relationship
+        structure.
+
+        :Parameters:
+        - `subject_term`: the subject term; an instance of `GOTerm`.
+        - `object_term`: the object term; an instance of `GOTerm`.
+        - `relationship`: the type of the relationship to be removed
+          from those two terms.
+        """
+        raise NotImplementedError
+
+    def __contains__(self, term):
+        """Checks whether the given term is in this ontology or not.
+
+        This method enables us to use an ontology object in Python
+        expressions like ``if term in ontology:``.
+
+        :Parameters:
+        - `term`: the term to look for; an instance of `GOTerm`.
+        """
+        return self.has_term(term)
+
+
+class GeneOntologyNX(Ontology):
     """This class represents a gene ontology using NetworkX as the
     underlying graph framework.
 
@@ -142,9 +282,13 @@ class GeneOntologyNX(object):
         self.name = name
         self.authority = authority
         self.identifier = identifier
+
+        # Store a reference to the NetworkX module here so we don't
+        # have to import it all the time
+        import networkx
+        self._nx = networkx
         # The NetworkX directed graph will serve as the backbone for
         # operations.
-        import networkx
         self._internal_dag = networkx.DiGraph()
         # We'll use this so we can retrieve terms by their GO ID
         # strings, too.
@@ -170,16 +314,13 @@ class GeneOntologyNX(object):
         """
         storage_states = (
                 term in self._internal_dag,
-                term.goid in self._goid_dict
+                term.id in self._goid_dict
             )
         return storage_states
 
 
-    def __contains__(self, term):
+    def has_term(self, term):
         """Check to see if a term is present in the ontology.
-
-        This allows doing a membership test using the `in` operator in
-        Python, e.g., `if term in ontology: ...`.
 
         Raises `InternalStorageInconsistentError` in the event that
         internal storage shows inconsistent states of storage for the
@@ -205,20 +346,6 @@ class GeneOntologyNX(object):
                     " inconsistent states of storage." % term)
 
 
-    def has_term(self, term):
-        """Check to see if a term is present in the ontology.
-
-        Raises `InternalStorageInconsistentError` in the event that
-        internal storage shows inconsistent states of storage for the
-        given term.
-
-        :Parameters:
-        - `term`: a `GOTerm` instance
-
-        """
-        return self.__contains__(term)
-
-
     def add_term(self, term):
         """Add a term to the ontology.
 
@@ -226,15 +353,28 @@ class GeneOntologyNX(object):
         - `term`: a `GOTerm` instance
 
         """
-        if term.goid in self._goid_dict:
+        if term.id in self._goid_dict:
             raise ValueError("Term %s already exists in ontology." %
-                    term.goid)
-        self._goid_dict[term.goid] = term
+                    term.id)
+        if term.ontology is not None:
+            raise ValueError("Term %s is already added to another ontology." %
+                    term.id)
+
+        # Add the term to this ontology
+        term.ontology = self
+        self._goid_dict[term.id] = term
         self._internal_dag.add_node(term)
+
+        # Register all the alternative IDs of this term in the
+        # internal dict
+        for alt_id in term.tags.get("alt_id", []):
+            self._goid_dict[alt_id] = term
 
 
     def get_term_by_id(self, term_id):
         """Retrieve a term from the ontology by its GO ID.
+
+        This method also supports alternative IDs.
 
         :Parameters:
         - `term_id`: a GO identifier (e.g., "GO:1234567")
@@ -249,23 +389,11 @@ class GeneOntologyNX(object):
         - `term`: a `GOTerm` instance
 
         """
-        del self._goid_dict[term.goid]
+        del self._goid_dict[term.id]
         self._internal_dag.remove_node(term)
 
 
-    def has_relationship(self, term1, term2):
-        """Check to see if the ontology has a relationship.
-
-        :Parameters:
-        - `term1`: the subject term; a GOTerm instance
-        - `term2`: the object term; a GOTerm instance
-
-        """
-        edge_exists = self._internal_dag.has_edge(term1, term2)
-        return edge_exists
-
-
-    def add_relationship(self, term1, term2, relationship_type):
+    def add_relationship(self, subject_term, object_term, relationship):
         """Add a relationship between two terms to the ontology.
 
         Ontologies are composed of triples in the following form:
@@ -277,20 +405,20 @@ class GeneOntologyNX(object):
         We represent this as `term1 relationship term2`.
 
         :Parameters:
-        - `term1`: the subject term; a GOTerm instance
-        - `term2`: the object term; a GOTerm instance
+        - `subject_term`: the subject term; an instance of `GOTerm`.
+        - `object_term`: the object term; an instance of `GOTerm`.
         - `relationship`: the predicate term (relationship type)
 
         """
         # add the terms to the internal storage if they're not already
         # there
-        for term in (term1, term2):
+        for term in (subject_term, object_term):
             if term not in self:
                 self.add_term(term)
-        self._internal_dag.add_edge(term1, term2, relationship)
+        self._internal_dag.add_edge(subject_term, object_term, relationship)
 
 
-    def remove_relationship(self, term1, term2, relationship_type):
+    def remove_relationship(self, subject_term, object_term, relationship):
         """
         Remove a relationship between two terms from the ontology.
 
@@ -298,14 +426,14 @@ class GeneOntologyNX(object):
         structure.
 
         :Parameters:
-        - `term1`: the subject term
-        - `term2`: the object term
-        - `type`
-
+        - `subject_term`: the subject term; an instance of `GOTerm`.
+        - `object_term`: the object term; an instance of `GOTerm`.
+        - `relationship`: the type of the relationship to be removed
+          from those two terms.
         """
         try:
-            self._internal_dag.remove_edge(term1, term2)
-        except:
+            self._internal_dag.remove_edge(subject_term, object_term)
+        except self._nx.exception.NetworkXError:
             #TODO
             pass
 
@@ -348,7 +476,7 @@ def _validate_and_normalize_go_id(go_id):
                     "digits." % (go_id, NUM_GO_ID_DIGITS))
     # If the go_id doesn't support indexing or .isdigit, the user
     # needs to be told to give a string instead.
-    except AttributeError, TypeError:
+    except (AttributeError, TypeError):
         raise ValueError("GO ID %s should be a string." % go_id)
 
     return normalized_id

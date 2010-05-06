@@ -1,107 +1,334 @@
 #!/usr/bin/env python
 # -*- coding: UTF-8 -*-
-
 """
-A parser for the OBO format.
+A very simple and not 100% compliant parser for the OBO file format
 
-"""
+This parser is supplied "as is". It is not an official parser, it
+might refuse to parse perfectly valid OBO files, or it might parse
+perfectly invalid OBO files; on the other hand, it can parse the
+official Gene Ontology OBO files and the ones created by OBO-Edit,
+so it isn't too bad :)
 
-__author__ = 'Chris Lasher'
-__email__ = 'chris DOT lasher <AT> gmail DOT com'
+Usage example::
 
-from Bio.GO import ontology
-
-"""
-from pyparsing import (
-        Word,
-        alphas,
-        nums,
-        SkipTo,
-        Suppress,
-        restOfLine,
-        Optional,
-        Group,
-        Literal,
-        lineEnd,
-        ZeroOrMore
-        )
-
-# comments begin with an exclamation point; anything after them needs to
-# be parsed as a comment and otherwise ignored
-comment = Suppress('!') + SkipTo(lineEnd)
-comment.setParseAction(lambda t: t[0].strip())
-# the parsing portion of a line should end either at a newline, or at
-# the appearance of a comment
-end = comment | lineEnd
-# value strings can be broken up over multiple lines if escaped by a
-# backslash character immediately before the end of a line (newline)
-end_escape = Literal('\\') + lineEnd
-continuation = Suppress(end_escape) + ZeroOrMore(SkipTo(end_escape)) +\
-        SkipTo(end)
-tag = Word(alphas + '_-')
-tag.setParseAction(lambda tokens: ' '.join(tokens))
-value = (SkipTo(continuation) + continuation) | SkipTo(end)
-# we want the value returned as a single string, rather than a disjoint
-# list of strings
-value.setParseAction(lambda tokens: ''.join((t.lstrip() for t in
-    tokens)))
-tag_value_pair = tag('tag') + Suppress(':') + value('value') + \
-        Optional(comment('comment'))
+    import Bio.GO.Parsers.oboparser as obo
+    parser = obo.Parser(open("gene_ontology.1_2.obo"))
+    gene_ontology = {}
+    for stanza in parser:
+        gene_ontology[stanza.tags["id"][0]] = stanza.tags
 """
 
+__author__  = "Tamas Nepusz"
+__email__   = "tamas@cs.rhul.ac.uk"
+__copyright__ = "Copyright (c) 2010, Tamas Nepusz"
+__version__ = "0.1"
+
+
+__all__ = ["ParseError", "Stanza", "Parser", "Value"]
+
+
+from cStringIO import StringIO
 import re
-import string
+import tokenize
+
+from Bio.GO.ontology import GeneOntologyNX, GOTerm, Ontology
 
 
-class FormatError(Exception):
-    pass
+class ParseError(Exception):
+    """Exception thrown when a parsing error occurred"""
 
-def parseStanza( stanza ):
-    #print stanza
-    term = None
-    if stanza['type'][0] == 'Term':
-        term = ontology.GOTerm( stanza['id'][0], name=stanza['name'][0] )
-    else:
-        term = ontology.Term( stanza['id'][0] )
-    return term
+    def __init__(self, msg, lineno = 1):
+        Exception.__init__("%s near line %d" % (msg, lineno))
+        self.lineno = lineno
 
 
-def Parse( handle, load_obsolete=True ):
-    curStanza = {}
-    termHash = {}
-    reStanzaStart = re.compile(r'^\[(.*)\]\s*$')
-    reComment     = re.compile(r'\!.*$')
-    reTagLine     = re.compile(r'^(\w+):\s*(.*)$')
-    for line in handle:
-        res = reStanzaStart.search(line)
-        if res:
-            if len( curStanza ):
-                if load_obsolete or curStanza.get( 'is_obsolete', ['false'] )[0] == 'false':
-                    newTerm = parseStanza( curStanza )
-                    termHash[ newTerm.identifier ] = newTerm
-            curStanza = { 'type' : [res.group(1)] }
-        elif len( curStanza ):
-            res = reTagLine.search( reComment.sub("", line) )
-            if res:
-                [tag, value] = res.groups()
-                try:
-                    curStanza[tag].append( value )
-                except KeyError:
-                    curStanza[ tag ] = [ value ]
+class Value(object):
+    """Class representing a value and its modifiers in the OBO file
+
+    This class has two member variables. `value` is the value itself,
+    `modifiers` are the corresponding modifiers in a tuple. Currently
+    the modifiers are not parsed in any way, but this might change in
+    the future.
+    """
+
+    __slots__ = ["value", "modifiers"]
+
+    def __init__(self, value, modifiers=()):
+        """Creates a new value"""
+        self.value = str(value)
+        if modifiers:
+            self.modifiers = tuple(modifiers)
+        else:
+            self.modifiers = None
+
+    def __str__(self):
+        """Returns the value itself (without modifiers)"""
+        return str(self.value)
+
+    def __repr__(self):
+        """Returns a Python representation of this object"""
+        return "%s(%r, %r)" % (self.__class__.__name__, \
+                self.value, self.modifiers)
+
+
+class Stanza(object):
+    """Class representing an OBO stanza.
+
+    An OBO stanza looks like this::
+
+      [name]
+      tag: value
+      tag: value
+      tag: value
+
+    Values may optionally have modifiers, see the OBO specification
+    for more details. This class stores the stanza name in the
+    `name` member variable and the tags and values in a Python
+    dict called `tags`. Given a valid stanza, you can do stuff like
+    this:
+
+      >>> stanza.name
+      "Term"
+      >>> print stanza.tags["id"]
+      ['GO:0015036']
+      >>> print stanza.tags["name"]
+      ['disulfide oxidoreductase activity']
+
+    Note that the `tags` dict contains lists associated to each
+    tag name. This is because theoretically there could be more than
+    a single value associated to a tag in the OBO file format.
+    """
+
+    __slots__ = ["name", "tags"]
+
+    def __init__(self, name, tags=None):
+        """Creates a new stanza with the given name and the given
+        tags (which must be a dict)"""
+        self.name = name
+        if tags:
+            self.tags = dict(tags)
+        else:
+            self.tags = dict()
+
+    def __repr__(self):
+        """Returns a Python representation of this object"""
+        return "%s(%r, %r)" % (self.__class__.__name__, \
+                self.name, self.tags)
+
+    def add_tag(self, name, value):
+        """Adds a tag-value pair to this stanza. If the tag name already
+        exists, the value will be appended to the value list of that tag.
+        """
+        try:
+            self.tags[name].append(value)
+        except KeyError:
+            self.tags[name] = [value]
+
+    def to_term(self, term_class=GOTerm):
+        """Converts this stanza to an instance of the given term class.
+
+        :Parameters:
+        - `term_factory`: the term factory to be used. It is safe to leave
+          it at its default value unless you want to use a custom term class.
+          The signature of this factory function should be identical to that
+          of the constructor of `GOTerm`.
+        """
+        identifier = stanza.tags["id"][0]
+        name = stanza.tags.get("name", [identifier])[0]
+        return term_factory(identifier, name, stanza.tags)
+
+
+class Parser(object):
+    """The main attraction, the OBO parser.
+    
+    If you want to create a parser that reads an OBO file, do this:
+
+      >>> import Bio.GO.Parsers.oboparser as obo
+      >>> parser = obo.Parser(file("gene_ontology.1_2.obo"))
+
+    Only the headers are read when creating the parser. You can
+    access these right after construction as follows:
+
+      >>> parser.headers["format-version"]
+      ['1.2']
+
+    To read the stanzas in the file, you must iterate over the
+    parser as if it were a list. The iterator yields `Stanza`
+    objects. If you are not interested in the individual `Stanza`
+    and you only need an `Ontology` object, call the `parse()`
+    method which will construct it for you.
+    """
+
+    def __init__(self, fp):
+        """Creates an OBO parser that reads the given file-like object.
+        """
+        if isinstance(fp, (str, unicode)):
+            fp = open(fp)
+        self.fp = fp
+        self.tag_value_pair_re = re.compile(r"\s*(?P<tag>[^:]+):\s*(?P<value>.*)")
+        self.stanza_name_re = re.compile(r"\[(?P<name>[^]]*\]")
+        self.lineno = 0
+        self._read_headers()
+
+    def _lines(self):
+        """Iterates over the lines of the file, removing
+        comments and trailing newlines and merging multi-line
+        tag-value pairs into a single line"""
+        while True:
+            self.lineno += 1
+            line = self.fp.readline()
+            if not line:
+                break
+
+            line = line.strip()
+            if not line:
+                # This is an empty line
+                yield line
+                continue
+
+            if line[0] == '!':
+                # This is a comment line, so it can be ignored
+                continue
+
+            if line[-1] == '\\':
+                # This line is continued in the next line
+                lines = [line[:-1]]
+                finished = False
+                while not finished:
+                    self.lineno += 1
+                    line = self.fp.readline()
+                    if not line:
+                        # End of file. Well, this should not happen in a valid
+                        # OBO file, but we are not that strict
+                        finished = True
+                        break
+
+                    if line[0] == '!':
+                        # A comment line in the middle of a continuation
+                        continue
+
+                    line = line.strip()
+                    if line and line[-1] == '\\':
+                        # Continuation follows in the next line
+                        lines.append(line[:-1])
+                    else:
+                        # This is the final line of this block
+                        lines.append(line)
+                        finished = True
+                line = " ".join(lines)
             else:
-                if len(line) > 1:
-                    raise FormatError( "unparsed line: %s" % (line) )
-    #get the last entry
-    if len( curStanza ):
-        if load_obsolete or curStanza.get( 'is_obsolete', ['false'] )[0] == 'false':
-            newTerm = parseStanza( curStanza )
-            termHash[ newTerm.identifier ] = newTerm
+                # No line continuation
+                try:
+                    # Search for a trailing comment
+                    # The OBO specification is a bit vague here as it does not
+                    # specify whether trailing comments can contain ! or not.
+                    # We assume that they cannot - this works for the Gene
+                    # Ontology for the time being.
+                    comment_char = line.rindex("!")
+                    line = line[0:comment_char].strip()
+                except ValueError:
+                    # No comment, fine
+                    pass
 
-    ont = ontology.Ontology("GO")
-    for term in termHash:
-        ont.add_term( termHash[ term ] )
-    #print len(termHash)
-    return ont
-            
-    
-    
+            yield line
+
+    def _parse_tag_value_pair(self, line):
+        """Parses a single line consisting of a tag-value pair
+        and optional modifiers. Returns the tag name and the
+        value as a `Value` object, or ``False`` if the line does
+        not contain a tag-value pair."""
+        match = self.tag_value_pair_re.match(line)
+        if not match:
+            return False
+
+        tag, value_and_mod = match.group("tag"), match.group("value")
+
+        # If the value starts with a quotation mark, we parse it as a
+        # Python string -- luckily this is the same as an OBO string
+        if value_and_mod and value_and_mod[0] == '"':
+            g = tokenize.generate_tokens(StringIO(value_and_mod).readline)
+            for toknum, tokval, _, (erow, ecol), _ in g:
+                if toknum == tokenize.STRING:
+                    value = eval(tokval)
+                    mod = (value_and_mod[ecol:].strip(), )
+                    break
+                raise ParseError("cannot parse string literal", self.lineno)
+            return tag, Value(value, mod)
+
+        return tag, Value(value_and_mod, None)
+
+    def _read_headers(self):
+        """Reads the headers from the OBO file"""
+        self.headers = {}
+        for line in self._lines():
+            if not line or line[0] == '[':
+                # We have reached the end of headers
+                self._extra_line = line
+                return
+            key, value = self._parse_tag_value_pair(line)
+            try:
+                self.headers[key].append(value.value)
+            except KeyError:
+                self.headers[key] = [value.value]
+
+    def stanzas(self):
+        """Iterates over the stanzas in this OBO file,
+        yielding a `Stanza` object for each stanza."""
+        stanza = None
+        stanza_name_re = self.stanza_name_re
+
+        if self._extra_line:
+            match = stanza_name_re.match(self._extra_line)
+            if match:
+                stanza = Stanza(match.group("name"))
+
+        for line in self._lines():
+            if not line:
+                continue
+
+            # Do we have a stanza name in this line?
+            match = stanza_name_re.match(line)
+            if match:
+                # Yes, yield the current stanza and start a new one
+                if stanza:
+                    yield stanza
+                stanza = Stanza(match.group("name"))
+            else:
+                # No, the line contains a tag-value pair
+                tag, value = self._parse_tag_value_pair(line)
+                stanza.add_tag(tag, value)
+
+        # Yield the last stanza (if any)
+        if stanza:
+            yield stanza
+
+    def __iter__(self):
+        return self.stanzas()
+
+    def parse(self, load_obsolete=False, ontology_factory=GeneOntologyNX, \
+              term_factory=Stanza.to_term):
+        """Parses the file handle given during construction time and
+        returns an appropriately constructed `Ontology` instance.
+        
+        :Parameters:
+            - `load_obsolete`: whether to load obsolete entries from the
+              ontology file.
+            - `ontology_factory`: a factory that generates an empty instance
+              of `Ontology`. The default is safe, you have to override
+              its value only if you want to use a custom ontology class.
+            - `term_factory`: a factory that generates an appropriate `Term`
+              instance from a `Stanza` instance. The default is safe, you have
+              to override its value only if you want to use a custom term
+              class in the ontology.
+        """
+        ontology = ontology_factory()
+
+        if load_obsolete:
+            for stanza in self:
+                ontology.add(term_factory(stanza))
+        else:
+            for stanza in self:
+                if "true" not in stanza.tags.get("is_obsolete", []):
+                    ontology.add(term_factory(stanza))
+
+        return ontology
