@@ -8,7 +8,7 @@ Tests for the GO package.
 
 import unittest
 from Bio import GO
-from Bio.GO.Parsers import oboparser
+from Bio.GO.Parsers import oboparser as obo
 
 
 class OntologyFunctionsTests(unittest.TestCase):
@@ -49,7 +49,7 @@ class GOTermTests(unittest.TestCase):
 
         self.assertEqual(
                 GO.ontology.GOTerm('GO:1234567', 'somethingase').__repr__(),
-                "GOTerm('GO:1234567', 'somethingase', {}, None)"
+                "GOTerm('GO:1234567', 'somethingase', [], {}, None)"
         )
 
 
@@ -61,12 +61,12 @@ class GeneOntologyNXTests(unittest.TestCase):
         self.ontology = GO.ontology.GeneOntologyNX('biological_process')
         GOTerm = GO.ontology.GOTerm
         self.terms = (
-                GOTerm('GO:0008150', 'biological_process', {}),
-                GOTerm('GO:0051704', 'multi-organism process', {}),
+                GOTerm('GO:0008150', 'biological_process'),
+                GOTerm('GO:0051704', 'multi-organism process'),
                 GOTerm('GO:0043901', 'negative regulation of '
-                    'multi-organism process', {}),
+                    'multi-organism process'),
                 GOTerm('GO:0003674', 'molecular function', \
-                        {"alt_id": ["GO:0005554"]})
+                        ["GO:0005554"], {})
             )
 
 
@@ -179,6 +179,29 @@ class GeneOntologyNXTests(unittest.TestCase):
 #        }
 #        result = oboparser.tag_value_pair.parseString(case).asDict()
 #        self.assertEqual(result, expected)
+
+
+class OboParserRealOntologyFileTests(unittest.TestCase):
+
+    def test_mini_ontology(self):
+        parser = obo.Parser(file("GO/miniontology.obo"))
+        ontology = parser.parse()
+
+        term = ontology.get_term_by_id("GO:0003674")
+        self.failUnless(term.name == "molecular_function")
+        self.failUnless(term.tags["namespace"] == [\
+            obo.Value("molecular_function", ())\
+        ])
+
+        term2 = ontology.get_term_by_id("GO:0005554")
+        self.failUnless(term is term2)
+        
+        term = ontology.get_term_by_id("GO:0003676")
+        self.failUnless(term.name == "nucleic acid binding")
+        self.failUnless(term.tags["def"] == [\
+            obo.Value("Interacting selectively and non-covalently "+\
+            "with any nucleic acid.", ("[GOC:jl]", ))\
+        ])
 
 
 if __name__ == "__main__":

@@ -61,6 +61,14 @@ class Value(object):
         else:
             self.modifiers = None
 
+    def __eq__(self, other):
+        """Tests whether this `Value` instance is equal with another one.
+        
+        Two `Value` instances are equal if they have equal value with the
+        same modifiers in the same order.
+        """
+        return self.value == other.value and self.modifiers == other.modifiers
+
     def __str__(self):
         """Returns the value itself (without modifiers)"""
         return str(self.value)
@@ -124,8 +132,11 @@ class Stanza(object):
         except KeyError:
             self.tags[name] = [value]
 
-    def to_term(self, term_class=GOTerm):
+    def to_term(self, term_factory=GOTerm):
         """Converts this stanza to an instance of the given term class.
+
+        The stanza must contain a term; in other words, the stanza name must
+        be equal to ``"Term"``. This is not checked in this method.
 
         :Parameters:
         - `term_factory`: the term factory to be used. It is safe to leave
@@ -133,9 +144,10 @@ class Stanza(object):
           The signature of this factory function should be identical to that
           of the constructor of `GOTerm`.
         """
-        identifier = stanza.tags["id"][0]
-        name = stanza.tags.get("name", [identifier])[0]
-        return term_factory(identifier, name, stanza.tags)
+        identifier = str(self.tags["id"][0])
+        name = str(self.tags.get("name", [identifier])[0])
+        aliases = [str(go_id) for go_id in self.tags.get("alt_id", [])]
+        return term_factory(identifier, name, aliases, self.tags)
 
 
 class Parser(object):
@@ -166,7 +178,7 @@ class Parser(object):
             fp = open(fp)
         self.fp = fp
         self.tag_value_pair_re = re.compile(r"\s*(?P<tag>[^:]+):\s*(?P<value>.*)")
-        self.stanza_name_re = re.compile(r"\[(?P<name>[^]]*\]")
+        self.stanza_name_re = re.compile(r"\[(?P<name>[^]]*)\]")
         self.lineno = 0
         self._read_headers()
 
@@ -325,10 +337,13 @@ class Parser(object):
 
         if load_obsolete:
             for stanza in self:
-                ontology.add(term_factory(stanza))
+                if stanza.name == "Term":
+                    ontology.add_term(term_factory(stanza))
         else:
             for stanza in self:
+                if stanza.name != "Term":
+                    continue
                 if "true" not in stanza.tags.get("is_obsolete", []):
-                    ontology.add(term_factory(stanza))
+                    ontology.add_term(term_factory(stanza))
 
         return ontology

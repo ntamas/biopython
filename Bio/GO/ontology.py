@@ -27,9 +27,10 @@ class GOTerm(object):
 
     """
 
-    __slots__ = ("id", "name", "tags", "ontology")
+    __slots__ = ("id", "name", "aliases", "tags", "ontology")
 
-    def __init__(self, identifier, name=None, tags=None, ontology=None):
+    def __init__(self, identifier, name=None, aliases=None, tags=None, \
+                 ontology=None):
         """
         Creates a new Gene Ontology term.
 
@@ -38,6 +39,8 @@ class GOTerm(object):
           form `'GO:<digits>'` or simply `'<digits>'`, where `<digits>`
           is a zero-padded seven digit identifier (e.g., `'GO:0006955'`)
         - `name`: the name of the GO term (e.g., `'immune response'`)
+        - `aliases`: a list of alternative GO IDs for the term. Each item
+          in the list should be a valid GO ID.
         - `tags`: a dict containing the tags associated with this Gene
           Ontology terms. These tags usually come from the stanza that
           defines the term in the ontology file.
@@ -55,6 +58,12 @@ class GOTerm(object):
         else:
             self.name = ""
 
+        if aliases is None:
+            self.aliases = []
+        else:
+            self.aliases = [_validate_and_normalize_go_id(identifier) \
+                            for identifier in aliases]
+
         if tags:
             self.tags = dict(tags)
         else:
@@ -65,8 +74,8 @@ class GOTerm(object):
 
     def __repr__(self):
         """String representation of a GO term"""
-        return "%s(%r, %r, %r, %r)" % (self.__class__.__name__,
-                self.id, self.name, self.tags, self.ontology)
+        return "%s(%r, %r, %r, %r, %r)" % (self.__class__.__name__,
+                self.id, self.name, self.aliases, self.tags, self.ontology)
 
     def __str__(self):
         """Returns just the ID of the GO term"""
@@ -271,7 +280,7 @@ class GeneOntologyNX(Ontology):
 
     """
 
-    def __init__(self, name, authority=None, identifier=None):
+    def __init__(self, name=None, authority=None, identifier=None):
         """
         :Parameters:
         - `name`: name for the ontology
@@ -367,7 +376,7 @@ class GeneOntologyNX(Ontology):
 
         # Register all the alternative IDs of this term in the
         # internal dict
-        for alt_id in term.tags.get("alt_id", []):
+        for alt_id in term.aliases:
             self._goid_dict[alt_id] = term
 
 
