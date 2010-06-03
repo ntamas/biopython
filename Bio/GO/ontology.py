@@ -21,6 +21,30 @@ class InternalStorageInconsistentError(Exception):
     pass
 
 
+class NoSuchTermError(Exception):
+    """An exception to be raised when one tries to access or delete
+    a term from an ontology when the term does not belong to the
+    ontology.
+
+    """
+
+    def __init__(self, term):
+        super(NoSuchTermError, self).__init__("no such term: %s" % term.id)
+
+
+class NoSuchRelationshipError(Exception):
+    """An exception to be raised when one tries to access or delete
+    a relationship in an ontology when there is no such relationship
+    between the two given terms.
+
+    """
+
+    def __init__(self, subject_term, object_term):
+        super(NoSuchRelationshipError, self).__init__(
+            "no such relationship: %s --> %s" % (subject_term.id, object_term.id)
+        )
+
+
 class GOTerm(object):
     """
     A class to represent a term in the Gene Ontology.
@@ -29,6 +53,9 @@ class GOTerm(object):
 
     __slots__ = ("id", "name", "aliases", "tags", "ontology")
 
+    # pylint: disable-msg=C0103,R0913
+    # C0103: invalid name
+    # R0913: too many arguments
     def __init__(self, identifier, name=None, aliases=None, tags=None, \
                  ontology=None):
         """
@@ -88,6 +115,23 @@ class GORelationship(object):
 
     """
 
+    __slots__ = ("subject_term", "object_term")
+
+    def __init__(self, subject_term, object_term):
+        """Constructs a GO relationship between the given subject
+        and object terms.
+
+        :Parameters:
+        - `subject`: the subject term. Must be an instance of `GOTerm`.
+        - `object`: the object term. Must be an instance of `GOTerm`.
+        """
+        self.subject_term = subject_term
+        self.object_term = object_term
+
+    def __eq__(self, other):
+        return self.subject_term == other.subject_term and \
+               self.object_term == other.object_term
+
     def __repr__(self):
         outstr = "<%s>" % self.__class__.__name__
         return outstr
@@ -102,7 +146,8 @@ class InheritableGORelationship(GORelationship):
     relationships.
 
     """
-    pass
+
+    __slots__ = ()
 
 
 class IsARelationship(InheritableGORelationship):
@@ -113,18 +158,20 @@ class IsARelationship(InheritableGORelationship):
     A.
 
     """
-    pass
+
+    __slots__ = ()
 
 
 class PartOfRelationship(InheritableGORelationship):
     """A class representing the 'part_of' GO relationship.
 
-    This relationship is an inheritable relationship. If Term A "is_a"
-    Term B, then everything that applies to Term B also applies to Term
-    A.
+    This relationship is an inheritable relationship. If Term A is
+    "part_of" Term B, then everything that applies to Term B also
+    applies to Term A.
 
     """
-    pass
+
+    __slots__ = ()
 
 
 class RegulatesRelationship(GORelationship):
@@ -133,7 +180,8 @@ class RegulatesRelationship(GORelationship):
     This relationship is not an inheritable relationship.
 
     """
-    pass
+
+    __slots__ = ()
 
 
 class PositivelyRegulatesRelationship(RegulatesRelationship):
@@ -144,7 +192,8 @@ class PositivelyRegulatesRelationship(RegulatesRelationship):
     A.
 
     """
-    pass
+
+    __slots__ = ()
 
 
 class NegativelyRegulatesRelationship(RegulatesRelationship):
@@ -155,7 +204,8 @@ class NegativelyRegulatesRelationship(RegulatesRelationship):
     A.
 
     """
-    pass
+
+    __slots__ = ()
 
 
 class Ontology(object):
@@ -197,7 +247,10 @@ class Ontology(object):
 
     def remove_term(self, term):
         """Removes the given term from this ontology.
-        
+
+        Raises `NoSuchTermError` if the given term is not in this
+        ontology.
+
         :Parameters:
         - `term`: the term to remove; an instance of `GOTerm`.
         """
@@ -221,7 +274,7 @@ class Ontology(object):
         """
         raise NotImplementedError
 
-    def get_relationships(self, subject_term, object_term):
+    def get_relationships(self, subject_term=None, object_term=None):
         """Returns all the relationships that were added to the two
         given terms.
 
@@ -232,10 +285,22 @@ class Ontology(object):
         :Returns:
         a (possibly empty) list of relationships where `subject_term`
         stands as the subject and `object_term` stands as the object.
+
+        If `subject_term` is ``None`` and `object_term` is not ``None``,
+        all relationships will be retrieved where `object_term` is the
+        object.
+
+        If `subject_term` is not ``None`` and `object_term` is ``None``,
+        all relationships will be retrieved where `subject_term` is
+        the subject.
+
+        If both `subject_term` and `object_term` are ``None``, all
+        relationships will be retrieved.
         """
         raise NotImplementedError
 
-    def has_relationship(self, subject_term, object_term, relationship=GORelationship):
+    def has_relationship(self, subject_term, object_term, \
+                         relationship=GORelationship):
         """Checks whether there exists a relationship between the
         two given terms.
 
@@ -288,17 +353,24 @@ class GeneOntologyNX(Ontology):
         - `identifier`: an identifier for the ontology
 
         """
+        super(GeneOntologyNX, self).__init__()
         self.name = name
         self.authority = authority
         self.identifier = identifier
 
         # Store a reference to the NetworkX module here so we don't
-        # have to import it all the time
-        import networkx
-        self._nx = networkx
+        # have to import it all the time. We cannot import NetworkX
+        # at the module level as the user might not have it.
+        try:
+            import networkx
+            self._nx = networkx
+        except ImportError:
+            raise ImportError("networkx is required to use %s" % \
+                    (self.__class__.__name__, ))
+
         # The NetworkX directed graph will serve as the backbone for
         # operations.
-        self._internal_dag = networkx.DiGraph()
+        self._internal_dag = self._nx.DiGraph()
         # We'll use this so we can retrieve terms by their GO ID
         # strings, too.
         self._goid_dict = {}
@@ -308,7 +380,8 @@ class GeneOntologyNX(Ontology):
         outstr = "<%s: %s>" % (self.__class__.__name__, self.name)
         return outstr
 
-
+    # pylint: disable-msg=C0103
+    # C0103: invalid name
     def _test_existence_in_internal_storage(self, term):
         """Check on the state of storage of a given term within all the
         internal storage structures.
@@ -392,14 +465,20 @@ class GeneOntologyNX(Ontology):
 
 
     def remove_term(self, term):
-        """Add a term to the ontology.
+        """Removes the given term from this ontology.
+
+        Raises `NoSuchTermError` if the given term is not in this
+        ontology.
 
         :Parameters:
-        - `term`: a `GOTerm` instance
-
+        - `term`: the term to remove; an instance of `GOTerm`.
         """
-        del self._goid_dict[term.id]
-        self._internal_dag.remove_node(term)
+        try:
+            del self._goid_dict[term.id]
+            self._internal_dag.remove_node(term)
+            term.ontology = None
+        except KeyError:
+            raise NoSuchTermError(term)
 
 
     def add_relationship(self, subject_term, object_term, relationship):
@@ -424,8 +503,46 @@ class GeneOntologyNX(Ontology):
         for term in (subject_term, object_term):
             if term not in self:
                 self.add_term(term)
-        self._internal_dag.add_edge(subject_term, object_term, relationship)
+        self._internal_dag.add_edge(subject_term, object_term, \
+                                    relationship=relationship)
 
+    def get_relationships(self, subject_term=None, object_term=None):
+        """Returns all the relationships that were added to the two
+        given terms.
+
+        :Parameters:
+        - `subject_term`: the subject term; an instance of `GOTerm`.
+          ``None`` means all terms.
+        - `object_term`: the object term; an instance of `GOTerm`.
+          ``None`` means all terms.
+
+        :Returns:
+        a (possibly empty) list of relationships where `subject_term`
+        stands as the subject and `object_term` stands as the object.
+
+        If `subject_term` is ``None`` and `object_term` is not ``None``,
+        all relationships will be retrieved where `object_term` is the
+        object.
+
+        If `subject_term` is not ``None`` and `object_term` is ``None``,
+        all relationships will be retrieved where `subject_term` is
+        the subject.
+
+        If both `subject_term` and `object_term` are ``None``, all
+        relationships will be retrieved.
+        """
+        if subject_term is None and object_term is None:
+            result = self._internal_dag.edges(data=True)
+        elif object_term is None:
+            result = self._internal_dag.out_edges(subject_term, data=True)
+        elif subject_term is None:
+            result = self._internal_dag.in_edges(object_term, data=True)
+        else:
+            result = self._internal_dag.out_edges(subject_term, data=True)
+            result = [edge for edge in result if edge[1] == object_term]
+
+        # Construct the Relationship objects here on-the-fly
+        return [data["relationship"](src, dst) for src, dst, data in result]
 
     def remove_relationship(self, subject_term, object_term, relationship):
         """
@@ -443,8 +560,7 @@ class GeneOntologyNX(Ontology):
         try:
             self._internal_dag.remove_edge(subject_term, object_term)
         except self._nx.exception.NetworkXError:
-            #TODO
-            pass
+            raise NoSuchRelationshipError(subject_term, object_term)
 
 
     def orphaned_terms(self):
