@@ -9,85 +9,16 @@ Third-party libraries are loaded when the corresponding function is called.
 """
 __docformat__ = "epytext en"
 
+import math
 import sys
-
-import BaseTree
-
-
-def pretty_print(treeobj, file=sys.stdout, show_all=False, indent=0):
-    """Print a summary of the structure of a Phylo tree or subtree object.
-
-    With the show_all option, also prints the primitive (native Python instead
-    of just TreeElement) objects in the object tree.
-    """
-    assert isinstance(treeobj, BaseTree.TreeElement), \
-            "%s is not a valid TreeElement" % repr(treeobj)
-    if show_all:
-        show = repr
-    else:
-        def show(obj):
-            return '%s: %s' % (obj.__class__.__name__, obj)
-
-    # Closing over file
-    def print_indented(text, indent):
-        """Write an indented string of text to file."""
-        file.write('\t'*indent + text + '\n')
-
-    def print_tree(obj, indent):
-        """Recursively print a TreeElement object tree."""
-        print_indented(show(obj), indent)
-        indent += 1
-        for attr in obj.__dict__:
-            child = getattr(obj, attr)
-            if isinstance(child, BaseTree.TreeElement):
-                print_tree(child, indent)
-            elif isinstance(child, list):
-                for elem in child:
-                    if isinstance(elem, BaseTree.TreeElement):
-                        print_tree(elem, indent)
-
-    print_tree(treeobj, indent)
-
-# XXX - What about 0-length branches? Uncomment once we've figured this out.
-# def to_adjacency_matrix(tree):
-#     """Create an adjacency matrix (NumPy array) from clades/branches in tree.
-
-#     Also returns a list of all clades in tree ("allclades"), where the position
-#     of each clade in the list corresponds to a row and column of the numpy
-#     array. So, a cell i,j in the array represents the length of the branch from
-#     allclades[i] to allclades[j].
-
-#     @return: tuple of (allclades, adjacency_matrix) where allclades is a list
-#     and adjacency_matrix is a NumPy 2D array.
-#     """
-#     try:
-#         import numpy
-#     except ImportError:
-#         from Bio import MissingExternalDependencyError
-#         raise MissingExternalDependencyError(
-#                 "Install NumPy if you want to use to_adjacency_matrix.")
-
-#     # ENH/future: use OrderedDict for both lookup and allclades
-#     allclades = list(tree.find_clades(order='level'))
-#     lookup = {}
-#     for i, elem in enumerate(allclades):
-#         lookup[elem] = i
-#     adj = numpy.zeros((len(allclades), len(allclades)))
-#     for parent in tree.find_clades(terminal=False, order='level'):
-#         for child in parent.clades:
-#             if child.branch_length:
-#                 adj[lookup[parent], lookup[child]] = child.branch_length
-#     if not tree.rooted:
-#         adj += adj.transpose
-#     return (allclades, adj)
 
 
 def to_networkx(tree):
     """Convert a Tree object to a networkx graph.
 
     The result is useful for graph-oriented analysis, and also interactive
-    plotting with pylab, matplotlib or pygraphviz, though the result is not
-    quite a proper dendrogram typically used to represent a phylogeny.
+    plotting with pylab, matplotlib or pygraphviz, though the resulting diagram
+    is usually not ideal for displaying a phylogeny.
 
     Requires NetworkX version 0.99 or 1.0.
     """
@@ -96,15 +27,27 @@ def to_networkx(tree):
     except ImportError:
         from Bio import MissingExternalDependencyError
         raise MissingExternalDependencyError(
-                "The networkx library is not installed.")
+                "Install NetworkX if you want to use to_networkx.")
 
     def add_edge(graph, n1, n2):
         # NB (1/2010): the networkx API congealed recently
-        # Ubuntu Karmic uses v0.99, newest is v1.0, let's support both
+        # Ubuntu Lucid uses v0.99, newest is v1.0.1, let's support both
         if networkx.__version__ >= '1.0':
             graph.add_edge(n1, n2, weight=str(n2.branch_length or 1.0))
+            # Copy branch color value as hex, if available
             if hasattr(n2, 'color') and n2.color is not None:
                 graph[n1][n2]['color'] = n2.color.to_hex()
+            elif hasattr(n1, 'color') and n1.color is not None:
+                # Cascading color attributes
+                graph[n1][n2]['color'] = n1.color.to_hex()
+                n2.color = n1.color
+            # Copy branch weight value (float) if available
+            if hasattr(n2, 'width') and n2.width is not None:
+                graph[n1][n2]['width'] = n2.width
+            elif hasattr(n1, 'width') and n1.width is not None:
+                # Cascading width attributes
+                graph[n1][n2]['width'] = n1.width
+                n2.width = n1.width
         elif networkx.__version__ >= '0.99':
             graph.add_edge(n1, n2, (n2.branch_length or 1.0))
         else:
@@ -126,7 +69,7 @@ def to_networkx(tree):
     return G
 
 
-def draw_graphviz(tree, label_func=str, prog='neato', args='',
+def draw_graphviz(tree, label_func=str, prog='twopi', args='',
         node_color='#c0deff', **kwargs):
     """Display a tree or subtree as a graph, using the graphviz engine.
 
@@ -141,6 +84,16 @@ def draw_graphviz(tree, label_func=str, prog='neato', args='',
         >>> pylab.show()
         >>> pylab.savefig('apaf.png')
 
+    The third and fourth parameters apply to Graphviz, and the remaining
+    arbitrary keyword arguments are passed directly to networkx.draw(), which
+    in turn mostly wraps matplotlib/pylab.  See the documentation for Graphviz
+    and networkx for detailed explanations.
+
+    The NetworkX/matplotlib parameters are described in the docstrings for
+    networkx.draw() and pylab.scatter(), but the most reasonable options to try
+    are: I{ alpha, node_color, node_size, node_shape, edge_color, style,
+    font_size, font_color, font_weight, font_family }
+
     @param label_func: A function to extract a label from a node. By default
         this is str(), but you can use a different function to select another
         string associated with each node. If this function returns None for a
@@ -153,14 +106,7 @@ def draw_graphviz(tree, label_func=str, prog='neato', args='',
         the desired value without checking if the intermediate attributes are
         available:
 
-        >>> Phylo.draw_graphviz(tree, lambda n: n.taxonomies[0].code)
-
-    The third and fourth parameters apply to Graphviz, and the remaining
-    arbitrary keyword arguments are passed directly to networkx.draw(), which
-    in turn mostly wraps matplotlib/pylab.  See the documentation for Graphviz
-    and networkx for detailed explanations.
-
-    Graphviz parameters:
+            >>> Phylo.draw_graphviz(tree, lambda n: n.taxonomies[0].code)
 
     @param prog: The Graphviz program to use when rendering the graph. 'twopi'
         behaves the best for large graphs, reliably avoiding crossing edges, but
@@ -171,19 +117,13 @@ def draw_graphviz(tree, label_func=str, prog='neato', args='',
 
     @param args: String of options passed to the external graphviz program.
         Normally not needed, but offered here for completeness.
-
-    The NetworkX/matplotlib parameters are described in the docstrings for
-    networkx.draw() and pylab.scatter(), but the most reasonable options to try
-    are: 
-        alpha, node_color, node_size, node_shape, edge_color, style,
-        font_size, font_color, font_weight, font_family
     """
     try:
         import networkx
     except ImportError:
         from Bio import MissingExternalDependencyError
         raise MissingExternalDependencyError(
-                "The networkx library is not installed.")
+                "Install NetworkX if you want to use to_networkx.")
 
     G = to_networkx(tree)
     Gi = networkx.convert_node_labels_to_integers(G, discard_old_labels=False)
@@ -194,7 +134,8 @@ def draw_graphviz(tree, label_func=str, prog='neato', args='',
             posi = networkx.pydot_layout(Gi, prog)
         except ImportError:
             raise MissingExternalDependencyError(
-                    "Neither PyGraphviz nor Pydot is installed.")
+                    "Install PyGraphviz or Pydot if you want to use "
+                    "draw_graphviz.")
     posn = dict((n, posi[Gi.node_labels[n]]) for n in G)
 
     def get_label_mapping(G, selection):
@@ -213,7 +154,96 @@ def draw_graphviz(tree, label_func=str, prog='neato', args='',
         labels = dict(get_label_mapping(G, None))
     kwargs['nodelist'] = labels.keys()
     if 'edge_color' not in kwargs:
-        kwargs['edge_color'] = [isinstance(e[2], dict)
-                                and e[2].get('color', 'k') or 'k'
+        kwargs['edge_color'] = [isinstance(e[2], dict) and
+                                e[2].get('color', 'k') or 'k'
                                 for e in G.edges(data=True)]
+    if 'width' not in kwargs:
+        kwargs['width'] = [isinstance(e[2], dict) and
+                           e[2].get('width', 1.0) or 1.0
+                           for e in G.edges(data=True)]
     networkx.draw(G, posn, labels=labels, node_color=node_color, **kwargs)
+
+
+def draw_ascii(tree, file=sys.stdout, column_width=80):
+    """Draw an ascii-art phylogram of the given tree.
+
+    The printed result looks like::
+
+                                        _________ Orange
+                         ______________|
+                        |              |______________ Tangerine
+          ______________|
+         |              |          _________________________ Grapefruit
+        _|              |_________|
+         |                        |______________ Pummelo
+         |
+         |__________________________________ Apple
+
+
+    @param file: File handle opened for writing the output drawing.
+    @param column_width: Total number of text columns used by the drawing.
+    """
+    taxa = tree.get_terminals()
+    # Some constants for the drawing calculations
+    max_label_width = max(len(str(taxon)) for taxon in taxa)
+    drawing_width = column_width - max_label_width - 1
+    drawing_height = 2 * len(taxa) - 1
+
+    def get_col_positions(tree):
+        """Create a mapping of each clade to its column position."""
+        depths = tree.depths()
+        # If there are no branch lengths, assume unit branch lengths
+        if not max(depths.itervalues()):
+            depths = tree.depths(unit_branch_lengths=True)
+        # Potential drawing overflow due to rounding -- 1 char per tree layer
+        fudge_margin = int(math.ceil(math.log(len(taxa), 2)))
+        cols_per_branch_unit = ((drawing_width - fudge_margin)
+                                / float(max(depths.itervalues())))
+        return dict((clade, int(round(blen*cols_per_branch_unit + 0.5)))
+                    for clade, blen in depths.iteritems())
+
+    def get_row_positions(tree):
+        positions = dict((taxon, 2*idx) for idx, taxon in enumerate(taxa))
+        def calc_row(clade):
+            for subclade in clade:
+                if subclade not in positions:
+                    calc_row(subclade)
+            positions[clade] = (positions[clade.clades[0]] +
+                                positions[clade.clades[-1]]) / 2
+        calc_row(tree.root)
+        return positions
+
+    col_positions = get_col_positions(tree)
+    row_positions = get_row_positions(tree)
+    char_matrix = [[' ' for x in range(drawing_width)]
+                    for y in range(drawing_height)]
+
+    def draw_clade(clade, startcol):
+        thiscol = col_positions[clade]
+        thisrow = row_positions[clade]
+        # Draw a horizontal line
+        for col in range(startcol, thiscol):
+            char_matrix[thisrow][col] = '_'
+        if clade.clades:
+            # Draw a vertical line
+            toprow = row_positions[clade.clades[0]]
+            botrow = row_positions[clade.clades[-1]]
+            for row in range(toprow+1, botrow+1):
+                char_matrix[row][thiscol] = '|'
+            # NB: Short terminal branches need something to stop rstrip()
+            if (col_positions[clade.clades[0]] - thiscol) < 2:
+                char_matrix[toprow][thiscol] = ','
+            # Draw descendents
+            for child in clade:
+                draw_clade(child, thiscol+1)
+
+    draw_clade(tree.root, 0)
+    # Print the complete drawing
+    for idx, row in enumerate(char_matrix):
+        line = ''.join(row).rstrip()
+        # Add labels for terminal taxa in the right margin
+        if idx % 2 == 0:
+            line += ' ' + str(taxa[idx/2])
+        file.write(line + '\n')
+    file.write('\n')
+

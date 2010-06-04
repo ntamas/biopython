@@ -8,6 +8,11 @@ dist
 *~
 *.swp
 
+#Ignore patches and any original files created by patch command
+*.diff
+*.patch
+*.orig
+
 #Ignore these hidden files from Mac OS X
 .DS_Store
 
@@ -29,21 +34,32 @@ Tests/Graphics/*.eps
 Tests/Graphics/*.svg
 Tests/Graphics/*.png
 
+#TODO - The unit tests shouldn't leave temp files after running:
+Tests/BioSQL/temp_sqlite.db
+Tests/BioSQL/temp_sqlite.db-journal
+
 #Ignore LaTeX temp files, and compiled output
 Doc/*.aux
 Doc/*.log
 Doc/*.out
 Doc/*.toc
+Doc/*.haux
+Doc/*.htoc
 Doc/*/*.aux
 Doc/*/*.log
 Doc/*/*.out
 Doc/*/*.toc
+Doc/*/*.haux
+Doc/*/*.htoc
 Doc/*/*/*.aux
 Doc/*/*/*.log
 Doc/*/*/*.out
 Doc/*/*/*.toc
+Doc/*/*/*.haux
+Doc/*/*/*.htoc
 Doc/Tutorial.pdf
 Doc/Tutorial.html
+Doc/install/Installation.txt
 Doc/install/Installation.pdf
 Doc/install/Installation.html
 Doc/cookbook/motif/motif.pdf

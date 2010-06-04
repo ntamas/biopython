@@ -7,13 +7,23 @@
 """
 
 import os
+import tempfile
 import unittest
-import zipfile
 from itertools import izip, chain
-from cStringIO import StringIO
 
-from Bio.Phylo import PhyloXML as PX, PhyloXMLIO
+# Python 2.4 doesn't have ElementTree, which PhyloXMLIO needs
+from Bio import MissingExternalDependencyError
+try:
+    from Bio.Phylo import PhyloXML as PX, PhyloXMLIO
+except ImportError:
+    raise MissingExternalDependencyError(
+            "Install an ElementTree implementation if you want to use "
+            "Bio.Phylo to parse phyloXML files.")
 
+from Bio import Alphabet
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
+from Bio.Align import MultipleSeqAlignment
 
 # Example PhyloXML files
 EX_APAF = 'PhyloXML/apaf.xml'
@@ -21,36 +31,9 @@ EX_BCL2 = 'PhyloXML/bcl_2.xml'
 EX_MADE = 'PhyloXML/made_up.xml'
 EX_PHYLO = 'PhyloXML/phyloxml_examples.xml'
 EX_DOLLO = 'PhyloXML/o_tol_332_d_dollo.xml'
-EX_MOLLUSCA = 'PhyloXML/ncbi_taxonomy_mollusca.xml.zip'
-# Big files - not checked into git
-EX_TOL = 'PhyloXML/tol_life_on_earth_1.xml.zip'
-EX_METAZOA = 'PhyloXML/ncbi_taxonomy_metazoa.xml.zip'
-EX_NCBI = 'PhyloXML/ncbi_taxonomy.xml.zip'
 
-
-def unzip(fname):
-    """Extract a single file from a Zip archive and return a handle to it."""
-    assert zipfile.is_zipfile(fname)
-    z = zipfile.ZipFile(fname)
-    return StringIO(z.read(z.filelist[0].filename))
-
-
-# ---------------------------------------------------------
-# Utility tests
-
-class UtilTests(unittest.TestCase):
-    """Tests for PhyloXML utility functions."""
-    def test_dump_tags(self):
-        """Count and confirm the number of tags in each example XML file."""
-        for source, count in izip(
-                (EX_APAF, EX_BCL2, EX_PHYLO, unzip(EX_MOLLUSCA),
-                    # unzip(EX_METAZOA), unzip(EX_NCBI),
-                    ),
-                (509, 1496, 289, 24311, 322367, 972830)):
-            output = StringIO()
-            PhyloXMLIO.dump_tags(source, output)
-            output.seek(0)
-            self.assertEquals(len(output.readlines()), count)
+# Temporary file name for Writer tests below
+DUMMY = tempfile.mktemp()
 
 
 # ---------------------------------------------------------
@@ -64,8 +47,6 @@ def _test_read_factory(source, count):
     phylogenies under the root.
     """
     fname = os.path.basename(source)
-    if zipfile.is_zipfile(source):
-        source = unzip(source)
     def test_read(self):
         phx = PhyloXMLIO.read(source)
         self.assert_(phx)
@@ -82,8 +63,6 @@ def _test_parse_factory(source, count):
     function and counts the total number of trees extracted.
     """
     fname = os.path.basename(source)
-    if zipfile.is_zipfile(source):
-        source = unzip(source)
     def test_parse(self):
         trees = PhyloXMLIO.parse(source)
         self.assertEquals(len(list(trees)), count)
@@ -98,8 +77,6 @@ def _test_shape_factory(source, shapes):
     clades deep.
     """
     fname = os.path.basename(source)
-    if zipfile.is_zipfile(source):
-        source = unzip(source)
     def test_shape(self):
         trees = PhyloXMLIO.parse(source)
         for tree, shape_expect in izip(trees, shapes):
@@ -120,14 +97,12 @@ class ParseTests(unittest.TestCase):
     test_read_made = _test_read_factory(EX_MADE, (6, 0))
     test_read_phylo = _test_read_factory(EX_PHYLO, (13, 1))
     test_read_dollo = _test_read_factory(EX_DOLLO, (1, 0))
-    test_read_mollusca = _test_read_factory(EX_MOLLUSCA, (1, 0))
 
     test_parse_apaf = _test_parse_factory(EX_APAF, 1)
     test_parse_bcl2 = _test_parse_factory(EX_BCL2, 1)
     test_parse_made = _test_parse_factory(EX_MADE, 6)
     test_parse_phylo = _test_parse_factory(EX_PHYLO, 13)
     test_parse_dollo = _test_parse_factory(EX_DOLLO, 1)
-    test_parse_mollusca = _test_parse_factory(EX_MOLLUSCA, 1)
 
     test_shape_apaf = _test_shape_factory(EX_APAF,
             # lvl-2 clades, sub-clade counts, lvl-3 clades
@@ -190,22 +165,12 @@ class ParseTests(unittest.TestCase):
                   ),
                 ),
             )
-    test_shape_zip = _test_shape_factory(EX_MOLLUSCA,
-                ( ( (3, (5, 1, 4)),
-                    (5, (6, 2, 2, 2, 1)),
-                    (2, (1, 1)),
-                    (1, (2,)),
-                    (2, (4, 4)),
-                    (2, (2, 2)),
-                    (1, (1,)),
-                  ),
-                ),
-            )
 
 
 class TreeTests(unittest.TestCase):
     """Tests for instantiation and attributes of each complex type."""
     # ENH: also test check_str() regexps wherever they're used
+
     def test_Phyloxml(self):
         """Instantiation of Phyloxml objects."""
         phx = PhyloXMLIO.read(EX_PHYLO)
@@ -283,7 +248,7 @@ class TreeTests(unittest.TestCase):
             self.assertEqual(getattr(bchars, name+'_count'), count)
             self.assertEqual(getattr(bchars, name), value)
 
-    # BranchColor -- no example
+    # TODO: BranchColor -- see made_up.xml
 
     def test_CladeRelation(self):
         """Instantiation of CladeRelation objects."""
@@ -527,74 +492,100 @@ class TreeTests(unittest.TestCase):
 # Serialization tests
 
 class WriterTests(unittest.TestCase):
-    """Tests for serialization of objects to phyloXML format."""
-    def _stash_rewrite_and_call(self, fname, test_cases):
-        """Safely run a series of tests on a parsed and rewritten file.
+    """Tests for serialization of objects to phyloXML format.
+    
+    Modifies the globally defined filenames in order to run the other parser
+    tests on files (re)generated by PhyloXMLIO's own writer.
+    """
 
-        Specifically: Parse a file, rename the source file to a backup, rewrite
-        the file from the parsed object, check the rewritten file with the
-        given series of test functions, then restore the original by renaming
-        the backup copy.
-
-        Python 2.4 support: This would make more sense as a context manager
-        that simply handles renaming and finally restoring the original.
-        """
-        phx = PhyloXMLIO.read(fname)
-        os.rename(fname, fname + '~')
-        try:
-            PhyloXMLIO.write(phx, fname)
-            for cls, tests in test_cases:
-                inst = cls('setUp')
-                for test in tests:
-                    getattr(inst, test)()
-        finally:
-            os.rename(fname + '~', fname)
+    def _rewrite_and_call(self, orig_fname, test_cases):
+        """Parse, rewrite and retest a phyloXML example file."""
+        infile = open(orig_fname, 'rb')
+        phx = PhyloXMLIO.read(infile)
+        infile.close()
+        outfile = open(DUMMY, 'w+b')
+        PhyloXMLIO.write(phx, outfile)
+        outfile.close()
+        for cls, tests in test_cases:
+            inst = cls('setUp')
+            for test in tests:
+                getattr(inst, test)()
 
     def test_apaf(self):
         """Round-trip parsing and serialization of apaf.xml."""
-        self._stash_rewrite_and_call(EX_APAF, (
-            (ParseTests, [
-                'test_read_apaf', 'test_parse_apaf', 'test_shape_apaf']),
-            (TreeTests, ['test_DomainArchitecture']),
-            ))
+        global EX_APAF
+        orig_fname = EX_APAF
+        try:
+            EX_APAF = DUMMY
+            self._rewrite_and_call(orig_fname, (
+                (ParseTests, [
+                    'test_read_apaf', 'test_parse_apaf', 'test_shape_apaf']),
+                (TreeTests, ['test_DomainArchitecture']),
+                ))
+        finally:
+            EX_APAF = orig_fname
 
     def test_bcl2(self):
         """Round-trip parsing and serialization of bcl_2.xml."""
-        self._stash_rewrite_and_call(EX_BCL2, (
-            (ParseTests, [
-                'test_read_bcl2', 'test_parse_bcl2', 'test_shape_bcl2']),
-            (TreeTests, ['test_Confidence']),
-            ))
+        global EX_BCL2
+        orig_fname = EX_BCL2
+        try:
+            EX_BCL2 = DUMMY
+            self._rewrite_and_call(orig_fname, (
+                (ParseTests, [
+                    'test_read_bcl2', 'test_parse_bcl2', 'test_shape_bcl2']),
+                (TreeTests, ['test_Confidence']),
+                ))
+        finally:
+            EX_BCL2 = orig_fname
 
     def test_made(self):
         """Round-trip parsing and serialization of made_up.xml."""
-        self._stash_rewrite_and_call(EX_MADE, (
-            (ParseTests, ['test_read_made', 'test_parse_made']),
-            (TreeTests, ['test_Confidence', 'test_Polygon']),
-            ))
+        global EX_MADE
+        orig_fname = EX_MADE
+        try:
+            EX_MADE = DUMMY
+            self._rewrite_and_call(orig_fname, (
+                (ParseTests, ['test_read_made', 'test_parse_made']),
+                (TreeTests, ['test_Confidence', 'test_Polygon']),
+                ))
+        finally:
+            EX_MADE = orig_fname
 
     def test_phylo(self):
         """Round-trip parsing and serialization of phyloxml_examples.xml."""
-        self._stash_rewrite_and_call(EX_PHYLO, (
-            (ParseTests, [
-                'test_read_phylo', 'test_parse_phylo', 'test_shape_phylo']),
-            (TreeTests, [
-                'test_Phyloxml',   'test_Other',
-                'test_Phylogeny',  'test_Clade',
-                'test_Annotation', 'test_CladeRelation',
-                'test_Date',       'test_Distribution',
-                'test_Events',     'test_Property',
-                'test_Sequence',   'test_SequenceRelation',
-                'test_Taxonomy',   'test_Uri',
-                ]),
-            ))
+        global EX_PHYLO
+        orig_fname = EX_PHYLO
+        try:
+            EX_PHYLO = DUMMY
+            self._rewrite_and_call(orig_fname, (
+                (ParseTests, [
+                    'test_read_phylo', 'test_parse_phylo', 'test_shape_phylo']),
+                (TreeTests, [
+                    'test_Phyloxml',   'test_Other',
+                    'test_Phylogeny',  'test_Clade',
+                    'test_Annotation', 'test_CladeRelation',
+                    'test_Date',       'test_Distribution',
+                    'test_Events',     'test_Property',
+                    'test_Sequence',   'test_SequenceRelation',
+                    'test_Taxonomy',   'test_Uri',
+                    ]),
+                ))
+        finally:
+            EX_PHYLO = orig_fname
 
     def test_dollo(self):
         """Round-trip parsing and serialization of o_tol_332_d_dollo.xml."""
-        self._stash_rewrite_and_call(EX_DOLLO, (
-            (ParseTests, ['test_read_dollo', 'test_parse_dollo']),
-            (TreeTests, ['test_BinaryCharacters']),
-            ))
+        global EX_DOLLO
+        orig_fname = EX_DOLLO
+        try:
+            EX_DOLLO = DUMMY
+            self._rewrite_and_call(orig_fname, (
+                (ParseTests, ['test_read_dollo', 'test_parse_dollo']),
+                (TreeTests, ['test_BinaryCharacters']),
+                ))
+        finally:
+            EX_DOLLO = orig_fname
 
 
 # ---------------------------------------------------------
@@ -648,10 +639,22 @@ class MethodTests(unittest.TestCase):
         pseq2 = PX.Sequence.from_seqrecord(srec)
         # TODO: check the round-tripped attributes again
 
-
-    def test_get_alignment(self):
-        # TODO: load a Phylogeny w/ aligned Sequences, call, check attrs
-        pass
+    def test_to_alignment(self):
+        tree = self.phyloxml.phylogenies[0]
+        aln = tree.to_alignment()
+        self.assert_(isinstance(aln, MultipleSeqAlignment))
+        self.assertEqual(len(aln), 0)
+        # Add sequences to the terminals
+        alphabet = Alphabet.Gapped(Alphabet.generic_dna)
+        for tip, seqstr in izip(tree.get_terminals(),
+                ('AA--TTA', 'AA--TTG', 'AACCTTC')):
+            tip.sequences.append(PX.Sequence.from_seqrecord(
+                SeqRecord(Seq(seqstr, alphabet), id=str(tip))))
+        # Check the alignment
+        aln = tree.to_alignment()
+        self.assert_(isinstance(aln, MultipleSeqAlignment))
+        self.assertEqual(len(aln), 3)
+        self.assertEqual(aln.get_alignment_length(), 7)
 
     # Syntax sugar
 
@@ -703,21 +706,21 @@ class MethodTests(unittest.TestCase):
         self.assertEqual(clade.taxonomy.rank, 'genus')
         # raise if len > 1
         clade.confidences.append(conf)
-        self.assertRaises(ValueError, getattr, clade, 'confidence')
-        clade.taxonomies.append(taxo)
-        self.assertRaises(ValueError, getattr, clade, 'taxonomy')
-        # raise if []
-        clade.confidences = []
         self.assertRaises(AttributeError, getattr, clade, 'confidence')
-        clade.taxonomies = []
+        clade.taxonomies.append(taxo)
         self.assertRaises(AttributeError, getattr, clade, 'taxonomy')
+        # None if []
+        clade.confidences = []
+        self.assertEqual(clade.confidence, None)
+        clade.taxonomies = []
+        self.assertEqual(clade.taxonomy, None)
         # Phylogeny.confidence
         tree = PX.Phylogeny(True, confidences=[conf])
         self.assertEqual(tree.confidence.type, 'bootstrap')
         tree.confidences.append(conf)
-        self.assertRaises(ValueError, getattr, tree, 'confidence')
-        tree.confidences = []
         self.assertRaises(AttributeError, getattr, tree, 'confidence')
+        tree.confidences = []
+        self.assertEqual(tree.confidence, None)
 
     # Other methods
 
@@ -735,3 +738,6 @@ class MethodTests(unittest.TestCase):
 if __name__ == '__main__':
     runner = unittest.TextTestRunner(verbosity=2)
     unittest.main(testRunner=runner)
+    # Clean up the temporary file
+    if os.path.exists(DUMMY):
+        os.remove(DUMMY)

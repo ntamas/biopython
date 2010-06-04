@@ -11,6 +11,7 @@
 # Builtins
 import os
 import unittest
+import math
 
 # Do we have ReportLab?  Raise error if not present.
 from Bio import MissingExternalDependencyError
@@ -200,13 +201,47 @@ class ColorsTest(unittest.TestCase):
 
             
 class GraphTest(unittest.TestCase):
-    def setUp(self):
-        self.data = [(1, 10), (5, 15), (20, 40)]
+    def test_limits(self):
+        """Check line graphs."""
+        #TODO - Fix GD so that the same min/max is used for all three lines?
+        points = 1000
+        scale = math.pi * 2.0 / points
+        data1 = [math.sin(x*scale) for x in range(points)]
+        data2 = [math.cos(x*scale) for x in range(points)]
+        data3 = [2*math.sin(2*x*scale) for x in range(points)]
+        
+        gdd = Diagram('Test Diagram', circular=False,
+                      y=0.01, yt=0.01, yb=0.01,
+                      x=0.01, xl=0.01, xr=0.01)
+        gdt_data = gdd.new_track(1, greytrack=False)
+        gds_data = gdt_data.new_set("graph")
+        for data_values, name, color in zip([data1,data2,data3],
+                                            ["sin", "cos", "2sin2"],
+                                            ["red","green","blue"]):
+            data = zip(range(points), data_values)
+            gds_data.new_graph(data, "", style="line",
+                               color = color, altcolor = color,
+                               center = 0)
+
+        gdd.draw(format='linear',
+                 tracklines=False,
+                 pagesize=(15*cm,15*cm),
+                 fragments=1,
+                 start=0, end=points)
+        gdd.write(os.path.join('Graphics', "line_graph.pdf"), "pdf")
+        #Circular diagram - move tracks to make an empty space in the middle
+        for track_number in gdd.tracks.keys():
+            gdd.move_track(track_number,track_number+1)
+        gdd.draw(tracklines=False,
+                 pagesize=(15*cm,15*cm),
+                 circular=True, #Data designed to be periodic
+                 start=0, end=points)
+        gdd.write(os.path.join('Graphics', "line_graph_c.pdf"), "pdf")
         
     def test_slicing(self):
         """Check GraphData slicing."""
         gd = GraphData()
-        gd.set_data(self.data)
+        gd.set_data([(1, 10), (5, 15), (20, 40)])
         gd.add_point((10, 20))
         
         assert gd[4:16] == [(5, 15), (10, 20)], \
@@ -491,6 +526,14 @@ class DiagramTest(unittest.TestCase):
                 #Out of frame (too far right)
                 continue
 
+            #This URL should work in SVG output from recent versions
+            #of ReportLab.  You need ReportLab 2.4 or later
+            try :
+                url = "http://www.ncbi.nlm.nih.gov/entrez/viewer.fcgi"+\
+                      "?db=protein&id=%s" % feature.qualifiers["protein_id"][0]
+            except KeyError :
+                url = None
+                
             #Note that I am using strings for color names, instead
             #of passing in color objects.  This should also work!
             if len(gds_features) % 2 == 0:
@@ -500,6 +543,7 @@ class DiagramTest(unittest.TestCase):
             #Checking it can cope with the old UK spelling colour.
             #Also show the labels perpendicular to the track.
             gds_features.add_feature(feature, colour=color,
+                                     url = url,
                                      sigil="ARROW",
                                      label_position = "start",
                                      label_size = 8,
@@ -568,13 +612,23 @@ class DiagramTest(unittest.TestCase):
                 index  = genbank_entry.seq.find(site, start=index)
                 if index == -1 : break
                 feature = SeqFeature(FeatureLocation(index, index+6), strand=None)
-                gds_features.add_feature(feature, color=color,
-                                            #label_position = "middle",
-                                            label_size = 10,
-                                            label_color=color,
-                                            #label_angle = 90,
-                                            name=name,
-                                            label=True)
+
+                #This URL should work in SVG output from recent versions
+                #of ReportLab.  You need ReportLab 2.4 or later
+                try :
+                    url = "http://www.ncbi.nlm.nih.gov/entrez/viewer.fcgi"+\
+                          "?db=protein&id=%s" % feature.qualifiers["protein_id"][0]
+                except KeyError :
+                    url = None
+
+                gds_features.add_feature(feature, color = color,
+                                         url = url,
+                                         #label_position = "middle",
+                                         label_size = 10,
+                                         label_color = color,
+                                         #label_angle = 90,
+                                         name = name,
+                                         label = True)
                 index += len(site)
             del index
 

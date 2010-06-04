@@ -11,6 +11,7 @@ from Bio.SeqRecord import SeqRecord
 from Bio.Seq import Seq, UnknownSeq
 from StringIO import StringIO
 from Bio import Alphabet
+from Bio.Align import MultipleSeqAlignment
 
 import warnings
 def send_warnings_to_stdout(message, category, filename, lineno,
@@ -51,6 +52,7 @@ test_write_read_alignment_formats.remove("fastq-sanger") #an alias for fastq
 # - integer: number of sequences
 
 test_files = [ \
+    ("sff",    False, 'Roche/E3MFGYR02_random_10_reads.sff', 10),
 #Following examples are also used in test_Clustalw.py
     ("clustal",True,  'Clustalw/cw02.aln', 2),
     ("clustal",True,  'Clustalw/opuntia.aln', 7),
@@ -79,6 +81,7 @@ test_files = [ \
     ("fasta",  False, 'GenBank/NC_005816.ffn', 10),
     ("fasta",  False, 'GenBank/NC_005816.faa', 10),
     ("fasta",  False, 'GenBank/NC_000932.faa', 85),
+    ("tab",  False, 'GenBank/NC_005816.tsv', 10), # FASTA -> Tabbed
 #Following examples are also used in test_GFF.py
     ("fasta",  False, 'GFF/NC_001802.fna', 1), #upper case
     ("fasta",  False, 'GFF/NC_001802lc.fna', 1), #lower case
@@ -137,6 +140,7 @@ test_files = [ \
     ("embl",   False, 'EMBL/AAA03323.embl', 1), # 2008, PA line but no AC
     ("embl",   False, 'EMBL/AE017046.embl', 1), #See also NC_005816.gb
     ("embl",   False, 'EMBL/Human_contigs.embl', 2), #contigs, no sequences
+    ("embl",   False, 'EMBL/A04195.imgt', 1), # features over indented for EMBL
     ("stockholm", True,  'Stockholm/simple.sth', 2),
     ("stockholm", True,  'Stockholm/funny.sth', 5),
 #Following PHYLIP files are currently only used here and in test_AlignIO.py,
@@ -165,7 +169,7 @@ test_files = [ \
     ("ig",  False, 'IntelliGenetics/TAT_mase_nuc.txt', 17),
     ("ig",  True,  'IntelliGenetics/VIF_mase-pro.txt', 16),
     #This next file is a MASE alignment but sequence O_ANT70 is shorter than
-    #the others (so the to_alignment() call will fail).  Perhaps MASE doesn't
+    #the others (so as an alignment will fail).  Perhaps MASE doesn't
     #write trailing gaps?
     ("ig",  False,  'IntelliGenetics/vpu_nucaligned.txt', 9),
 #Following NBRD-PIR files are used in test_nbrf.py
@@ -229,14 +233,23 @@ def compare_record(record_one, record_two):
     """This is meant to be a strict comparison for exact agreement..."""
     assert isinstance(record_one, SeqRecord)
     assert isinstance(record_two, SeqRecord)
+    assert record_one.seq is not None
+    assert record_two.seq is not None
     if record_one.id != record_two.id:
         return False
     if record_one.name != record_two.name:
         return False
     if record_one.description != record_two.description:
         return False
-    if record_one.seq is not None and record_two.seq is not None \
-    and record_one.seq.tostring() != record_two.seq.tostring():
+    if len(record_one) != len(record_two):
+        return False
+    if isinstance(record_one.seq, UnknownSeq) \
+    and isinstance(record_two.seq, UnknownSeq):
+        #Jython didn't like us comparing the string of very long UnknownSeq
+        #object (out of heap memory error)
+        if record_one.seq._character != record_two.seq._character:
+            return False
+    elif record_one.seq.tostring() != record_two.seq.tostring():
         return False
     #TODO - check features and annotation (see code for BioSQL tests)
     for key in set(record_one.letter_annotations).intersection( \
@@ -272,7 +285,7 @@ def alignment_summary(alignment, index=" "):
     """Returns a concise summary of an Alignment object as a string"""
     answer = []
     alignment_len = alignment.get_alignment_length()
-    rec_count = len(alignment.get_all_seqs())
+    rec_count = len(alignment)
     for i in range(min(5,alignment_len)):
         answer.append(index + col_summary(alignment.get_column(i)) \
                             + " alignment column %i" % i)
@@ -340,11 +353,18 @@ def check_simple_write_read(records, indent=" "):
         for r1, r2 in zip(records, records2):
             #Check the bare minimum (ID and sequence) as
             #many formats can't store more than that.
+            assert len(r1) == len(r2)
 
             #Check the sequence
             if format in ["gb", "genbank", "embl"]:
                 #The GenBank/EMBL parsers will convert to upper case.
-                assert r1.seq.tostring().upper() == r2.seq.tostring()
+                if isinstance(r1.seq, UnknownSeq) \
+                and isinstance(r2.seq, UnknownSeq):
+                    #Jython didn't like us comparing the string of very long
+                    #UnknownSeq object (out of heap memory error)
+                    assert r1.seq._character.upper() == r2.seq._character
+                else:
+                    assert r1.seq.tostring().upper() == r2.seq.tostring()
             elif format == "qual":
                 assert isinstance(r2.seq, UnknownSeq)
                 assert len(r2) == len(r1)
@@ -367,31 +387,45 @@ def check_simple_write_read(records, indent=" "):
                 assert r1.id == r2.id, \
                        "'%s' vs '%s'" % (r1.id, r2.id)
 
+        if len(records)>1:
+            #Try writing just one record (passing a SeqRecord, not a list)
+            handle = StringIO()
+            SeqIO.write(records[0], handle, format)
+            assert handle.getvalue() == records[0].format(format)
+
 
 #Check parsers can cope with an empty file
 for t_format in SeqIO._FormatToIterator:
+    if t_format in SeqIO._BinaryFormats:
+        #Not allowed empty SFF files.
+        continue
     handle = StringIO()
     records = list(SeqIO.parse(handle, t_format))
     assert len(records) == 0
 
 for (t_format, t_alignment, t_filename, t_count) in test_files:
+    if t_format in SeqIO._BinaryFormats:
+        mode = "rb"
+    else:
+        mode = "r"
+    
     print "Testing reading %s format file %s" % (t_format, t_filename)
     assert os.path.isfile(t_filename), t_filename
 
     #Try as an iterator using handle
-    records  = list(SeqIO.parse(handle=open(t_filename,"r"), format=t_format))
+    records  = list(SeqIO.parse(handle=open(t_filename,mode), format=t_format))
     assert len(records)  == t_count, \
          "Found %i records but expected %i" % (len(records), t_count)
 
-    #Try using the iterator with a for loop
+    #Try using the iterator with a for loop, and a filename not handle
     records2 = []
-    for record in SeqIO.parse(handle=open(t_filename,"r"), format=t_format):
+    for record in SeqIO.parse(t_filename, format=t_format):
         records2.append(record)
     assert len(records2) == t_count
 
     #Try using the iterator with the next() method
     records3 = []
-    seq_iterator = SeqIO.parse(handle=open(t_filename,"r"), format=t_format)
+    seq_iterator = SeqIO.parse(handle=open(t_filename,mode), format=t_format)
     while True:
         try:
             record = seq_iterator.next()
@@ -406,7 +440,7 @@ for (t_format, t_alignment, t_filename, t_count) in test_files:
             break
 
     #Try a mixture of next() and list (a torture test!)
-    seq_iterator = SeqIO.parse(handle=open(t_filename,"r"), format=t_format)
+    seq_iterator = SeqIO.parse(handle=open(t_filename,mode), format=t_format)
     try:
         record = seq_iterator.next()
     except StopIteration:
@@ -419,7 +453,7 @@ for (t_format, t_alignment, t_filename, t_count) in test_files:
     assert len(records4) == t_count
 
     #Try a mixture of next() and for loop (a torture test!)
-    seq_iterator = SeqIO.parse(handle=open(t_filename,"r"), format=t_format)
+    seq_iterator = SeqIO.parse(handle=open(t_filename,mode), format=t_format)
     try:
         record = seq_iterator.next()
     except StopIteration:
@@ -518,18 +552,18 @@ for (t_format, t_alignment, t_filename, t_count) in test_files:
     for given_alpha in good:
         #These should all work...
         given_base = Alphabet._get_base_alphabet(given_alpha)
-        for record in SeqIO.parse(open(t_filename),t_format,given_alpha):
+        for record in SeqIO.parse(open(t_filename,mode),t_format,given_alpha):
             base_alpha = Alphabet._get_base_alphabet(record.seq.alphabet)
             assert isinstance(base_alpha, given_base.__class__)
             assert base_alpha == given_base
         if t_count == 1:
-            record = SeqIO.read(open(t_filename),t_format,given_alpha)
+            record = SeqIO.read(open(t_filename,mode),t_format,given_alpha)
             assert isinstance(base_alpha, given_base.__class__)
             assert base_alpha == given_base
     for given_alpha in bad:
         #These should all fail...
         try:
-            print SeqIO.parse(open(t_filename),t_format,given_alpha).next()
+            print SeqIO.parse(open(t_filename,mode),t_format,given_alpha).next()
             assert False, "Forcing wrong alphabet, %s, should fail (%s)" \
                    % (repr(given_alpha), t_filename)
         except ValueError:
@@ -540,17 +574,16 @@ for (t_format, t_alignment, t_filename, t_count) in test_files:
         print "Testing reading %s format file %s as an alignment" \
               % (t_format, t_filename)
 
-        #Using SeqIO.to_alignment(SeqIO.parse(...))
-        alignment = SeqIO.to_alignment(SeqIO.parse( \
-                    handle=open(t_filename,"r"), format=t_format))
-        assert len(alignment.get_all_seqs()) == t_count
+        alignment = MultipleSeqAlignment(SeqIO.parse( \
+                    handle=open(t_filename,mode), format=t_format))
+        assert len(alignment) == t_count
 
         alignment_len = alignment.get_alignment_length()
 
         #Check the record order agrees, and double check the
         #sequence lengths all agree too.
         for i in range(t_count):
-            assert compare_record(records[i], alignment.get_all_seqs()[i])
+            assert compare_record(records[i], alignment[i])
             assert len(records[i].seq) == alignment_len
 
         print alignment_summary(alignment)
@@ -615,8 +648,12 @@ for (records, descr) in test_records:
 
 #Check writers can cope with no alignments
 for format in SeqIO._FormatToWriter:
-     handle = StringIO()
-     assert 0 == SeqIO.write([], handle, format), \
-            "Writing no records to %s format should work!" \
-            % t_format        
+    handle = StringIO()
+    try :
+        assert 0 == SeqIO.write([], handle, format), \
+               "Writing no records to %s format should work!" \
+               % t_format
+    except ValueError, err:
+        print "Writing no records to %s format failed: %s" % (format, err)
+
 print "Finished tested writing files"

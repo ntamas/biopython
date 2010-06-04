@@ -9,11 +9,28 @@ The latest news is at the top.
 
 ===================================================================
 
+The SeqRecord object now has upper and lower methods (like the Seq object and
+Python strings), which return a new SeqRecord with the sequence in upper or
+lower case and a copy of all the annotation unchanged.
+
+===================================================================
+
+May 20, 2010: Biopython 1.54 released.
+
+See the notes below for the Biopython 1.54 beta release for changes since
+Biopython 1.53 was released. Since then there have been some changes to
+the new Bio.Phylo module, more documentation, and a number of smaller
+bug fixes.
+
+===================================================================
+
+April 2, 2010: Biopython 1.54 beta released.
+
 We are phasing out support for Python 2.4. We will continue to support it
 for at least two further releases, and at least one year (whichever takes
-longer), before dropping support for Python 2.4. This can could be delayed
+longer), before dropping support for Python 2.4. This could be delayed
 given feedback from our users (e.g. if this proves to be a problem in
-combination with other libraries).
+combination with other libraries or a popular Linux distribution).
 
 New module Bio.Phylo includes support for reading, writing and working with
 phylogenetic trees from Newick, Nexus and phyloXML files. This was work by
@@ -24,13 +41,39 @@ Christian Zmasek.
 Bio.Entrez includes some more DTD files, in particular eLink_090910.dtd,
 needed for our NCBI Entrez Utilities XML parser.
 
+The parse, read and write functions in Bio.SeqIO and Bio.AlignIO will now
+accept filenames as well as handles. This follows a general shift from
+from other Python libraries, and does make usage a little simpler. Also
+the write functions will now accept a single SeqRecord or alignment.
+
 Bio.SeqIO now supports writing EMBL files (DNA and RNA sequences only).
 
-(At least) 5 people contributed to this release, including 1 new person:
+The dictionary-like objects from Bio.SeqIO.index() now support a get_raw
+method for most file formats, giving you the original unparsed data from the
+file as a string. This is useful for selecting a subset of records from a
+file where Bio.SeqIO.write() does not support the file format (e.g. the
+"swiss" format) or where you need to exactly preserve the original layout.
 
+Based on code from Jose Blanca (author of sff_extract), Bio.SeqIO now
+supports reading, indexing and writing Standard Flowgram Format (SFF)
+files which are used by 454 Life Sciences (Roche) sequencers. This means
+you can use SeqIO to convert from SFF to FASTQ, FASTA and QUAL (as
+trimmed or untrimmed reads).
+
+An improved multiple sequence alignment object has been introduced,
+and is used by Bio.AlignIO for input. This is a little stricter than the
+old class but should otherwise be backwards compatible.
+
+(At least) 11 people contributed to this release, including 5 new people:
+
+Anne Pajon (first contribution)
 Brad Chapman
 Christian Zmasek
+Diana Jaunzeikare (first contribution)
 Eric Talevich
+Jose Blanca (first contribution)
+Kevin Jacobs (first contribution)
+Leighton Pritchard
 Michiel de Hoon
 Peter Cock
 Thomas Holder (first contribution)

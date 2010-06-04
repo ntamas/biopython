@@ -1,4 +1,4 @@
-# Copyright 2009 by Peter Cock.  All rights reserved.
+# Copyright 2009-2010 by Peter Cock.  All rights reserved.
 # This code is part of the Biopython distribution and governed by its
 # license.  Please see the LICENSE file that should have been included
 # as part of this package.
@@ -25,6 +25,7 @@ temp lookup file might be one idea (e.g. using SQLite or an OBDA style index).
 
 import re
 from Bio import SeqIO
+from Bio import Alphabet
 
 class _IndexedSeqFileDict(dict):
     """Read only dictionary interface to a sequential sequence file.
@@ -138,6 +139,16 @@ class _IndexedSeqFileDict(dict):
         except KeyError:
             return d
 
+    def get_raw(self, key):
+        """Similar to the get method, but returns the record as a raw string.
+
+        If the key is not found, a KeyError exception is raised.
+
+        NOTE - This functionality is not supported for every file format.
+        """
+        #Should be done by each sub-class (if possible)
+        raise NotImplementedError("Not available for this file format.")
+
     def __setitem__(self, key, value):
         """Would allow setting or replacing records, but not implemented."""
         raise NotImplementedError("An indexed a sequence file is read only.")
@@ -181,6 +192,67 @@ class _IndexedSeqFileDict(dict):
 # a file header - e.g. SFF files where we would need to know the
 # number of flows.
 
+class SffDict(_IndexedSeqFileDict) :
+    """Indexed dictionary like access to a Standard Flowgram Format (SFF) file."""
+    def __init__(self, filename, alphabet, key_function) :
+        if alphabet is None:
+            alphabet = Alphabet.generic_dna
+        #On Unix, using mode="r" or "rb" works, "rU" does not.
+        #On Windows, only using mode="rb" works, "r" and "rU" fail.
+        _IndexedSeqFileDict.__init__(self, filename, alphabet, key_function, "rb")
+        handle = self._handle
+        header_length, index_offset, index_length, number_of_reads, \
+        self._flows_per_read, self._flow_chars, self._key_sequence \
+            = SeqIO.SffIO._sff_file_header(handle)
+        if index_offset and index_length:
+            #There is an index provided, try this the fast way:
+            try :
+                for name, offset in SeqIO.SffIO._sff_read_roche_index(handle) :
+                    self._record_key(name, offset)
+                assert len(self) == number_of_reads, \
+                       "Indexed %i records, expected %i" \
+                       % (len(self), number_of_reads)
+                return
+            except ValueError, err :
+                import warnings
+                warnings.warn("Could not parse the SFF index: %s" % err)
+                dict.clear(self) #reset in case partially populated
+                handle.seek(0)
+        else :
+            #TODO - Remove this debug warning?
+            import warnings
+            warnings.warn("No SFF index, doing it the slow way")
+        #Fall back on the slow way!
+        for name, offset in SeqIO.SffIO._sff_do_slow_index(handle) :
+            #print "%s -> %i" % (name, offset)
+            self._record_key(name, offset)
+        assert len(self) == number_of_reads, \
+               "Indexed %i records, expected %i" % (len(self), number_of_reads)
+
+    def __getitem__(self, key) :
+        handle = self._handle
+        handle.seek(dict.__getitem__(self, key))
+        record = SeqIO.SffIO._sff_read_seq_record(handle,
+                                                  self._flows_per_read,
+                                                  self._flow_chars,
+                                                  self._key_sequence,
+                                                  self._alphabet)
+        assert record.id == key
+        return record
+
+class SffTrimmedDict(SffDict) :
+    def __getitem__(self, key) :
+        handle = self._handle
+        handle.seek(dict.__getitem__(self, key))
+        record = SeqIO.SffIO._sff_read_seq_record(handle,
+                                                  self._flows_per_read,
+                                                  self._flow_chars,
+                                                  self._key_sequence,
+                                                  self._alphabet,
+                                                  trim=True)
+        assert record.id == key
+        return record
+
 ###################
 # Simple indexers #
 ###################
@@ -193,6 +265,7 @@ class _SequentialSeqFileDict(_IndexedSeqFileDict):
         handle = self._handle
         marker_re = re.compile("^%s" % marker)
         marker_offset = len(marker)
+        self._marker_re = marker_re #saved for the get_raw method
         while True:
             offset = handle.tell()
             line = handle.readline()
@@ -200,7 +273,23 @@ class _SequentialSeqFileDict(_IndexedSeqFileDict):
             if marker_re.match(line):
                 #Here we can assume the record.id is the first word after the
                 #marker. This is generally fine... but not for GenBank, EMBL, Swiss
-                self._record_key(line[marker_offset:].strip().split(None,1)[0], offset)
+                self._record_key(line[marker_offset:].strip().split(None, 1)[0], \
+                                 offset)
+
+    def get_raw(self, key):
+        """Similar to the get method, but returns the record as a raw string."""
+        #For non-trivial file formats this must be over-ridden in the subclass
+        handle = self._handle
+        marker_re = self._marker_re
+        handle.seek(dict.__getitem__(self, key))
+        data = handle.readline()
+        while True:
+            line = handle.readline()
+            if not line or marker_re.match(line):
+                #End of file, or start of next record => end of this record
+                break
+            data += line
+        return data
 
 class FastaDict(_SequentialSeqFileDict):
     """Indexed dictionary like access to a FASTA file."""
@@ -237,13 +326,14 @@ class AceDict(_SequentialSeqFileDict):
 # Fiddly indexers: GenBank, EMBL, ... #
 #######################################
 
-class GenBankDict(_IndexedSeqFileDict):
+class GenBankDict(_SequentialSeqFileDict):
     """Indexed dictionary like access to a GenBank file."""
     def __init__(self, filename, alphabet, key_function):
         _IndexedSeqFileDict.__init__(self, filename, alphabet, key_function)
         self._format = "genbank"
         handle = self._handle
         marker_re = re.compile("^LOCUS ")
+        self._marker_re = marker_re #saved for the get_raw method
         while True:
             offset = handle.tell()
             line = handle.readline()
@@ -275,13 +365,14 @@ class GenBankDict(_IndexedSeqFileDict):
                     raise ValueError("Did not find ACCESSION/VERSION lines")
                 self._record_key(key, offset)
 
-class EmblDict(_IndexedSeqFileDict):
+class EmblDict(_SequentialSeqFileDict):
     """Indexed dictionary like access to an EMBL file."""
     def __init__(self, filename, alphabet, key_function):
         _IndexedSeqFileDict.__init__(self, filename, alphabet, key_function)
         self._format = "embl"
         handle = self._handle
         marker_re = re.compile("^ID ")
+        self._marker_re = marker_re #saved for the get_raw method
         while True:
             offset = handle.tell()
             line = handle.readline()
@@ -289,12 +380,20 @@ class EmblDict(_IndexedSeqFileDict):
             if marker_re.match(line):
                 #We cannot assume the record.id is the first word after ID,
                 #normally the SV line is used.
-                parts = line[3:].rstrip().split(";")
-                if parts[1].strip().startswith("SV "):
-                    #The SV bit gives the version
-                    key = "%s.%s" % (parts[0].strip(),parts[1].strip().split()[1])
+                if line[2:].count(";") == 6:
+                    #Looks like the semi colon separated style introduced in 2006
+                    parts = line[3:].rstrip().split(";")
+                    if parts[1].strip().startswith("SV "):
+                        #The SV bit gives the version
+                        key = "%s.%s" \
+                              % (parts[0].strip(), parts[1].strip().split()[1])
+                    else:
+                        key = parts[0].strip()
+                elif line[2:].count(";") == 3:
+                    #Looks like the pre 2006 style, take first word only
+                    key = line[3:].strip().split(None,1)[0]
                 else:
-                    key = parts[0].strip()
+                    raise ValueError('Did not recognise the ID line layout:\n' + line)
                 while True:
                     line = handle.readline()
                     if line.startswith("SV "):
@@ -309,13 +408,14 @@ class EmblDict(_IndexedSeqFileDict):
                         break
                 self._record_key(key, offset)
 
-class SwissDict(_IndexedSeqFileDict):
+class SwissDict(_SequentialSeqFileDict):
     """Indexed dictionary like access to a SwissProt file."""
     def __init__(self, filename, alphabet, key_function):
         _IndexedSeqFileDict.__init__(self, filename, alphabet, key_function)
         self._format = "swiss"
         handle = self._handle
         marker_re = re.compile("^ID ")
+        self._marker_re = marker_re #saved for the get_raw method
         while True:
             offset = handle.tell()
             line = handle.readline()
@@ -328,13 +428,14 @@ class SwissDict(_IndexedSeqFileDict):
                 key = line[3:].strip().split(";")[0].strip()
                 self._record_key(key, offset)
 
-class IntelliGeneticsDict(_IndexedSeqFileDict):
+class IntelliGeneticsDict(_SequentialSeqFileDict):
     """Indexed dictionary like access to a IntelliGenetics file."""
     def __init__(self, filename, alphabet, key_function):
         _IndexedSeqFileDict.__init__(self, filename, alphabet, key_function)
         self._format = "ig"
         handle = self._handle
         marker_re = re.compile("^;")
+        self._marker_re = marker_re #saved for the get_raw method
         while True:
             offset = handle.tell()
             line = handle.readline()
@@ -361,7 +462,7 @@ class TabDict(_IndexedSeqFileDict):
             line = handle.readline()
             if not line : break #End of file
             try:
-                key, rest = line.split("\t")
+                key = line.split("\t")[0]
             except ValueError, err:
                 if not line.strip():
                     #Ignore blank lines
@@ -370,6 +471,12 @@ class TabDict(_IndexedSeqFileDict):
                     raise err
             else:
                 self._record_key(key, offset)
+
+    def get_raw(self, key):
+        """Like the get method, but returns the record as a raw string."""
+        handle = self._handle
+        handle.seek(dict.__getitem__(self, key))
+        return handle.readline()
 
 ##########################
 # Now the FASTQ indexers #
@@ -395,7 +502,7 @@ class _FastqSeqFileDict(_IndexedSeqFileDict):
         while line:
             #assert line[0]=="@"
             #This record seems OK (so far)
-            self._record_key(line[1:].rstrip().split(None,1)[0],pos)
+            self._record_key(line[1:].rstrip().split(None, 1)[0], pos)
             #Find the seq line(s)
             seq_len = 0
             while line:
@@ -412,7 +519,7 @@ class _FastqSeqFileDict(_IndexedSeqFileDict):
                     #Should be end of record...
                     pos = handle.tell()
                     line = handle.readline()
-                    if line and line[0]!="@":
+                    if line and line[0] != "@":
                         ValueError("Problem with line %s" % repr(line))
                     break
                 else:
@@ -421,6 +528,48 @@ class _FastqSeqFileDict(_IndexedSeqFileDict):
             if seq_len != qual_len:
                 raise ValueError("Problem with quality section")
         #print "EOF"
+
+    def get_raw(self, key):
+        """Similar to the get method, but returns the record as a raw string."""
+        #TODO - Refactor this and the __init__ method to reduce code duplication?
+        handle = self._handle
+        handle.seek(dict.__getitem__(self, key))
+        line = handle.readline()
+        data = line
+        if line[0] != "@":
+            raise ValueError("Problem with FASTQ @ line:\n%s" % repr(line))
+        identifier = line[1:].rstrip().split(None, 1)[0]
+        if self._key_function:
+            identifier = self._key_function(identifier)
+        if key != identifier:
+            raise ValueError("Key did not match")
+        #Find the seq line(s)
+        seq_len = 0
+        while line:
+            line = handle.readline()
+            data += line
+            if line.startswith("+") : break
+            seq_len += len(line.strip())
+        if not line:
+            raise ValueError("Premature end of file in seq section")
+        assert line[0]=="+"
+        #Find the qual line(s)
+        qual_len = 0
+        while line:
+            if seq_len == qual_len:
+                #Should be end of record...
+                pos = handle.tell()
+                line = handle.readline()
+                if line and line[0] != "@":
+                    ValueError("Problem with line %s" % repr(line))
+                break
+            else:
+                line = handle.readline()
+                data += line
+                qual_len += len(line.strip())
+        if seq_len != qual_len:
+            raise ValueError("Problem with quality section")
+        return data
 
 class FastqSangerDict(_FastqSeqFileDict):
     """Indexed dictionary like access to a standard Sanger FASTQ file."""
@@ -454,6 +603,8 @@ _FormatToIndexedDict = {"ace" : AceDict,
                         "ig" : IntelliGeneticsDict,
                         "phd" : PhdDict,
                         "pir" : PirDict,
+                        "sff" : SffDict,
+                        "sff-trim" : SffTrimmedDict,
                         "swiss" : SwissDict,
                         "tab" : TabDict,
                         "qual" : QualDict

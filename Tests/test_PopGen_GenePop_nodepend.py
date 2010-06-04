@@ -7,6 +7,7 @@
 import os
 import unittest
 from Bio.PopGen import GenePop
+from Bio.PopGen.GenePop import FileParser
 
 
 class RecordTest(unittest.TestCase):
@@ -20,9 +21,11 @@ class RecordTest(unittest.TestCase):
         assert type(r.loci_list)    == list
         assert type(r.populations)  == list
 
+
 class ParserTest(unittest.TestCase):
     def setUp(self):
-        files = ["c2line.gen", "c3line.gen", "c2space.gen", "c3space.gen"]
+        files = ["c2line.gen", "c3line.gen", "c2space.gen", "c3space.gen",
+                 "haplo3.gen", "haplo2.gen"]
         self.handles = []
         for filename in files:
             self.handles.append(open(os.path.join("PopGen", filename)))
@@ -31,10 +34,12 @@ class ParserTest(unittest.TestCase):
             (3, [4, 3, 5]),
             (3, [4, 3, 5]),
             (3, [4, 3, 5]),
+            (3, [4, 3, 5]),
+            (3, [4, 3, 5]),
             (3, [4, 3, 5])
         ]
-        self.num_loci = [3, 3, 3, 3]
-        self.marker_len = [2, 3, 2, 3]
+        self.num_loci = [3, 3, 3, 3, 3, 3]
+        self.marker_len = [2, 3, 2, 3, 3, 2]
         self.pop_names = ["4", "b3", "5"]
 
     def tearDown(self):
@@ -46,7 +51,7 @@ class ParserTest(unittest.TestCase):
         """
         for index in range(len(self.handles)):
             handle = self.handles[index]
-            rec = GenePop.parse(handle)
+            rec = GenePop.read(handle)
             assert isinstance(rec, GenePop.Record)
             assert len(rec.loci_list) == self.num_loci[index]
             assert rec.marker_len == self.marker_len[index]
@@ -61,7 +66,52 @@ class ParserTest(unittest.TestCase):
         """
         f = open(os.path.join("PopGen", "fdist1"))
         try:
-            rec = GenePop.parse(f)
+            rec = GenePop.read(f)
+            raise Error("Should have raised exception")
+        except ValueError:
+            pass
+        f.close()
+
+
+class FileParserTest(unittest.TestCase):
+    def setUp(self):
+        self.files = map(lambda x: os.path.join("PopGen", x),
+             ["c2line.gen", "c3line.gen", "c2space.gen",
+              "c3space.gen", "haplo3.gen", "haplo2.gen"])
+        self.pops_indivs = [
+            (3, [4, 3, 5]),
+            (3, [4, 3, 5]),
+            (3, [4, 3, 5]),
+            (3, [4, 3, 5]),
+            (3, [4, 3, 5]),
+            (3, [4, 3, 5])
+        ]
+        self.num_loci = [3, 3, 3, 3, 3, 3]
+
+    def test_file_record_parser(self):
+        """Basic operation of the File Record Parser.
+        """
+        for index in range(len(self.files)):
+            fname = self.files[index]
+            rec = FileParser.read(fname)
+            assert isinstance(rec, FileParser.FileRecord)
+            assert len(rec.loci_list) == self.num_loci[index]
+            for skip in range(self.pops_indivs[index][0]):
+                if rec.skip_population() == False:
+                    raise Error("Not enough populations")
+            if rec.skip_population() == True:
+                    raise Error("Too much populations")
+            for i in range(self.pops_indivs[index][0]):
+                continue
+                assert len(rec.populations[i]) == \
+                           self.pops_indivs[index][1][i]
+
+    def test_wrong_file_parser(self):
+        """Testing the ability to deal with wrongly formatted files
+        """
+        f = open(os.path.join("PopGen", "fdist1"))
+        try:
+            rec = GenePop.read(f)
             raise Error("Should have raised exception")
         except ValueError:
             pass
@@ -85,7 +135,7 @@ class UtilsTest(unittest.TestCase):
         """
         for index in range(len(self.handles)):
             handle = self.handles[index]
-            rec = GenePop.parse(handle)
+            rec = GenePop.read(handle)
         initial_pops = len(rec.populations)
         initial_loci = len(rec.loci_list)
         first_loci = rec.loci_list[0]

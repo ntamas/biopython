@@ -114,12 +114,19 @@ def _insdc_location_string_ignoring_strand_and_subfeatures(feature):
     else:
         ref = ""
     assert not feature.ref_db
-    if feature.location.start==feature.location.end \
-    and isinstance(feature.location.end, SeqFeature.ExactPosition):
-        #Special case, 12^13 gets mapped to location 12:12
+    if isinstance(feature.location.start, SeqFeature.ExactPosition) \
+    and isinstance(feature.location.end, SeqFeature.ExactPosition) \
+    and feature.location.start.position == feature.location.end.position:
+        #Special case, for 12:12 return 12^13
         #(a zero length slice, meaning the point between two letters)
         return "%s%i^%i" % (ref, feature.location.end.position,
                             feature.location.end.position+1)
+    if isinstance(feature.location.start, SeqFeature.ExactPosition) \
+    and isinstance(feature.location.end, SeqFeature.ExactPosition) \
+    and feature.location.start.position+1 == feature.location.end.position:
+        #Special case, for 11:12 return 12 rather than 12..12
+        #(a length one slice, meaning a single letter)
+        return "%s%i" % (ref, feature.location.end.position)
     else:
         #Typical case, e.g. 12..15 gets mapped to 11:15
         return ref \
@@ -136,7 +143,7 @@ def _insdc_feature_location_string(feature):
     now adopted the GenBank convention). Notice that the order of the entries
     is reversed! This function therefore uses the first form. In this situation
     we expect the parent feature and the two children to all be marked as
-    strand==-1, and in the order 0:10 then 19:100.
+    strand == -1, and in the order 0:10 then 19:100.
 
     Also need to consider dual-strand examples like these from the Arabidopsis
     thaliana chloroplast NC_000932: join(complement(69611..69724),139856..140650)
@@ -207,8 +214,9 @@ class _InsdcWriter(SequentialSequenceWriter):
                 self.handle.write(line+"\n")
                 return
             #Insert line break...
-            for index in range(min(len(line)-1,self.MAX_WIDTH),self.QUALIFIER_INDENT+1,-1):
-                if line[index]==" " : break
+            for index in range(min(len(line)-1, self.MAX_WIDTH),
+                               self.QUALIFIER_INDENT+1,-1):
+                if line[index] == " " : break
             if line[index] != " ":
                 #No nice place to break...
                 index = self.MAX_WIDTH
@@ -275,7 +283,8 @@ class _InsdcWriter(SequentialSequenceWriter):
 
         words = text.split()
         assert max([len(w) for w in words]) < max_len, \
-               "Your description cannot be broken into nice lines!"
+               "Your description cannot be broken into nice lines!:\n%s" \
+               % repr(text)
         text = ""
         while words and len(text) + 1 + len(words[0]) < max_len:
             text += " " + words.pop(0)
@@ -297,17 +306,17 @@ class _InsdcWriter(SequentialSequenceWriter):
         #TODO - Merge this with _write_multi_line method?
         #It would need the addition of the comma splitting logic...
         #are there any other cases where that would be sensible?
-        contig = record.annotations.get("contig","")
+        contig = record.annotations.get("contig", "")
         if isinstance(contig, list) or isinstance(contig, tuple):
             contig = "".join(contig)
         contig = self.clean(contig)
-        i=0
+        i = 0
         answer = []
         while contig:
             if len(contig) > max_len:
                 #Split lines at the commas
                 pos = contig[:max_len-1].rfind(",")
-                if pos==-1:
+                if pos == -1:
                     raise ValueError("Could not break up CONTIG")
                 text, contig = contig[:pos+1], contig[pos+1:]
             else:
@@ -325,7 +334,7 @@ class GenBankWriter(_InsdcWriter):
         assert len(text) < self.MAX_WIDTH - self.HEADER_WIDTH, \
                "Annotation %s too long for %s line" % (repr(text), tag)
         self.handle.write("%s%s\n" % (tag.ljust(self.HEADER_WIDTH),
-                                      text.replace("\n"," ")))
+                                      text.replace("\n", " ")))
 
     def _write_multi_line(self, tag, text):
         "Used in the the 'header' of each GenBank record."""
@@ -341,7 +350,7 @@ class GenBankWriter(_InsdcWriter):
         #used for DBLINK and any similar later line types.
         #If the list of strings is empty, nothing is written.
         for i, text in enumerate(text_list):
-            if i==0:
+            if i == 0:
                 self._write_single_line(tag, text)
             else:
                 self._write_single_line("", text)
@@ -360,11 +369,77 @@ class GenBankWriter(_InsdcWriter):
         or date[2] != "-" or date[6] != "-" \
         or not date[:2].isdigit() or not date[7:].isdigit() \
         or int(date[:2]) > 31 \
-        or date[3:6] not in ["JAN","FEB","MAR","APR","MAY","JUN",
-                             "JUL","AUG","SEP","OCT","NOV","DEC"] :
+        or date[3:6] not in ["JAN", "FEB", "MAR", "APR", "MAY", "JUN",
+                             "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"] :
             #TODO - Check is a valid date (e.g. not 31 Feb)
             return default
         return date
+
+    def _get_data_division(self, record):
+        try:
+            division = record.annotations["data_file_division"]
+        except KeyError:
+            division = "UNK"
+        if division in ["PRI", "ROD", "MAM", "VRT", "INV", "PLN", "BCT",
+                        "VRL", "PHG", "SYN", "UNA", "EST", "PAT", "STS",
+                        "GSS", "HTG", "HTC", "ENV", "CON"]:
+            #Good, already GenBank style
+            #    PRI - primate sequences
+            #    ROD - rodent sequences
+            #    MAM - other mammalian sequences
+            #    VRT - other vertebrate sequences
+            #    INV - invertebrate sequences
+            #    PLN - plant, fungal, and algal sequences
+            #    BCT - bacterial sequences [plus archea]
+            #    VRL - viral sequences
+            #    PHG - bacteriophage sequences
+            #    SYN - synthetic sequences
+            #    UNA - unannotated sequences
+            #    EST - EST sequences (expressed sequence tags) 
+            #    PAT - patent sequences
+            #    STS - STS sequences (sequence tagged sites) 
+            #    GSS - GSS sequences (genome survey sequences) 
+            #    HTG - HTGS sequences (high throughput genomic sequences) 
+            #    HTC - HTC sequences (high throughput cDNA sequences) 
+            #    ENV - Environmental sampling sequences
+            #    CON - Constructed sequences
+            #
+            #(plus UNK for unknown)
+            pass
+        else:
+            #See if this is in EMBL style:
+            #    Division                 Code
+            #    -----------------        ----
+            #    Bacteriophage            PHG - common
+            #    Environmental Sample     ENV - common
+            #    Fungal                   FUN - map to PLN (plants + fungal)
+            #    Human                    HUM - map to PRI (primates)
+            #    Invertebrate             INV - common
+            #    Other Mammal             MAM - common
+            #    Other Vertebrate         VRT - common
+            #    Mus musculus             MUS - map to ROD (rodent)
+            #    Plant                    PLN - common
+            #    Prokaryote               PRO - map to BCT (poor name)
+            #    Other Rodent             ROD - common
+            #    Synthetic                SYN - common
+            #    Transgenic               TGN - ??? map to SYN ???
+            #    Unclassified             UNC - map to UNK
+            #    Viral                    VRL - common
+            #
+            #(plus XXX for submiting which we can map to UNK)
+            embl_to_gbk = {"FUN":"PLN",
+                           "HUM":"PRI",
+                           "MUS":"ROD",
+                           "PRO":"BCT",
+                           "UNC":"UNK",
+                           "XXX":"UNK",
+                           }
+            try:
+                division = embl_to_gbk[division]
+            except KeyError:
+                division = "UNK"
+        assert len(division)==3
+        return division
 
     def _write_the_first_line(self, record):
         """Write the LOCUS line."""
@@ -408,14 +483,7 @@ class GenBankWriter(_InsdcWriter):
             #just the generic Alphabet (default for fasta files)
             raise ValueError("Need a DNA, RNA or Protein alphabet")
         
-        try:
-            division = record.annotations["data_file_division"]
-        except KeyError:
-            division = "UNK"
-        if division not in ["PRI","ROD","MAM","VRT","INV","PLN","BCT",
-                            "VRL","PHG","SYN","UNA","EST","PAT","STS",
-                            "GSS","HTG","HTC","ENV","CON"]:
-            division = "UNK"
+        division = self._get_data_division(record)
         
         assert len(units) == 2
         assert len(division) == 3
@@ -447,7 +515,7 @@ class GenBankWriter(_InsdcWriter):
                'LOCUS line does not contain valid sequence type (DNA, RNA, ...):\n' + line
         assert line[54:55] == ' ', \
                'LOCUS line does not contain space at position 55:\n' + line
-        assert line[55:63].strip() in ['','linear','circular'], \
+        assert line[55:63].strip() in ['', 'linear', 'circular'], \
                'LOCUS line does not contain valid entry (linear, circular, ...):\n' + line
         assert line[63:64] == ' ', \
                'LOCUS line does not contain space at position 64:\n' + line
@@ -459,6 +527,49 @@ class GenBankWriter(_InsdcWriter):
                'LOCUS line does not contain - at position 75 in date:\n' + line
 
         self.handle.write(line)
+
+    def _write_references(self, record):
+        number = 0
+        for ref in record.annotations["references"]:
+            if not isinstance(ref, SeqFeature.Reference):
+                continue
+            number += 1
+            data = str(number)
+            #TODO - support more complex record reference locations?
+            if ref.location and len(ref.location)==1:
+                a = Alphabet._get_base_alphabet(record.seq.alphabet)
+                if isinstance(a, Alphabet.ProteinAlphabet):
+                    units = "residues"
+                else:
+                    units = "bases"
+                data += "  (%s %i to %i)" % (units,
+                                             ref.location[0].nofuzzy_start+1,
+                                             ref.location[0].nofuzzy_end)
+            self._write_single_line("REFERENCE", data)
+            if ref.authors:
+                #We store the AUTHORS data as a single string
+                self._write_multi_line("  AUTHORS", ref.authors)
+            if ref.consrtm:
+                #We store the consortium as a single string
+                self._write_multi_line("  CONSRTM", ref.consrtm)
+            if ref.title:
+                #We store the title as a single string
+                self._write_multi_line("  TITLE", ref.title)
+            if ref.journal:
+                #We store this as a single string - holds the journal name,
+                #volume, year, and page numbers of the citation
+                self._write_multi_line("  JOURNAL", ref.journal)
+            if ref.medline_id:
+                #This line type is obsolete and was removed from the GenBank
+                #flatfile format in April 2005. Should we write it?
+                #Note this has a two space indent:
+                self._write_multi_line("  MEDLINE", ref.medline_id)
+            if ref.pubmed_id:
+                #Note this has a THREE space indent:
+                self._write_multi_line("   PUBMED", ref.pubmed_id)
+            if ref.comment:
+                self._write_multi_line("  REMARK", ref.comment)
+            
 
     def _write_comment(self, record):
         #This is a bit complicated due to the range of possible
@@ -474,16 +585,16 @@ class GenBankWriter(_InsdcWriter):
             lines = comment
         else:
             raise ValueError("Could not understand comment annotation")
-        self._write_multi_line("COMMENT",lines[0])
+        self._write_multi_line("COMMENT", lines[0])
         for line in lines[1:]:
-            self._write_multi_line("",line)
+            self._write_multi_line("", line)
 
     def _write_contig(self, record):
         max_len = self.MAX_WIDTH - self.HEADER_WIDTH
         lines = self._split_contig(record, max_len)
-        self._write_single_line("CONTIG",lines[0])
+        self._write_single_line("CONTIG", lines[0])
         for text in lines[1:] :
-            self._write_single_line("",text)
+            self._write_single_line("", text)
 
     def _write_sequence(self, record):
         #Loosely based on code from Howard Salis
@@ -502,10 +613,12 @@ class GenBankWriter(_InsdcWriter):
 
         data = self._get_seq_string(record) #Catches sequence being None
         seq_len = len(data)
+        #TODO - Should we change the case?
         self.handle.write("ORIGIN\n")
-        for line_number in range(0,seq_len,LETTERS_PER_LINE):
+        for line_number in range(0, seq_len, LETTERS_PER_LINE):
             self.handle.write(str(line_number+1).rjust(SEQUENCE_INDENT))
-            for words in range(line_number,min(line_number+LETTERS_PER_LINE,seq_len),10):
+            for words in range(line_number,
+                               min(line_number+LETTERS_PER_LINE, seq_len), 10):
                 self.handle.write(" %s" % data[words:words+10])
             self.handle.write("\n")
         
@@ -515,13 +628,14 @@ class GenBankWriter(_InsdcWriter):
         self._write_the_first_line(record)
 
         accession = self._get_annotation_str(record, "accession",
-                                             record.id.split(".",1)[0],
+                                             record.id.split(".", 1)[0],
                                              just_first=True)
         acc_with_version = accession
         if record.id.startswith(accession+"."):
             try:
                 acc_with_version = "%s.%i" \
-                                   % (accession, int(record.id.split(".",1)[1]))
+                                   % (accession,
+                                      int(record.id.split(".", 1)[1]))
             except ValueError:
                 pass
         gi = self._get_annotation_str(record, "gi", just_first=True)
@@ -532,7 +646,8 @@ class GenBankWriter(_InsdcWriter):
         
         self._write_single_line("ACCESSION", accession)
         if gi != ".":
-            self._write_single_line("VERSION", "%s  GI:%s" % (acc_with_version,gi))
+            self._write_single_line("VERSION", "%s  GI:%s" \
+                                    % (acc_with_version, gi))
         else:
             self._write_single_line("VERSION", "%s" % (acc_with_version))
 
@@ -543,8 +658,13 @@ class GenBankWriter(_InsdcWriter):
 
         try:
             #List of strings
+            #Keywords should be given separated with semi colons,
             keywords = "; ".join(record.annotations["keywords"])
+            #with a trailing period:
+            if not keywords.endswith(".") :
+                keywords += "."
         except KeyError:
+            #If no keywords, there should be just a period:
             keywords = "."
         self._write_multi_line("KEYWORDS", keywords)
 
@@ -566,14 +686,21 @@ class GenBankWriter(_InsdcWriter):
         self._write_single_line("  ORGANISM", org)
         try:
             #List of strings
+            #Taxonomy should be given separated with semi colons,
             taxonomy = "; ".join(record.annotations["taxonomy"])
+            #with a trailing period:
+            if not taxonomy.endswith(".") :
+                taxonomy += "."
         except KeyError:
             taxonomy = "."
         self._write_multi_line("", taxonomy)
 
-        #TODO - References...
+        if "references" in record.annotations:
+            self._write_references(record)
+
         if "comment" in record.annotations:
             self._write_comment(record)
+
         handle.write("FEATURES             Location/Qualifiers\n")
         for feature in record.features:
             self._write_feature(feature) 
@@ -590,14 +717,14 @@ class EmblWriter(_InsdcWriter):
         max_len = self.MAX_WIDTH - self.HEADER_WIDTH
         lines = self._split_contig(record, max_len)
         for text in lines:
-            self._write_single_line("CO",text)
+            self._write_single_line("CO", text)
 
     def _write_sequence(self, record):
         LETTERS_PER_BLOCK = 10
         BLOCKS_PER_LINE = 6
         LETTERS_PER_LINE = LETTERS_PER_BLOCK * BLOCKS_PER_LINE
         POSITION_PADDING = 10
-        handle = self.handle
+        handle = self.handle #save looking up this multiple times
         
         if isinstance(record.seq, UnknownSeq):
             #We have already recorded the length, and there is no need
@@ -606,30 +733,38 @@ class EmblWriter(_InsdcWriter):
                 self._write_contig(record)
             else:
                 #TODO - Can the sequence just be left out as in GenBank files?
-                self.handle.write("SQ   \n")
+                handle.write("SQ   \n")
             return
 
         data = self._get_seq_string(record) #Catches sequence being None
         seq_len = len(data)
-        # TODO - Length and base composition on SQ line?
-        handle.write("SQ   \n")
-        for line_number in range(0,seq_len // LETTERS_PER_LINE):
+        #TODO - Should we change the case?
+        #TODO - What if we have RNA?
+        a_count = data.count('A') + data.count('a')
+        c_count = data.count('C') + data.count('c')
+        g_count = data.count('G') + data.count('g')
+        t_count = data.count('T') + data.count('t')
+        other = seq_len - (a_count + c_count + g_count + t_count)
+        handle.write("SQ   Sequence %i BP; %i A; %i C; %i G; %i T; %i other;\n" \
+                     % (seq_len, a_count, c_count, g_count, t_count, other))
+        
+        for line_number in range(0, seq_len // LETTERS_PER_LINE):
             handle.write("    ") #Just four, not five
             for block in range(BLOCKS_PER_LINE) :
                 index = LETTERS_PER_LINE*line_number + LETTERS_PER_BLOCK*block
-                self.handle.write((" %s" % data[index:index+LETTERS_PER_BLOCK]))
-            self.handle.write(str((line_number+1)
-                                  *LETTERS_PER_LINE).rjust(POSITION_PADDING))
-            self.handle.write("\n")
+                handle.write((" %s" % data[index:index+LETTERS_PER_BLOCK]))
+            handle.write(str((line_number+1)
+                             *LETTERS_PER_LINE).rjust(POSITION_PADDING))
+            handle.write("\n")
         if seq_len % LETTERS_PER_LINE:
             #Final (partial) line
             line_number = (seq_len // LETTERS_PER_LINE)
             handle.write("    ") #Just four, not five
             for block in range(BLOCKS_PER_LINE) :
                 index = LETTERS_PER_LINE*line_number + LETTERS_PER_BLOCK*block
-                self.handle.write((" %s" % data[index:index+LETTERS_PER_BLOCK]).ljust(11))
-            self.handle.write(str(seq_len).rjust(POSITION_PADDING))
-            self.handle.write("\n")
+                handle.write((" %s" % data[index:index+LETTERS_PER_BLOCK]).ljust(11))
+            handle.write(str(seq_len).rjust(POSITION_PADDING))
+            handle.write("\n")
 
     def _write_single_line(self, tag, text):
         assert len(tag)==2
@@ -645,10 +780,10 @@ class EmblWriter(_InsdcWriter):
         
     def _write_the_first_lines(self, record):
         """Write the ID and AC lines."""
-        if "." in record.id and record.id.rsplit(".",1)[1].isdigit():
-            version = "SV " + record.id.rsplit(".",1)[1]
+        if "." in record.id and record.id.rsplit(".", 1)[1].isdigit():
+            version = "SV " + record.id.rsplit(".", 1)[1]
             accession = self._get_annotation_str(record, "accession",
-                                                 record.id.rsplit(".",1)[0],
+                                                 record.id.rsplit(".", 1)[0],
                                                  just_first=True)
         else :
             version = ""
@@ -680,13 +815,100 @@ class EmblWriter(_InsdcWriter):
             #Must be something like NucleotideAlphabet
             raise ValueError("Need a DNA or RNA alphabet")
 
+        #Get the taxonomy division
+        division = self._get_data_division(record)
+
         #TODO - Full ID line
         handle = self.handle
-        self._write_single_line("ID", "%s; %s; ; %s; ; ; %i BP." \
-                                % (accession, version, mol_type, len(record)))
+        #ID   <1>; SV <2>; <3>; <4>; <5>; <6>; <7> BP.
+        #1. Primary accession number
+        #2. Sequence version number
+        #3. Topology: 'circular' or 'linear'
+        #4. Molecule type
+        #5. Data class
+        #6. Taxonomic division
+        #7. Sequence length
+        self._write_single_line("ID", "%s; %s; ; %s; ; %s; %i BP." \
+                                % (accession, version, mol_type,
+                                   division, len(record)))
         handle.write("XX\n")
         self._write_single_line("AC", accession+";")
         handle.write("XX\n")
+
+    def _get_data_division(self, record):
+        try:
+            division = record.annotations["data_file_division"]
+        except KeyError:
+            division = "UNC"
+        if division in ["PHG", "ENV", "FUN", "HUM", "INV", "MAM", "VRT",
+                        "MUS", "PLN", "PRO", "ROD", "SYN", "TGN", "UNC",
+                        "VRL", "XXX"]:
+            #Good, already EMBL style
+            #    Division                 Code
+            #    -----------------        ----
+            #    Bacteriophage            PHG
+            #    Environmental Sample     ENV
+            #    Fungal                   FUN
+            #    Human                    HUM
+            #    Invertebrate             INV
+            #    Other Mammal             MAM
+            #    Other Vertebrate         VRT
+            #    Mus musculus             MUS
+            #    Plant                    PLN
+            #    Prokaryote               PRO
+            #    Other Rodent             ROD
+            #    Synthetic                SYN
+            #    Transgenic               TGN
+            #    Unclassified             UNC (i.e. unknown)
+            #    Viral                    VRL
+            #
+            #(plus XXX used for submiting data to EMBL)
+            pass
+        else:
+            #See if this is in GenBank style & can be converted.
+            #Generally a problem as the GenBank groups are wider
+            #than those of EMBL. Note that GenBank use "BCT" for
+            #both bacteria and acherea thus this maps to EMBL's
+            #"PRO" nicely.
+            gbk_to_embl = {"BCT":"PRO",
+                           "UNK":"UNC",
+                           }
+            try:
+                division = gbk_to_embl[division]
+            except KeyError:
+                division = "UNC"
+        assert len(division)==3
+        return division
+
+    def _write_references(self, record):
+        #The order should be RN, RC, RP, RX, RG, RA, RT, RL
+        number = 0
+        for ref in record.annotations["references"]:
+            if not isinstance(ref, SeqFeature.Reference):
+                continue
+            number += 1
+            self._write_single_line("RN", "[%i]" % number)
+            #TODO - support for RC line (needed in parser too)
+            #TODO - support more complex record reference locations?
+            if ref.location and len(ref.location)==1:
+                self._write_single_line("RP", "%i-%i" % (ref.location[0].nofuzzy_start+1,
+                                                         ref.location[0].nofuzzy_end))
+            #TODO - record any DOI or AGRICOLA identifier in the reference object?
+            if ref.pubmed_id:
+                self._write_single_line("RX", "PUBMED; %s." % ref.pubmed_id)
+            if ref.consrtm:
+                self._write_single_line("RG", "%s" % ref.consrtm)
+            if ref.authors:
+                #We store the AUTHORS data as a single string
+                self._write_multi_line("RA", ref.authors+";")
+            if ref.title:
+                #We store the title as a single string
+                self._write_multi_line("RT", '"%s";' % ref.title)
+            if ref.journal:
+                #We store this as a single string - holds the journal name,
+                #volume, year, and page numbers of the citation
+                self._write_multi_line("RL", ref.journal)
+            self.handle.write("XX\n")
 
     def _write_comment(self, record):
         #This is a bit complicated due to the range of possible
@@ -705,7 +927,7 @@ class EmblWriter(_InsdcWriter):
         #TODO - Merge this with the GenBank comment code?
         if not lines : return
         for line in lines:
-            self._write_multi_line("CC",line)
+            self._write_multi_line("CC", line)
         self.handle.write("XX\n")
 
     def write_record(self, record):
@@ -713,6 +935,13 @@ class EmblWriter(_InsdcWriter):
 
         handle = self.handle
         self._write_the_first_lines(record)
+
+        #PR line (0 or 1 lines only), project identifier
+        for xref in record.dbxrefs:
+            if xref.startswith("Project:"):
+                self._write_single_line("PR", xref+";")
+                handle.write("XX\n")
+                break
 
         #TODO - DT lines (date)
 
@@ -731,7 +960,8 @@ class EmblWriter(_InsdcWriter):
         self._write_multi_line("OC", taxonomy)
         handle.write("XX\n")
 
-        #TODO - References...
+        if "references" in record.annotations:
+            self._write_references(record)
 
         if "comment" in record.annotations:
             self._write_comment(record)
@@ -778,7 +1008,7 @@ if __name__ == "__main__":
         if len(old_list) != len(new_list):
             raise ValueError("%i vs %i records" % (len(old_list), len(new_list)))
         for old, new in zip(old_list, new_list):
-            if not compare_record(old,new):
+            if not compare_record(old, new):
                 return False
         return True
 
@@ -801,14 +1031,14 @@ if __name__ == "__main__":
         if not ignore_sub_features:
             if len(old.sub_features) != len(new.sub_features):
                 raise ValueError("Different sub features")
-            for a,b in zip(old.sub_features, new.sub_features):
-                if not compare_feature(a,b):
+            for a, b in zip(old.sub_features, new.sub_features):
+                if not compare_feature(a, b):
                     return False
         #This only checks key shared qualifiers
         #Would a white list be easier?
-        #for key in ["name","gene","translation","codon_table","codon_start","locus_tag"]:
+        #for key in ["name", "gene", "translation", "codon_table", "codon_start", "locus_tag"]:
         for key in set(old.qualifiers.keys()).intersection(new.qualifiers.keys()):
-            if key in ["db_xref","protein_id","product","note"]:
+            if key in ["db_xref", "protein_id", "product", "note"]:
                 #EMBL and GenBank files are use different references/notes/etc
                 continue
             if old.qualifiers[key] != new.qualifiers[key]:
@@ -822,7 +1052,7 @@ if __name__ == "__main__":
             raise ValueError("%i vs %i features" % (len(old_list), len(new_list)))
         for old, new in zip(old_list, new_list):
             #This assumes they are in the same order
-            if not compare_feature(old,new,ignore_sub_features):
+            if not compare_feature(old, new, ignore_sub_features):
                 return False
         return True
 
@@ -877,7 +1107,7 @@ if __name__ == "__main__":
         print filename
         
         handle = open("../../Tests/SwissProt/%s" % filename)
-        records = list(SeqIO.parse(handle,"swiss"))
+        records = list(SeqIO.parse(handle, "swiss"))
         handle.close()
 
         check_genbank_writer(records)

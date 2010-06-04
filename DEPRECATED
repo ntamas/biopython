@@ -14,6 +14,7 @@ This means we will continue to support Python 2.4 for at least two further
 releases, and at least one year (whichever takes longer), before dropping
 support for Python 2.4. This can be delayed given feedback from our users
 (e.g. if this proves to be a problem in combination with other libraries).
+An explicit warning was added to setup.py for Biopython 1.55.
 
 Bio.Restriction.DNAUtils and check_bases
 ========================================
@@ -22,11 +23,16 @@ This module (originally in C) offered complement and antiparallel functions
 check_bases (also available as Bio.Restriction.Restriction.check_bases).
 Deprecated in Release 1.53.
 
-Bio.Blast.NCBIStandalone.blastall, blastpgp and rpsblast
-========================================================
-These command line tools calling functions were declared obsolete in Release
+Bio.Blast.NCBIStandalone
+========================
+The three functions for calling the "legacy" NCBI BLAST command line tools
+blastall, blastpgp and rpsblast were declared obsolete in Biopython Release
 1.53, please use the BLAST+ wrappers in Bio.Blast.Applications and the Python
 subprocess module instead.
+
+The remainder of this module is a parser for the plain text BLAST output,
+which was delclared obsolete in Release 1.54. For some time now, both the NCBI
+and Biopython have encouraged people to parse the XML output instead.
 
 Bio.Blast.Applications
 ======================
@@ -118,7 +124,8 @@ Bio.mathfns, Bio.stringfns and Bio.listfns (and their C code variants)
 ==========================================
 Declared obsolete in Release 1.49. Bio.mathfns and Bio.stringfns were
 deprecated in Release 1.50, Bio.listfns was deprecated in Release 1.53.
-The three C implementations were all removed in Release 1.53.
+The three C implementations were all removed in Release 1.53. Bio.mathfns
+and Bio.stringfns were removed in Release 1.55.
 
 Bio.distance (and Bio.cdistance)
 ================================
@@ -173,8 +180,8 @@ for the output of MetaTool 3.5 which is now obsolete.
 Bio.GenBank
 ===========
 The online functionality (search_for, download_many, and NCBIDictionary) was
-declared obsolete in Release 1.48, and deprecated in Release 1.50.
-Please use Bio.Entrez instead.
+declared obsolete in Release 1.48, deprecated in Release 1.50, and removed
+in Release 1.54. Please use Bio.Entrez instead.
 
 Bio.PubMed
 ==========
@@ -222,6 +229,12 @@ You can still use the "phylip", "clustal", "nexus" and "stockholm" formats
 in Bio.SeqIO, however these are now supported via Bio.AlignIO, with the
 old code deprecated in Releases 1.46 or 1.47, and removed in Release 1.49.
 
+Bio.SeqIO.to_alignment()
+========================
+This function was made obsolete with the introduction of Bio.AlignIO,
+and deprecated in Release 1.54. Use either the Bio.AlignIO functions,
+or the Bio.Align.MultipleSeqAlignment class directly instead.
+
 Bio.ECell
 =========
 Deprecated as of Release 1.47, as it appears to have no users, and the code
@@ -262,8 +275,9 @@ The modules under Bio.WWW were deprecated in Release 1.45, and removed in
 Release 1.48.  The remaining stub Bio.WWW was deprecated in Release 1.48,
 and removed in Release 1.53.
 
-The functionality in Bio.WWW.SCOP, Bio.WWW.InterPro and Bio.WWW.ExPASy
-is now available from Bio.SCOP, Bio.InterPro and Bio.ExPASy instead.
+The functionality in Bio.WWW.SCOP, Bio.WWW.InterPro, Bio.WWW.ExPASy and
+Bio.WWW.NCBI is now available from Bio.SCOP, Bio.InterPro, Bio.ExPASy and
+Bio.Entrez instead.
 
 Bio.SeqIO
 =========
@@ -308,6 +322,13 @@ Functions 'complement' and 'antiparallel' in Bio.SeqUtils were deprecated
 in Release 1.31, and removed in Release 1.43.  Function 'translate' was
 deprecated in Release 1.49, and removed in Release 1.53. Use the functions
 and methods in Bio.Seq instead.
+
+Function makeTableX and classes ProteinX and MissingTable were deprecated
+in Release 1.54. These were remnants of the removed translate function,
+and no longer served any useful purpose.
+
+Function 'reverse' in Bio.SeqUtils was deprecated in Release 1.54, instead
+just use the string's slice method with a step of minus one.
 
 Bio.GFF (for accessing a MySQL database created with BioPerl, etc)
 =======
@@ -357,7 +378,7 @@ Bio.utils
 =========
 Functions 'translate', 'translate_to_stop', 'back_translate', 'transcribe',
 and 'back_transcribe' were deprecated in Release 1.49, and removed in Release
-1.53. Function 'ungap' was deprecated in Release 1.53.
+1.53. Function 'ungap' was deprecated in Release 1.53. Use Bio.Seq instead.
 
 Bio.Motif
 =========
@@ -365,9 +386,32 @@ CompareAceParser and CompareAceConsumer from Bio.Motif.Parsers.AlignAce were
 deprecated in Release 1.53. AlignAceConsumer, AlignAceParser, and
 AlignAceScanner were declared obsolete in Release 1.53; their functionality is
 now available through a read() function in Bio.Motif.Parsers.AlignAce.
+MEMEParser, _MEMEScanner, _MEMEConsumer, _MASTConsumer, MASTParser,
+_MASTScanner, and MASTRecord were declared obsolete in Release 1.54; their
+functionality is now available through a read() function in
+Bio.Motif.Parsers.MEME and Bio.Motif.Parsers.MAST, respectively.
 
 Bio.Compass
 ===========
 The RecordParser and Iterator classes were declared obsolete in Release 1.54.
 Their functionality is now available through a read() and a parse() function,
 respectively.
+
+Bio.Affy.CelFile
+================
+The CelScanner, CelConsumer, CelRecord, and CelParser were declared obsolete
+in Release 1.54. Their functionality is now available through a read()
+function.
+
+Bio.PopGen.FDist
+================
+The RecordParser, _Scanner, and _RecordConsumer classes were declared obsolete
+in Release 1.54. Their functionality is now available through a read() function.
+
+Bio.UniGene
+===========
+The classes UnigeneSequenceRecord, UnigeneProtsimRecord, UnigeneSTSRecord,
+UnigeneRecord, _RecordConsumer, _Scanner, RecordParser, and Iterator in
+Bio.UniGene were declared obsolete in Release 1.54. Their functionality is now
+available through a read() and a parse() function in Bio.UniGene.
+

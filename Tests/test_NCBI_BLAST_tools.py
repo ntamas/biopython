@@ -40,7 +40,8 @@ for folder in likely_dirs:
         if not os.path.isfile(exe_name):
             continue
         #To tell the old and new rpsblast apart (since I have both on
-        #my path and the old blast has priority), try -h as a parameter:
+        #my path and the old blast has priority), try -h as a parameter.
+        #This should also reject WU-BLAST (since it doesn't like -h).
         child = subprocess.Popen(exe_name + " -h",
                                  stdout=subprocess.PIPE,
                                  stderr=subprocess.PIPE,
@@ -56,7 +57,79 @@ if len(exe_names) < len(wanted) :
     raise MissingExternalDependencyError("Install the NCBI BLAST+ command line "
                                          "tools if you want to use the "
                                          "Bio.Blast.Applications wrapper.")
+
+
+class Pairwise(unittest.TestCase):
+    def test_blasp(self):
+        """Pairwise BLASTP search"""
+        global exe_names
+        cline = Applications.NcbiblastpCommandline(exe_names["blastp"],
+                        query="Fasta/rose.pro",
+                        subject="GenBank/NC_005816.faa",
+                        evalue=1)
+        self.assertEqual(str(cline), exe_names["blastp"] \
+                         + " -query Fasta/rose.pro -evalue 1" \
+                         + " -subject GenBank/NC_005816.faa")
+        child = subprocess.Popen(str(cline),
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE,
+                                 shell=(sys.platform!="win32"))
+        stdoutdata, stderrdata = child.communicate()
+        return_code = child.returncode
+        self.assertEqual(return_code, 0, "Got error code %i back from:\n%s"
+                         % (return_code, cline))
+        self.assertEqual(10, stdoutdata.count("Query= "))
+        self.assertEqual(9, stdoutdata.count("***** No hits found *****"))
         
+        #TODO - Parse it? I think we'd need to update this obsole code :(
+        #records = list(NCBIStandalone.Iterator(StringIO(stdoutdata),
+        #                                       NCBIStandalone.BlastParser()))   
+
+    def test_blastn(self):
+        """Pairwise BLASTN search"""
+        global exe_names
+        cline = Applications.NcbiblastpCommandline(exe_names["blastn"],
+                        query="GenBank/NC_005816.ffn",
+                        subject="GenBank/NC_005816.fna",
+                        evalue="0.000001")
+        self.assertEqual(str(cline), exe_names["blastn"] \
+                         + " -query GenBank/NC_005816.ffn -evalue 0.000001" \
+                         + " -subject GenBank/NC_005816.fna")
+        child = subprocess.Popen(str(cline),
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE,
+                                 shell=(sys.platform!="win32"))
+        stdoutdata, stderrdata = child.communicate()
+        return_code = child.returncode
+        self.assertEqual(return_code, 0, "Got error code %i back from:\n%s"
+                         % (return_code, cline))
+        self.assertEqual(10, stdoutdata.count("Query= "))
+        self.assertEqual(0, stdoutdata.count("***** No hits found *****"))
+        #TODO - Parse it?
+
+    def test_tblastn(self):
+        """Pairwise TBLASTN search"""
+        global exe_names
+        cline = Applications.NcbiblastpCommandline(exe_names["tblastn"],
+                        query="GenBank/NC_005816.faa",
+                        subject="GenBank/NC_005816.fna",
+                        evalue="1e-6")
+        self.assertEqual(str(cline), exe_names["tblastn"] \
+                         + " -query GenBank/NC_005816.faa -evalue 1e-6" \
+                         + " -subject GenBank/NC_005816.fna")
+        child = subprocess.Popen(str(cline),
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE,
+                                 shell=(sys.platform!="win32"))
+        stdoutdata, stderrdata = child.communicate()
+        return_code = child.returncode
+        self.assertEqual(return_code, 0, "Got error code %i back from:\n%s"
+                         % (return_code, cline))
+        self.assertEqual(10, stdoutdata.count("Query= "))
+        self.assertEqual(0, stdoutdata.count("***** No hits found *****"))
+        #TODO - Parse it?
+
+   
 class CheckCompleteArgList(unittest.TestCase):
     def check(self, exe_name, wrapper) :
         global exe_names
@@ -93,15 +166,27 @@ class CheckCompleteArgList(unittest.TestCase):
         if "-use_index" in missing :
             #Known issue, need to establish how this option works
             missing.remove("-use_index")
+        if "-verbose" in missing :
+            #Known issue, seems to be present in some builds (Bug 3043)
+            missing.remove("-verbose")
+        if "-remote_verbose" in missing :
+            #Known issue, seems to be present in some builds (Bug 3043)
+            missing.remove("-remote_verbose")
+        if "-use_test_remote_service" in missing :
+            #Known issue, seems to be present in some builds (Bug 3043)
+            missing.remove("-use_test_remote_service")
 
         if extra or missing :
-            print "Extra: " + ",".join(sorted(extra))
-            print "Missing: " + ",".join(sorted(missing))
+            raise MissingExternalDependencyError("BLAST+ and Biopython out of sync. "
+                  "Your version of the NCBI BLAST+ tool %s does not match what we "
+                  "are expecting. Please update your copy of Biopython, or report "
+                  "this issue if you are already using the latest version. "
+                  "(Exta args: %s; Missing: %s)" \
+                  % (exe_name, ",".join(sorted(extra)), ",".join(sorted(missing))))
 
-        self.assertEqual(len(extra), 0, \
-                         "Wrapper has extra: " + ", ".join(sorted(extra)))
-        self.assertEqual(len(missing), 0, \
-                         "Wrapper is missing: " + ", ".join(sorted(missing)))
+        #An almost trivial example to test any validation
+        cline = wrapper(exe, query="dummy")
+        str(cline)
 
     def test_blastx(self):
         """Check all blastx arguments are supported"""

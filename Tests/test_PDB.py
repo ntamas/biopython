@@ -1,5 +1,5 @@
 # Copyright 2009 by Eric Talevich.  All rights reserved.
-# Revisions copyright 2009 by Peter Cock.  All rights reserved.
+# Revisions copyright 2009-2010 by Peter Cock.  All rights reserved.
 #
 # Converted by Eric Talevich from an older unit test copyright 2002
 # by Thomas Hamelryck.
@@ -11,6 +11,7 @@
 """Unit tests for the Bio.PDB module."""
 import unittest
 import warnings
+from StringIO import StringIO
 
 try:
     from numpy.random import random
@@ -18,7 +19,9 @@ except ImportError:
     from Bio import MissingExternalDependencyError
     raise MissingExternalDependencyError(\
         "Install NumPy if you want to use Bio.PDB.")
- 
+
+from Bio.Seq import Seq
+from Bio.Alphabet import generic_protein
 from Bio.PDB import PDBParser, PPBuilder, CaPPBuilder
 from Bio.PDB import HSExposureCA, HSExposureCB, ExposureCN
 from Bio.PDB.NeighborSearch import NeighborSearch
@@ -56,6 +59,15 @@ class PDBExceptionTest(unittest.TestCase):
     #TODO - check get expected warnings, may require Python 2.6+
     #See Bug 2820
 
+    def test_bad_xyz(self):
+        """Check error: Parse an entry with bad x,y,z value."""
+        data = "ATOM      9  N   ASP A 152      21.554  34.953  27.691  1.00 19.26           N\n"
+        parser = PDBParser(PERMISSIVE=False)
+        s = parser.get_structure("example", StringIO(data))
+        data = "ATOM      9  N   ASP A 152      21.ish  34.953  27.691  1.00 19.26           N\n"
+        self.assertRaises(PDBConstructionException,
+                parser.get_structure, "example", StringIO(data))       
+
 
 class PDBParseTest(unittest.TestCase):
     def setUp(self):
@@ -73,6 +85,13 @@ class PDBParseTest(unittest.TestCase):
         # Check the start and end positions
         self.assertEqual(pp[0].get_id()[1], 2)
         self.assertEqual(pp[-1].get_id()[1], 86)
+        # Check the sequence
+        s = pp.get_sequence()
+        self.assert_(isinstance(s, Seq))
+        self.assertEqual(s.alphabet, generic_protein)
+        self.assertEqual("RCGSQGGGSTCPGLRCCSIWGWCGDSEPYCGRTCENKCWSGER"
+                         "SDHRCGAAVGNPPCGQDRCCSVHGWCGGGNDYCSGGNCQYRC",
+                         str(s))
  
     def test_ca_ca(self):
         """Extract polypeptides using CA-CA."""
@@ -83,6 +102,13 @@ class PDBParseTest(unittest.TestCase):
         # Check the start and end positions
         self.assertEqual(pp[0].get_id()[1], 2)
         self.assertEqual(pp[-1].get_id()[1], 86)
+        # Check the sequence
+        s = pp.get_sequence()
+        self.assert_(isinstance(s, Seq))
+        self.assertEqual(s.alphabet, generic_protein)
+        self.assertEqual("RCGSQGGGSTCPGLRCCSIWGWCGDSEPYCGRTCENKCWSGER"
+                         "SDHRCGAAVGNPPCGQDRCCSVHGWCGGGNDYCSGGNCQYRC",
+                         str(s))
  
     def test_structure(self):
         """Verify the structure of the parsed example PDB file."""
