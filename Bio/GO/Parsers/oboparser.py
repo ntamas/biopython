@@ -13,9 +13,7 @@ Usage example::
 
     import Bio.GO.Parsers.oboparser as obo
     parser = obo.Parser(open("gene_ontology.1_2.obo"))
-    gene_ontology = {}
-    for stanza in parser:
-        gene_ontology[stanza.tags["id"][0]] = stanza.tags
+    ontology = parser.parse()
 """
 
 __author__  = "Tamas Nepusz"
@@ -156,7 +154,7 @@ class Parser(object):
     If you want to create a parser that reads an OBO file, do this:
 
       >>> import Bio.GO.Parsers.oboparser as obo
-      >>> parser = obo.Parser(file("gene_ontology.1_2.obo"))
+      >>> parser = obo.Parser(open("gene_ontology.1_2.obo"))
 
     Only the headers are read when creating the parser. You can
     access these right after construction as follows:
@@ -166,7 +164,7 @@ class Parser(object):
 
     To read the stanzas in the file, you must iterate over the
     parser as if it were a list. The iterator yields `Stanza`
-    objects. If you are not interested in the individual `Stanza`
+    objects. If you are not interested in the individual `Stanza`s
     and you only need an `Ontology` object, call the `parse()`
     method which will construct it for you.
     """
@@ -174,6 +172,8 @@ class Parser(object):
     def __init__(self, fp):
         """Creates an OBO parser that reads the given file-like object.
         """
+        self._line_buffer = []
+
         if isinstance(fp, (str, unicode)):
             fp = open(fp)
         self.fp = fp
@@ -186,6 +186,9 @@ class Parser(object):
         """Iterates over the lines of the file, removing
         comments and trailing newlines and merging multi-line
         tag-value pairs into a single line"""
+        while self._line_buffer:
+            yield self._line_buffer.pop(-1)
+
         while True:
             self.lineno += 1
             line = self.fp.readline()
@@ -275,7 +278,9 @@ class Parser(object):
         for line in self._lines():
             if not line or line[0] == '[':
                 # We have reached the end of headers
-                self._extra_line = line
+                # Push back the current line to the buffer as we
+                # will need it later once again
+                self._line_buffer.append(line)
                 return
             key, value = self._parse_tag_value_pair(line)
             try:
@@ -288,11 +293,6 @@ class Parser(object):
         yielding a `Stanza` object for each stanza."""
         stanza = None
         stanza_name_re = self.stanza_name_re
-
-        if self._extra_line:
-            match = stanza_name_re.match(self._extra_line)
-            if match:
-                stanza = Stanza(match.group("name"))
 
         for line in self._lines():
             if not line:
