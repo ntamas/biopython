@@ -289,6 +289,11 @@ class OboParserRealOntologyFileTests(unittest.TestCase):
             "with any nucleic acid.", ("[GOC:jl]", ))\
         ])
 
+        term2 = ontology.get_term_by_id("GO:0005488")
+        self.failUnless(ontology.has_relationship(term, term2))
+        rel = GO.ontology.IsARelationship(term, term2)
+        self.failUnless(rel in ontology.get_relationships(object_term=term2))
+
 
 if __name__ == "__main__":
     runner = unittest.TextTestRunner(verbosity = 2)

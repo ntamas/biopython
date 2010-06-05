@@ -29,8 +29,8 @@ from cStringIO import StringIO
 import re
 import tokenize
 
-from Bio.GO.ontology import GeneOntologyNX, GOTerm, Ontology
-
+from Bio.GO.ontology import GeneOntologyNX, GOTerm, Ontology, \
+                            IsARelationship
 
 class ParseError(Exception):
     """Exception thrown when a parsing error occurred"""
@@ -334,16 +334,30 @@ class Parser(object):
               class in the ontology.
         """
         ontology = ontology_factory()
+        relationships = []
 
         if load_obsolete:
-            for stanza in self:
-                if stanza.name == "Term":
-                    ontology.add_term(term_factory(stanza))
+            stanza_iter = (stanza for stanza in self if stanza.name == "Term")
         else:
-            for stanza in self:
-                if stanza.name != "Term":
-                    continue
-                if "true" not in stanza.tags.get("is_obsolete", []):
-                    ontology.add_term(term_factory(stanza))
+            stanza_iter = (stanza for stanza in self \
+                           if stanza.name == "Term" and \
+                           "true" not in stanza.tags.get("is_obsolete", []))
+
+        # Add the terms
+        for stanza in stanza_iter:
+            term = term_factory(stanza)
+            ontology.add_term(term)
+
+            rel = IsARelationship
+            for ancestor in stanza.tags.get("is_a", []):
+                relationships.append((term, rel, ancestor.value))
+
+        # Add the relationships
+        for subject_term, rel, ancestor in relationships:
+            # We have to look up the ancestor in the ontology
+            object_term = ontology.get_term_by_id(ancestor)
+            ontology.add_relationship(subject_term=subject_term, \
+                                      object_term=object_term, \
+                                      relationship=rel)
 
         return ontology
