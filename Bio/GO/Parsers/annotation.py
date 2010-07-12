@@ -23,7 +23,8 @@ __version__ = "0.1"
 
 __all__ = ["ParseError", "Annotation", "Parser"]
 
-from Bio import Enum
+from Bio.Enum import Enum
+from Bio.GO.ontology import Aspect
 from Bio.GO.Parsers.utils import pushback_iterator
 
 from itertools import izip_longest
@@ -64,17 +65,6 @@ class EvidenceCode(Enum):
     IEA = "Inferred from electronic annotation"
 
     NR  = "Not recorded"
-
-
-# pylint:disable-msg=W0232,R0903
-# W0232: class has no __init__ method
-# R0903: too few public methods
-class GONamespace(Enum):
-    """Namespace of a Gene Ontology annotation"""
-
-    P = "Biological process"
-    F = "Molecular function"
-    C = "Cellular component"
 
 
 class Annotation(object):
@@ -123,7 +113,7 @@ class Annotation(object):
 
       - ``aspect``: refers to the namespace or ontology to which
         the given ``go_id`` belongs. It is an instance of
-        `GONamespace`.
+        `Aspect`.
 
       - ``db_object_name``: name of gene or gene product. It may
         also be C{None}.
@@ -163,7 +153,7 @@ class Annotation(object):
     _fields = ("db", "db_object_id", "db_object_symbol", \
                "qualifiers", "go_id", "db_references", \
                "evidence_code", "froms", "aspect", \
-               "db_object_name", "db_object_synonym", \
+               "db_object_name", "db_object_synonyms", \
                "db_object_type", "taxons", "date", \
                "assigned_by", "annotation_extensions", \
                "gene_product_form_id")
@@ -184,8 +174,8 @@ class Annotation(object):
     def _ensure_tuple(self, field_name):
         """Ensures that the field with the given name is a tuple"""
         value = getattr(self, field_name)
-        if value is None:
-            value = ()
+        if value is None or value == '':
+            setattr(self, field_name, ())
         elif not isinstance(value, tuple):
             setattr(self, field_name, tuple(value.split("|")))
 
@@ -198,6 +188,7 @@ class Annotation(object):
         required format."""
         self._ensure_tuple("qualifiers")
         self._ensure_tuple("db_references")
+        self._ensure_tuple("db_object_synonyms")
         self._ensure_tuple("froms")
         self._ensure_tuple("taxons")
         self._ensure_tuple("annotation_extensions")
@@ -205,10 +196,10 @@ class Annotation(object):
         if self.evidence_code is None:
             self.evidence_code = EvidenceCode.ND
         elif not isinstance(self.evidence_code, EvidenceCode):
-            self.evidence_code = EvidenceCode.from_value(self.evidence_code)
+            self.evidence_code = EvidenceCode.from_name(self.evidence_code)
 
-        if self.aspect is not None and not self.aspect.isinstance(GONamespace):
-            self.aspect = GONamespace.from_value(self.aspect)
+        if self.aspect is not None and not isinstance(self.aspect, Aspect):
+            self.aspect = Aspect.from_name(self.aspect)
 
     def __repr__(self):
         """Returns a Python representation of this object"""
@@ -244,7 +235,12 @@ class Parser(object):
         self.headers = {}
 
         if isinstance(fp, (str, unicode)):
-            fp = open(fp)
+            if fp.endswith(".gz"):
+                # This is a gzipped file
+                from gzip import GzipFile
+                fp = GzipFile(fp)
+            else:
+                fp = open(fp)
         self._line_iterator = pushback_iterator(self._lines(fp))
         self._read_headers()
 
@@ -266,7 +262,11 @@ class Parser(object):
                 self._line_iterator.push_back(line)
                 return
 
-            key, value = [part.strip() for part in line[1:].split(":", 1)]
+            parts = [part.strip() for part in line[1:].split(":", 1)]
+            if len(parts) < 2:
+                continue
+
+            key, value = parts
             try:
                 self.headers[key].append(value)
             except KeyError:

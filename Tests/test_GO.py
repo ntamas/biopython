@@ -8,7 +8,10 @@ Tests for the GO package.
 
 import unittest
 from Bio import GO
+from Bio.GO.ontology import Aspect
 from Bio.GO.Parsers import oboparser as obo
+from Bio.GO.Parsers import annotation
+from Bio.GO.Parsers.annotation import EvidenceCode
 
 
 def first(iterable):
@@ -294,6 +297,71 @@ class OboParserRealOntologyFileTests(unittest.TestCase):
         rel = GO.ontology.IsARelationship(term, term2)
         self.failUnless(rel in ontology.get_relationships(object_term=term2))
 
+
+class AnnotationParserRealAnnotationFileTests(unittest.TestCase):
+
+    def setUp(self):
+        parser = annotation.Parser("GO/gene_association.PAMGO_Ddadantii.gz")
+        self.annotations = list(parser)
+
+    def test_db_and_taxon_fields(self):
+        self.failIf(any(ann.db != "ASAP" for ann in self.annotations))
+        self.failIf(any(ann.taxons != ("taxon:198628", )
+                        for ann in self.annotations))
+
+    def test_simple_annotation(self):
+        ann = self.annotations[0]
+        self.failUnless(ann.db_object_id == "ABF-0014586")
+        self.failUnless(ann.db_object_symbol == "pelI")
+        self.failUnless(ann.qualifiers == ())
+        self.failUnless(ann.go_id == "GO:0030570")
+        self.failUnless(ann.db_references == ("PMID:9393696", ))
+        self.failUnless(ann.evidence_code == EvidenceCode.IDA)
+        self.failUnless(ann.froms == ())
+        self.failUnless(ann.aspect == Aspect.F)
+        self.failUnless(ann.db_object_name == "endo-pectate lyase")
+        self.failUnless(ann.db_object_synonyms == ())
+        self.failUnless(ann.db_object_type == "gene")
+        self.failUnless(ann.date == "20080227")
+        self.failUnless(ann.assigned_by == "ASAP")
+        self.failUnless(ann.annotation_extensions == ())
+        self.failUnless(ann.gene_product_form_id is None)
+
+    def test_annotation_with_qualifier(self):
+        ann = self.annotations[7]
+        self.failUnless(ann.db_object_id == "ABF-0014783")
+        self.failUnless(ann.db_object_symbol == "pelX")
+        self.failUnless(ann.qualifiers == ("NOT", ))
+        self.failUnless(ann.go_id == "GO:0009405")
+        self.failUnless(ann.db_references == ("PMID:10049400", ))
+        self.failUnless(ann.evidence_code == EvidenceCode.IMP)
+        self.failUnless(ann.froms == ())
+        self.failUnless(ann.aspect == Aspect.P)
+        self.failUnless(ann.db_object_name == "exopolygalacturonate lyase PelX")
+        self.failUnless(ann.db_object_synonyms == ())
+        self.failUnless(ann.db_object_type == "gene")
+        self.failUnless(ann.date == "20080229")
+        self.failUnless(ann.assigned_by == "ASAP")
+        self.failUnless(ann.annotation_extensions == ())
+        self.failUnless(ann.gene_product_form_id is None)
+
+    def test_annotation_with_tuples(self):
+        ann = self.annotations[15]
+        self.failUnless(ann.db_object_id == "ABF-0014958")
+        self.failUnless(ann.db_object_symbol == "pehX")
+        self.failUnless(ann.qualifiers == ())
+        self.failUnless(ann.go_id == "GO:0052179")
+        self.failUnless(ann.db_references == ("PMID:10564505", ))
+        self.failUnless(ann.evidence_code == EvidenceCode.IGI)
+        self.failUnless(ann.froms == ("ASAP:ABF-0014959", "ASAP:ABF-0014963"))
+        self.failUnless(ann.aspect == Aspect.P)
+        self.failUnless(ann.db_object_name == "Exo-poly-alpha-D-galacturonosidase precursor")
+        self.failUnless(ann.db_object_synonyms == ())
+        self.failUnless(ann.db_object_type == "gene")
+        self.failUnless(ann.date == "20080121")
+        self.failUnless(ann.assigned_by == "ASAP")
+        self.failUnless(ann.annotation_extensions == ())
+        self.failUnless(ann.gene_product_form_id is None)
 
 if __name__ == "__main__":
     runner = unittest.TextTestRunner(verbosity = 2)

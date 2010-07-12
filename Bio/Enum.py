@@ -77,11 +77,18 @@ class EnumMeta(type):
     def __contains__(self, key):
         return key in self.__enum__
 
-    @classmethod
-    def from_value(cls, value):
+    def from_name(self, name):
+        """Constructs an instance of this enum from its name"""
+        try:
+            return self.__enum__[name]
+        except KeyError:
+            raise NameError("no enum item with the given name: %r" % name)
+
+    def from_value(self, value):
         """Constructs an instance of this enum from its value"""
         try:
-            return first(key for key, val in self.__enum__ if val == value)
+            return first(val for val in self.__enum__.itervalues() \
+                         if val.value == value)
         except ValueError:
             raise ValueError("no enum item with the given value: %r" % value)
 
