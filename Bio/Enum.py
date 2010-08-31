@@ -14,12 +14,11 @@ __copyright__ = "Copyright (c) 2010, Tamas Nepusz"
 def first(iter):
     """Helper function that takes an iterable and returns the
     first element. No big deal, but it makes the code readable
-    in some cases. It is typically useful when `iter` is a
-    generator expression as you can use the indexing operator
-    for ordinary lists and tuples."""
+    in some cases. It is typically useful when `iter` is (or 
+    can be) a generator expression as you can use the indexing
+    operator for ordinary lists and tuples."""
     for item in iter:
-        yield item
-        return
+        return item
     raise ValueError("iterable is empty")
 
 class EnumMeta(type):
@@ -43,7 +42,9 @@ class EnumMeta(type):
 
         # Extend enum_values with the items directly declared here
         for key, value in attrs.iteritems():
-            if key[:2] != "__":
+            # Skip internal methods, properties and callables
+            if key[:2] != "__" and not callable(value) \
+                    and not isinstance(value, property):
                 inst = cls(key, value, override=True)
                 enum_values[key] = inst
                 super(EnumMeta, cls).__setattr__(key, inst)
@@ -77,11 +78,18 @@ class EnumMeta(type):
     def __contains__(self, key):
         return key in self.__enum__
 
-    @classmethod
-    def from_value(cls, value):
+    def from_name(self, name):
+        """Constructs an instance of this enum from its name"""
+        try:
+            return self.__enum__[name]
+        except KeyError:
+            raise NameError("no enum item with the given name: %r" % name)
+
+    def from_value(self, value):
         """Constructs an instance of this enum from its value"""
         try:
-            return first(key for key, val in self.__enum__ if val == value)
+            return first(val for val in self.__enum__.itervalues() \
+                         if val.value == value)
         except ValueError:
             raise ValueError("no enum item with the given value: %r" % value)
 
@@ -104,7 +112,6 @@ class EnumMeta(type):
     def values(self):
         """Returns the values in this enum"""
         return self.__enum__.values()
-
 
 class Enum(object):
     """An instance of an enumeration value and a class representing a
@@ -162,8 +169,3 @@ class Enum(object):
 
     def __str__(self):
         return "%s.%s" % (self.__class__.__name__, self._key)
-
-    @property
-    def value(self):
-        """Returns the value of this enum instance"""
-        return self._value
