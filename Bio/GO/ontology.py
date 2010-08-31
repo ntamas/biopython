@@ -3,6 +3,8 @@
 
 """Classes for the Gene Ontology."""
 
+from Bio.Enum import Enum
+
 __author__ = 'Chris Lasher'
 __email__ = 'chris DOT lasher <AT> gmail DOT com'
 
@@ -43,6 +45,17 @@ class NoSuchRelationshipError(Exception):
         super(NoSuchRelationshipError, self).__init__(
             "no such relationship: %s --> %s" % (subject_term.id, object_term.id)
         )
+
+
+# pylint:disable-msg=W0232,R0903
+# W0232: class has no __init__ method
+# R0903: too few public methods
+class Aspect(Enum):
+    """Possible aspects of the Gene Ontology"""
+
+    P = "Biological process"
+    F = "Molecular function"
+    C = "Cellular component"
 
 
 class GOTerm(object):

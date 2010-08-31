@@ -10,9 +10,10 @@ __copyright__ = "Copyright (c) 2010, Tamas Nepusz"
 __version__ = "0.1"
 
 
-__all__ = ["Annotation", "EvidenceCode", "GONamespace"]
+__all__ = ["Annotation", "EvidenceCode"]
 
 from Bio.Enum import Enum
+from Bio.GO.ontology import Aspect
 from itertools import izip_longest
 
 # pylint:disable-msg=W0232,R0903
@@ -44,17 +45,6 @@ class EvidenceCode(Enum):
     IEA = "Inferred from electronic annotation"
 
     NR  = "Not recorded"
-
-
-# pylint:disable-msg=W0232,R0903
-# W0232: class has no __init__ method
-# R0903: too few public methods
-class GONamespace(Enum):
-    """Namespace of a Gene Ontology annotation"""
-
-    P = "Biological process"
-    F = "Molecular function"
-    C = "Cellular component"
 
 
 class Annotation(object):
@@ -95,7 +85,7 @@ class Annotation(object):
         be a tuple.
 
       - ``evidence_code``: the evidence code for the annotation.
-        It is an instance of `EvidenceCode`. Since it is mandatory
+        It is an instance of `EvidenceCode`_. Since it is mandatory
         in any GO annotation file, absent evidence codes will be
         replaced by `EvidenceCode.ND`.
 
@@ -105,7 +95,7 @@ class Annotation(object):
 
       - ``aspect``: refers to the namespace or ontology to which
         the given ``go_id`` belongs. It is an instance of
-        `GONamespace`.
+        `Aspect`_.
 
       - ``db_object_name``: name of gene or gene product. It may
         also be C{None}.
@@ -145,7 +135,7 @@ class Annotation(object):
     _fields = ("db", "db_object_id", "db_object_symbol", \
                "qualifiers", "go_id", "db_references", \
                "evidence_code", "froms", "aspect", \
-               "db_object_name", "db_object_synonym", \
+               "db_object_name", "db_object_synonyms", \
                "db_object_type", "taxons", "date", \
                "assigned_by", "annotation_extensions", \
                "gene_product_form_id")
@@ -166,8 +156,8 @@ class Annotation(object):
     def _ensure_tuple(self, field_name):
         """Ensures that the field with the given name is a tuple"""
         value = getattr(self, field_name)
-        if value is None:
-            value = ()
+        if value is None or value == '':
+            setattr(self, field_name, ())
         elif not isinstance(value, tuple):
             setattr(self, field_name, tuple(value.split("|")))
 
@@ -180,6 +170,7 @@ class Annotation(object):
         required format."""
         self._ensure_tuple("qualifiers")
         self._ensure_tuple("db_references")
+        self._ensure_tuple("db_object_synonyms")
         self._ensure_tuple("froms")
         self._ensure_tuple("taxons")
         self._ensure_tuple("annotation_extensions")
@@ -189,8 +180,8 @@ class Annotation(object):
         elif not isinstance(self.evidence_code, EvidenceCode):
             self.evidence_code = EvidenceCode.from_name(self.evidence_code)
 
-        if self.aspect is not None and not isinstance(self.aspect, GONamespace):
-            self.aspect = GONamespace.from_name(self.aspect)
+        if self.aspect is not None and not isinstance(self.aspect, Aspect):
+            self.aspect = Aspect.from_name(self.aspect)
 
     def __repr__(self):
         """Returns a Python representation of this object"""

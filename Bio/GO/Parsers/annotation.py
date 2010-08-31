@@ -61,7 +61,12 @@ class Parser(object):
         self.headers = {}
 
         if isinstance(fp, (str, unicode)):
-            fp = open(fp)
+            if fp.endswith(".gz"):
+                # This is a gzipped file
+                from gzip import GzipFile
+                fp = GzipFile(fp)
+            else:
+                fp = open(fp)
         self._line_iterator = pushback_iterator(self._lines(fp))
         self._read_headers()
 
