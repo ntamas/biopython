@@ -554,6 +554,39 @@ class InferenceRulesTests(unittest.TestCase):
         rel2 = construct_relationship(reg_growth, regulates, growth)
         self.assertEquals(rules.apply(rel1, rel2), None)
 
+    def test_restrict_to_rules_relevant_for(self):
+        rules = Rules()
+
+        expected = {
+            "is_a": [("is_a", "any", 2)],
+            "part_of": [
+                ("part_of", "inheritable", "part_of"),
+                ("is_a", "any", 2)
+            ],
+            "regulates": rules.default_rules,
+            "negatively_regulates": [
+                ("regulates", "is_a", 1),
+                ("is_a", "any", 2)
+            ],
+            "positively_regulates": [
+                ("regulates", "is_a", 1),
+                ("is_a", "any", 2)
+            ]
+        }
+
+        for rel, exp in expected.iteritems():
+            restricted_rules = rules.restrict_to_rules_relevant_for(
+                GO.ontology.GORelationship.from_name(rel))
+            message = "restrict_to_rules_relevant_for(%r) failed" % rel
+            for rule, expected_rule in zip(restricted_rules.rules, exp):
+                self.failUnless(expected_rule[0] in rule[0].names, message)
+                self.failUnless(expected_rule[1] in rule[1].names, message)
+                if rule[2] == 1 or rule[2] == 2:
+                    self.assertEqual(expected_rule[2], rule[2], message)
+                else:
+                    self.failUnless(expected_rule[2] in rule[2].names, message)
+
+
 
 if __name__ == "__main__":
     runner = unittest.TextTestRunner(verbosity = 2)

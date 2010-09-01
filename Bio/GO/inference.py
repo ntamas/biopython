@@ -106,6 +106,13 @@ class InvalidQueryError(Exception):
         self.query = query
 
 
+def _ensure_relationship(rel):
+    """Ensures that `rel` is a subclass of `GORelationship`. If it is a
+    string, the name will be resolved using `GORelationship.from_name`."""
+    if isinstance(rel, type) and issubclass(rel, GORelationship):
+        return rel
+    return GORelationship.from_name(rel)
+
 class Rules(object):
     """Class that stores information about the rules of inference in the
     Gene Ontology.
@@ -162,18 +169,18 @@ class Rules(object):
         """Initializes the `rules` variable by transforming relationship
         names to `GORelationship` instances.
 
-        If `rules` is empty or ``None``, the default rules will be used.
+        If `rules` is ``None``, the default rules will be used.
         """
-        if not rules:
+        if rules is None:
             rules = self.__class__.default_rules
 
         new_rules = []
         for rule in rules:
             target_rel = rule[2]
             if target_rel != 1 and target_rel != 2:
-                target_rel = GORelationship.from_name(target_rel)
-            new_rule = (GORelationship.from_name(rule[0]),
-                        GORelationship.from_name(rule[1]),
+                target_rel = _ensure_relationship(target_rel)
+            new_rule = (_ensure_relationship(rule[0]),
+                        _ensure_relationship(rule[1]),
                         target_rel)
             new_rules.append(new_rule)
         self.rules = new_rules
@@ -197,9 +204,78 @@ class Rules(object):
                 return rel3(rel1.subject_term, rel2.object_term)
         return None
 
+    def restrict_to_rules_relevant_for(self, relationship):
+        """Constructs another `Rules` instance where only those inference
+        rules will be kept that are relevant for inferring the given
+        `relationship` (a subclass of `GORelationship`)."""
+        if isinstance(relationship, GORelationship):
+            relationship = relationship.__class__
+        if not isinstance(relationship, type):
+            raise TypeError("GORelationship or GORelationship instance expected")
+
+        relevant_relationships = set([relationship])
+        relevant_rule_idxs = set()
+        # Find the transitive closure of relevant_relationships under the
+        # current ruleset
+        prev_count = 0
+        while prev_count < len(relevant_relationships):
+            prev_count = len(relevant_relationships)
+            rels = relevant_relationships
+            for idx, rule in enumerate(self.rules):
+                # Have we seen this rule before? If we know that this rule
+                # is relevant, we can skip it
+                if idx in relevant_rule_idxs:
+                    continue
+
+                # Is it a rule of interest to us?
+                # If we cannot use the rule to infer any relationship which
+                # is not among our current relationships of interest or their
+                # superclasses, continue
+                if rule[2] == 1 or rule[2] == 2:
+                    # This is a rule template
+                    target_rel = rule[rule[2]-1]
+                    if not any(issubclass(rel, target_rel) for rel in rels):
+                        continue
+                else:
+                    if rule[2] not in rels:
+                        continue
+
+                # This is a new rule of interest.
+                relevant_rule_idxs.add(idx)
+
+                # We should be able to infer relationships standing on the left
+                # hand side of the rule as well.
+                if rule[2] == 1:
+                    # Rule template. The first part of the rule doesn't matter
+                    # as it is always equal to the conclusion, which is already
+                    # in the set of relevant relationships.
+                    relevant_relationships.add(rule[1])
+                elif rule[2] == 2:
+                    # Rule template. The second part of the rule doesn't matter
+                    # as it is always equal to the conclusion, which is already
+                    # in the set of relevant relationships.
+                    relevant_relationships.add(rule[0])
+                else:
+                    # Exact rule, not a template. Both parts matter.
+                    relevant_relationships.add(rule[0])
+                    relevant_relationships.add(rule[1])
+
+        return Rules(rule for idx, rule in enumerate(self.rules)
+                     if idx in relevant_rule_idxs)
+
 
 class InferenceEngine(object):
     """Inference engine for the Gene Ontology."""
+
+    def __init__(self, rules=None):
+        """Constructs an inference engine that uses the given `rules` for
+        inferring relations. `rules` must be an instance of `Rules` or
+        ``None``, which means the default rules.
+        """
+        if rules is None:
+            self.rules = Rules()
+        else:
+            self.rules = rules
 
     def solve(query):
         """Solves the given query.
