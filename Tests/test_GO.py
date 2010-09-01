@@ -9,9 +9,19 @@ Tests for the GO package.
 import unittest
 from Bio import GO
 from Bio.GO.annotation import EvidenceCode
+from Bio.GO.inference import Rules, Query, UNBOUND
 from Bio.GO.ontology import Aspect
 from Bio.GO.Parsers import oboparser as obo
 from Bio.GO.Parsers import annotation
+
+
+def construct_relationship(term1, rel, term2, ontology=None):
+    """Helper function, constructs a GO relationship from
+    term IDs and relationship names."""
+    if ontology:
+        term1 = ontology.ensure_term(term1)
+        term2 = ontology.ensure_term(term2)
+    return GO.ontology.GORelationship.from_name(rel)(term1, term2)
 
 
 def first(iterable):
@@ -20,6 +30,25 @@ def first(iterable):
     for elem in iterable:
         return elem
     raise IndexError
+
+
+def get_mini_ontology():
+    """Loads the mini ontology from the test fixtures.
+    
+    You must *NOT* mutate the returned ontology in any way, doing so would
+    result in cross-play between the test cases.
+    """
+    def load():
+        parser = obo.Parser(file("GO/miniontology.obo"))
+        return parser.parse()
+    if not hasattr(load, "cache"):
+        load.cache = load()
+    return load.cache
+
+
+###########################################################################
+## Tests for Bio.GO.ontology                                             ##
+###########################################################################
 
 class OntologyFunctionsTests(unittest.TestCase):
 
@@ -50,6 +79,47 @@ class OntologyFunctionsTests(unittest.TestCase):
                     GO.ontology._validate_and_normalize_go_id(case),
                     expected
             )
+
+
+class GORelationshipTests(unittest.TestCase):
+    """Test cases for `GO.ontology.GORelationship`."""
+
+    def test_from_name(self):
+        names = ["is a", "is_a", "Is A", "part_of", "part Of",
+                 "negatively_rEgUlAtEs", "positively_regulates",
+                 "regulates", "negatively regulates",
+                 "positively regulates"]
+        GORelationship = GO.ontology.GORelationship
+        for name in names:
+            rel = GORelationship.from_name(name) 
+            self.failUnless(issubclass(rel, GORelationship))
+            self.assertNotEqual(rel, GORelationship)
+            self.failUnless(name.lower().replace(" ", "_") in
+                    [name.lower() for name in rel.names])
+
+        self.assertRaises(GO.ontology.NoSuchRelationshipError,
+                GORelationship.from_name, "no_such_rel")
+
+    def test_implies(self):
+        rels = [
+            GO.ontology.PositivelyRegulatesRelationship("A", "B"),
+            GO.ontology.RegulatesRelationship("A", "B"),
+            GO.ontology.IsARelationship("A", "B"),
+            GO.ontology.RegulatesRelationship("A", "C"),
+            GO.ontology.InheritableGORelationship("A", "B")
+        ]
+        expected = [[ True,  True, False, False, False],
+                    [False,  True, False, False, False],
+                    [False, False,  True, False,  True],
+                    [False, False, False,  True, False],
+                    [False, False, False, False,  True]]
+        for i, rel1 in enumerate(rels):
+            for j, rel2 in enumerate(rels):
+                result = rel1.implies(rel2)
+                self.assertEqual(result, expected[i][j],
+                        "rels[%d].implies(rels[%d]), "
+                        "expected: %s, got: %s" %
+                        (i, j, expected[i][j], result))
 
 
 class GOTermTests(unittest.TestCase):
@@ -212,7 +282,8 @@ class GeneOntologyNXTests(unittest.TestCase):
         self.assertEquals(result, [GO.ontology.IsARelationship(term2, term1)])
 
         result = self.ontology.get_relationships(object_term=term2)
-        self.assertEquals(result, [GO.ontology.IsARelationship(term3, term2)])
+        self.assertEquals(result,
+                [GO.ontology.NegativelyRegulatesRelationship(term3, term2)])
 
     def test_get_relationships_all(self):
         self.prepare_ontology()
@@ -269,6 +340,9 @@ class GeneOntologyNXTests(unittest.TestCase):
 #        result = oboparser.tag_value_pair.parseString(case).asDict()
 #        self.assertEqual(result, expected)
 
+###########################################################################
+## Tests for Bio.GO.Parsers.oboparser                                    ##
+###########################################################################
 
 class OboParserRealOntologyFileTests(unittest.TestCase):
 
@@ -367,6 +441,108 @@ class AnnotationParserRealAnnotationFileTests(unittest.TestCase):
         self.assertEqual(ann.assigned_by, "ASAP")
         self.assertEqual(ann.annotation_extensions, ())
         self.failUnless(ann.gene_product_form_id is None)
+
+
+###########################################################################
+## Tests for Bio.GO.inference                                            ##
+###########################################################################
+
+class QueryTests(unittest.TestCase):
+    ontology = get_mini_ontology()
+
+    def test_unbound_relation(self):
+        self.assertRaises(ValueError, Query, self.ontology,
+                          relation=UNBOUND)
+
+    def test_term_id_resolution(self):
+        query = Query(self.ontology, "GO:0005488", "is_a", "GO:0003676")
+        self.assertEqual(query.relation, GO.ontology.IsARelationship)
+        self.assertEqual(query.subject_term,
+                         self.ontology.get_term_by_id("GO:0005488"))
+        self.assertEqual(query.object_term,
+                         self.ontology.get_term_by_id("GO:0003676"))
+        self.assertRaises(KeyError, Query, self.ontology,
+                subject_term="no_such_term")
+
+class InferenceRulesTests(unittest.TestCase):
+    def get_mini_ontology(self):
+        GOTerm = GO.ontology.GOTerm
+        parser = obo.Parser(file("GO/miniontology.obo"))
+        ontology = parser.parse()
+        ontology.add_term(GOTerm("GO:0040008", "regulation of growth"))
+        ontology.add_term(GOTerm("GO:0048519",
+            "negative regulation of biological process"))
+        ontology.add_term(GOTerm("GO:0045926",
+            "negative regulation of growth"))
+        return ontology
+
+    def test_default_ruleset(self):
+        rules = Rules()
+        ontology = self.get_mini_ontology()
+
+        vacuole = ontology.get_term_by_id("GO:0005773")
+        organelle = ontology.get_term_by_id("GO:0043226")
+        cellular_component = ontology.get_term_by_id("GO:0005575")
+        cytoplasm = ontology.get_term_by_id("GO:0005737")
+        biological_process = ontology.get_term_by_id("GO:0008150")
+        reg_biol_proc = ontology.get_term_by_id("GO:0050789")
+        neg_reg_biol_proc = ontology.get_term_by_id("GO:0048519")
+        growth = ontology.get_term_by_id("GO:0040007")
+        reg_growth = ontology.get_term_by_id("GO:0040008")
+        neg_reg_growth = ontology.get_term_by_id("GO:0045926")
+        intracellular = ontology.get_term_by_id("GO:0005622")
+
+        is_a = "is_a"
+        part_of = "part_of"
+        regulates = "regulates"
+        neg_regulates = "negatively_regulates"
+
+        # is_a o is_a = is_a
+        rel1 = construct_relationship(vacuole, is_a, organelle)
+        rel2 = construct_relationship(organelle, is_a, cellular_component)
+        conclusion = construct_relationship(vacuole, is_a, cellular_component)
+        self.assertEquals(rules.apply(rel1, rel2), conclusion)
+
+        # is_a o regulates = regulates
+        rel1 = construct_relationship(reg_growth, is_a, reg_biol_proc)
+        rel2 = construct_relationship(reg_biol_proc, regulates, biological_process)
+        conclusion = construct_relationship(reg_growth, regulates, biological_process)
+        self.assertEquals(rules.apply(rel1, rel2), conclusion)
+
+        # is_a o negatively_regulates = negatively_regulates
+        rel1 = construct_relationship(neg_reg_growth, is_a, neg_reg_biol_proc)
+        rel2 = construct_relationship(neg_reg_biol_proc, neg_regulates, biological_process)
+        conclusion = construct_relationship(neg_reg_growth, neg_regulates,
+                biological_process)
+        self.assertEquals(rules.apply(rel1, rel2), conclusion)
+
+        # part_of o is_a = part_of
+        rel1 = construct_relationship(vacuole, part_of, cytoplasm)
+        rel2 = construct_relationship(cytoplasm, is_a, cellular_component)
+        conclusion = construct_relationship(vacuole, part_of, cellular_component)
+        self.assertEquals(rules.apply(rel1, rel2), conclusion)
+
+        # part_of o part_of = part_of
+        rel1 = construct_relationship(vacuole, part_of, cytoplasm)
+        rel2 = construct_relationship(cytoplasm, part_of, intracellular)
+        conclusion = construct_relationship(vacuole, part_of, intracellular)
+        self.assertEquals(rules.apply(rel1, rel2), conclusion)
+
+        # negatively_regulates o is_a = negatively_regulates
+        rel1 = construct_relationship(neg_reg_growth, neg_regulates, growth)
+        rel2 = construct_relationship(growth, is_a, biological_process)
+        conclusion = construct_relationship(neg_reg_growth, neg_regulates,
+                biological_process)
+        self.assertEquals(rules.apply(rel1, rel2), conclusion)
+
+        # negatively_regulates o part_of = regulates
+        # This is a fake example -- but the inference should be OK
+        rel1 = construct_relationship(neg_reg_growth, neg_regulates, growth)
+        rel2 = construct_relationship(growth, part_of, biological_process)
+        conclusion = construct_relationship(neg_reg_growth, regulates,
+                biological_process)
+        self.assertEquals(rules.apply(rel1, rel2), conclusion)
+
 
 if __name__ == "__main__":
     runner = unittest.TextTestRunner(verbosity = 2)

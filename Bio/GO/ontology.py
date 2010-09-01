@@ -145,6 +145,7 @@ class GORelationship(object):
     """
 
     __slots__ = ("subject_term", "object_term")
+    names = ["any"]
 
     def __init__(self, subject_term, object_term):
         """Constructs a GO relationship between the given subject
@@ -175,11 +176,34 @@ class GORelationship(object):
         are understood: ``is_a``, ``part_of``, ``regulates``,
         ``negatively_regulates``, ``positively_regulates``. Spaces
         and underscores are equivalent.
+
+        There are two additional special relationship names:
+        ``any`` and ``inheritable``. ``any`` returns `GORelationship`,
+        ``inheritable`` returns `InheritableGORelationship`. Since,
+        for instance, `IsARelationship` is a subclass of `GORelationship`,
+        it makes sense to perform tests such as::
+
+            >>> if issubclass(my_rel, GORelationship.from_name("inheritable")):
+            ...     print "The relationship is inheritable"
         """
         try:
             return cls._registry[name.lower()]
         except KeyError:
             raise NoSuchRelationshipError(relation=name)
+
+    def implies(self, other):
+        """Returns ``True`` if this relationship implies `other`.
+
+        For instance, A ``negatively_regulates`` B implies that
+        A ``regulates`` B, but not the other way round.
+
+        The formal definition of this method is that the two terms
+        involved in `self` and `other` should be equal, while the
+        class of `other` must be a superclass of the class of `self`.
+        """
+        return self.subject_term == other.subject_term and \
+               self.object_term == other.object_term and \
+               isinstance(self, other.__class__)
 
     @classmethod
     def _register_relationships(cls, module):
@@ -209,10 +233,10 @@ class InheritableGORelationship(GORelationship):
     term inherits properties from the object term. Currently, two
     relationships exist for this: the 'is_a' and 'part_of'
     relationships.
-
     """
 
     __slots__ = ()
+    names = ["inheritable"]
 
 
 class IsARelationship(InheritableGORelationship):
@@ -226,6 +250,7 @@ class IsARelationship(InheritableGORelationship):
 
     __slots__ = ()
     names = ["is_a"]
+
 
 class PartOfRelationship(InheritableGORelationship):
     """A class representing the 'part_of' GO relationship.
