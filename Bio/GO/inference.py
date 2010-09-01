@@ -148,11 +148,13 @@ class Rules(object):
     """
 
     # TODO: check whether it's worth indexing the rules based on R1
+    # TODO: is it worth refactoring stuff to a separate Rule class?
 
     default_rules = [
         ("regulates", "is_a", 1),
         ("regulates", "part_of", "regulates"),
-        ("part_of", "inheritable", "part_of"),
+        ("part_of", "part_of", "part_of"),
+        ("part_of", "is_a", "part_of"),
         ("is_a", "any", 2),
     ]
 
@@ -205,9 +207,24 @@ class Rules(object):
         return None
 
     def restrict_to_rules_relevant_for(self, relationship):
-        """Constructs another `Rules` instance where only those inference
+        """Constructs another `Rules`_ instance where only those inference
         rules will be kept that are relevant for inferring the given
-        `relationship` (a subclass of `GORelationship`)."""
+        `relationship` (a subclass of `GORelationship`_).
+        
+        Returns the new `Rules`_ instance and the list of relationships
+        that are relevant for inferring `relationship`.
+        
+        For instance, in order to infer `IsARelationship`_ instances, it is
+        enough to consider other `IsARelationship`_ instances from the ontology.
+        Therefore, the restricted ruleset will only contain rules involving
+        `IsARelationship`_ relations, and the result will be a pair containing
+        the new rules (as a `Rules` instance) and a singleton set containing
+        `IsARelationship`_. In order to infer `PartOfRelationship`s,
+        it is enough to consider `IsARelationship` and `PartOfRelationship`,
+        therefore the restricted ruleset contains only the rules related
+        to the inference of these two relations, plus a set containing these
+        two relations.
+        """
         if isinstance(relationship, GORelationship):
             relationship = relationship.__class__
         if not isinstance(relationship, type):
@@ -261,7 +278,7 @@ class Rules(object):
                     relevant_relationships.add(rule[1])
 
         return Rules(rule for idx, rule in enumerate(self.rules)
-                     if idx in relevant_rule_idxs)
+                     if idx in relevant_rule_idxs), relevant_relationships
 
 
 class InferenceEngine(object):
@@ -300,7 +317,9 @@ class InferenceEngine(object):
         You may call this method directly instead of `solve()`_ if you
         are sure that the query satisfies the preconditions of this method.
         """
+        # TODO: cache the result of restrict_to_rules_relevant_for
+        rules = self.rules.restrict_to_rules_relevant_for(query.relation)
+
         result = []
-        # TODO
         return result
 
