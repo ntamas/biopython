@@ -543,6 +543,17 @@ class InferenceRulesTests(unittest.TestCase):
                 biological_process)
         self.assertEquals(rules.apply(rel1, rel2), conclusion)
 
+        # is_a o is_a with totally unrelated relationships
+        rel1 = construct_relationship(vacuole, is_a, organelle)
+        rel2 = construct_relationship(reg_growth, is_a, reg_biol_proc)
+        self.assertEquals(rules.apply(rel1, rel2), None)
+
+        # part_of o regulates = ???
+        # Again, the relations are fake and do not make sense
+        rel1 = construct_relationship(vacuole, part_of, reg_growth)
+        rel2 = construct_relationship(reg_growth, regulates, growth)
+        self.assertEquals(rules.apply(rel1, rel2), None)
+
 
 if __name__ == "__main__":
     runner = unittest.TextTestRunner(verbosity = 2)

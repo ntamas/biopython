@@ -140,6 +140,8 @@ class Rules(object):
     ``("regulates", "inheritable", "regulates")``).
     """
 
+    # TODO: check whether it's worth indexing the rules based on R1
+
     default_rules = [
         ("regulates", "is_a", 1),
         ("regulates", "part_of", "regulates"),
@@ -181,6 +183,9 @@ class Rules(object):
         `rel1` and `rel2` and returns the inferred relationship or
         ``None`` if no inference can be drawn.
         """
+        if rel1.object_term != rel2.subject_term:
+            return None
+
         for rule in self.rules:
             if isinstance(rel1, rule[0]) and isinstance(rel2, rule[1]):
                 if rule[2] == 1:
