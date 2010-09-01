@@ -4,6 +4,7 @@
 """Classes for the Gene Ontology."""
 
 from Bio.Enum import Enum
+import sys
 
 __author__ = 'Chris Lasher'
 __email__ = 'chris DOT lasher <AT> gmail DOT com'
@@ -37,14 +38,29 @@ class NoSuchTermError(Exception):
 class NoSuchRelationshipError(Exception):
     """An exception to be raised when one tries to access or delete
     a relationship in an ontology when there is no such relationship
-    between the two given terms.
-
+    between the two given terms, or when one tries to refer to a
+    relationship by name in `GORelationship.from_name` and no such
+    relationship name is known.
     """
 
-    def __init__(self, subject_term, object_term):
-        super(NoSuchRelationshipError, self).__init__(
-            "no such relationship: %s --> %s" % (subject_term.id, object_term.id)
-        )
+    def __init__(self, subject_term=None, relation=None, object_term=None):
+        if subject_term is None and object_term is None:
+            if relation is None:
+                message = "no such relationship"
+            else:
+                message = "no such relationship: %r" % relation
+        else:
+            if hasattr(subject_term, "id"):
+                subject_term = str(subject_term.id)
+            else:
+                subject_term = repr(subject_term)
+            if hasattr(object_term, "id"):
+                object_term = str(object_term.id)
+            else:
+                object_term = repr(object_term)
+            message = "no such relationship: %s --> %s" % \
+                    (subject_term.id, object_term.id)
+        super(NoSuchRelationshipError, self).__init__(message)
 
 
 # pylint:disable-msg=W0232,R0903
@@ -143,11 +159,47 @@ class GORelationship(object):
 
     def __eq__(self, other):
         return self.subject_term == other.subject_term and \
-               self.object_term == other.object_term
+               self.object_term == other.object_term and \
+               self.__class__ == other.__class__
 
     def __repr__(self):
-        outstr = "<%s>" % self.__class__.__name__
-        return outstr
+        return "%s(%r, %r)" % (self.__class__.__name__,
+                self.subject_term, self.object_term)
+
+    @classmethod
+    def from_name(cls, name):
+        """Returns a subclass of `GORelationship` based on its
+        human-readable name.
+
+        Names are case insensitive. Currently the following names
+        are understood: ``is_a``, ``part_of``, ``regulates``,
+        ``negatively_regulates``, ``positively_regulates``. Spaces
+        and underscores are equivalent.
+        """
+        try:
+            return cls._registry[name.lower()]
+        except KeyError:
+            raise NoSuchRelationshipError(relation=name)
+
+    @classmethod
+    def _register_relationships(cls, module):
+        """Scans the given module for `GORelationship` subclasses
+        and registers their names in the class-wide registry
+        used by `from_name`.
+        
+        This method should be called once at the end of the
+        initialization of this module.
+        """
+        if not hasattr(cls, "_registry"):
+            cls._registry = {}
+        for value in module.__dict__.itervalues():
+            if not isinstance(value, type):
+                continue
+            if issubclass(value, GORelationship) and hasattr(value, "names"):
+                for name in value.names:
+                    name = name.lower()
+                    cls._registry[name] = value
+                    cls._registry[name.replace("_", " ")] = value
 
 
 class InheritableGORelationship(GORelationship):
@@ -173,7 +225,7 @@ class IsARelationship(InheritableGORelationship):
     """
 
     __slots__ = ()
-
+    names = ["is_a"]
 
 class PartOfRelationship(InheritableGORelationship):
     """A class representing the 'part_of' GO relationship.
@@ -185,6 +237,7 @@ class PartOfRelationship(InheritableGORelationship):
     """
 
     __slots__ = ()
+    names = ["part_of"]
 
 
 class RegulatesRelationship(GORelationship):
@@ -195,6 +248,7 @@ class RegulatesRelationship(GORelationship):
     """
 
     __slots__ = ()
+    names = ["regulates"]
 
 
 class PositivelyRegulatesRelationship(RegulatesRelationship):
@@ -207,6 +261,7 @@ class PositivelyRegulatesRelationship(RegulatesRelationship):
     """
 
     __slots__ = ()
+    names = ["positively_regulates"]
 
 
 class NegativelyRegulatesRelationship(RegulatesRelationship):
@@ -219,6 +274,7 @@ class NegativelyRegulatesRelationship(RegulatesRelationship):
     """
 
     __slots__ = ()
+    names = ["negatively_regulates"]
 
 
 class Ontology(object):
@@ -233,6 +289,15 @@ class Ontology(object):
         - `term`: the term to be added; an instance of `GOTerm`.
         """
         raise NotImplementedError
+
+    def ensure_term(self, term_or_id):
+        """Given a `GOTerm` or a GO term ID, returns the term itself.
+
+        This method can be used in methods that expect a `GOTerm` to enable
+        them to be able to work with GO term IDs as well."""
+        if isinstance(term_or_id, GOTerm):
+            return term_or_id
+        return self.get_term_by_id(term_or_id)
 
     def get_term_by_id(self, term_id):
         """Retrieves the given term from this ontology using its unique ID.
@@ -618,3 +683,8 @@ def _validate_and_normalize_go_id(go_id):
         raise ValueError("GO ID %s should be a string." % go_id)
 
     return normalized_id
+
+
+# Register the GO relationships in this module to the class registry
+# of GORelationship
+GORelationship._register_relationships(sys.modules[__name__])
