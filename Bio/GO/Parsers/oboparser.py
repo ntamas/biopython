@@ -26,11 +26,16 @@ __all__ = ["ParseError", "Stanza", "Parser", "Value"]
 
 
 from cStringIO import StringIO
+from warnings import warn
+
 import re
 import tokenize
 
 from Bio.GO.ontology import GeneOntologyNX, GOTerm, Ontology, \
-                            IsARelationship
+                            IsARelationship, PartOfRelationship, \
+                            RegulatesRelationship, \
+                            PositivelyRegulatesRelationship, \
+                            NegativelyRegulatesRelationship
 
 class ParseError(Exception):
     """Exception thrown when a parsing error occurred"""
@@ -343,6 +348,15 @@ class Parser(object):
                            if stanza.name == "Term" and \
                            "true" not in stanza.tags.get("is_obsolete", []))
 
+        # Dict to map relationship types to GORelationship classes
+        rel_types = {
+            "is_a": IsARelationship,
+            "part_of": PartOfRelationship,
+            "regulates": RegulatesRelationship,
+            "positively_regulates": PositivelyRegulatesRelationship,
+            "negatively_regulates": NegativelyRegulatesRelationship
+        }
+
         # Add the terms
         for stanza in stanza_iter:
             term = term_factory(stanza)
@@ -351,6 +365,14 @@ class Parser(object):
             rel = IsARelationship
             for ancestor in stanza.tags.get("is_a", []):
                 relationships.append((term, rel, ancestor.value))
+
+            for value in stanza.tags.get("relationship", []):
+                rel_type, value = value.value.split(None, 1)
+                rel = (term, rel_types.get(rel_type, None), value)
+                if rel[1]:
+                    relationships.append(rel)
+                else:
+                    warn("ignoring unknown relationship: %r %s %r" % rel)
 
         # Add the relationships
         for subject_term, rel, ancestor in relationships:

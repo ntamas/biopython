@@ -281,6 +281,74 @@ class Rules(object):
                      if idx in relevant_rule_idxs), relevant_relationships
 
 
+class KnowledgeBase(object):
+    """A collection of `GORelationship` instances.
+
+    This class is really what it says on the tin: it is a collection of
+    `GORelationship` instances. The only extra functionality offered by
+    this class is that relationships are indexed by subject terms and
+    object terms.
+    """
+
+    def __init__(self, relationships=None):
+        """Constructs a knowledge base with the given relationships."""
+        self._relationships = set()
+        self._index_by_subject = {}
+        self._index_by_object = {}
+
+        if relationships:
+            self.add_many(relationships)
+
+    def __iter__(self):
+        return iter(self.relationships)
+
+    def __len__(self):
+        return len(self.relationships)
+
+    def add(self, relationship):
+        """Adds a relationship to the knowledge base."""
+        self._relationships.add(relationship)
+
+        if relationship.subject_term not in self._index_by_subject:
+            self._index_by_subject[relationship.subject_term] = set()
+        self._index_by_subject[relationship.subject_term].add(relationship)
+
+        if relationship.object_term not in self._index_by_object:
+            self._index_by_object[relationship.object_term] = set()
+        self._index_by_object[relationship.object_term].add(relationship)
+
+    def add_many(self, relationships):
+        """Adds many relationships to the knowledge base."""
+        self._relationships.update(relationships)
+
+        subjects = set(rel.subject_term for rel in relationships)
+        objects = set(rel.object_term for rel in relationships)
+        for term in subjects:
+            if term not in self._index_by_subject:
+                self._index_by_subject[term] = set()
+        for term in objects:
+            if term not in self._index_by_object:
+                self._index_by_object[term] = set()
+
+        for rel in relationships:
+            self._index_by_subject[rel.subject_term].add(rel)
+            self._index_by_object[rel.object_term].add(rel)
+
+    def get_by_object_term(self, term):
+        """Retrieves the set of relations where `term` is the object."""
+        try:
+            return set(self._index_by_object[term])
+        except KeyError:
+            return set()
+
+    def get_by_subject_term(self, term):
+        """Retrieves the set of relations where `term` is the subject."""
+        try:
+            return set(self._index_by_subject[term])
+        except KeyError:
+            return set()
+
+
 class InferenceEngine(object):
     """Inference engine for the Gene Ontology."""
 
@@ -294,9 +362,12 @@ class InferenceEngine(object):
         else:
             self.rules = rules
 
-    def solve(query):
+    def solve(self, query):
         """Solves the given query.
         
+        Returns a generator that will iterate over relationships that match
+        the query.
+
         :Parameters:
         - `query`: the query to be solved; an instance of `Query`.
         """
@@ -305,21 +376,88 @@ class InferenceEngine(object):
                     "subject and object are both unbound")
 
         if query.object_term is UNBOUND:
-            self.solve_unbound_object(query)
+            return self.solve_unbound_object(query)
 
-        raise NotImplementedError("queries of this type "
-                "are not implemented yet")
+        if query.subject_term is UNBOUND:
+            raise NotImplementedError("unbound subject terms are not yet"
+                                      "supported")
 
-    def solve_unbound_object(query):
+        return self.solve_bound(query)
+
+    def solve_unbound_object(self, query):
         """Solves queries where the object is unbound and the subject is
         bound.
+
+        Returns a generator that will iterate over relationships that match
+        the query.
 
         You may call this method directly instead of `solve()`_ if you
         are sure that the query satisfies the preconditions of this method.
         """
-        # TODO: cache the result of restrict_to_rules_relevant_for
-        rules = self.rules.restrict_to_rules_relevant_for(query.relation)
 
-        result = []
-        return result
+        # TODO: cache the result of restrict_to_rules_relevant_for
+        rules, rel_types = self.rules.restrict_to_rules_relevant_for(query.relation)
+        rel_types = tuple(rel_types)
+
+        subject_term = query.subject_term
+        ontology = subject_term.ontology
+
+        visited_terms = set()
+        terms_to_visit = deque([subject_term])
+        knowledge = KnowledgeBase()
+
+        while terms_to_visit:
+            # Get an unvisited term
+            term = terms_to_visit.popleft()
+
+            # Get the relationships where this term is a subject
+            rels = ontology.get_relationships(subject_term=term)
+
+            # Filter to the relations of interest
+            rels = [rel for rel in rels if isinstance(rel, rel_types)]
+
+            # See if any of these new relations can be combined with the ones
+            # in the knowledge base to infer new relations where the subject
+            # is the one given originally
+            if term is subject_term:
+                new_rels = rels
+            else:
+                new_rels = []
+                for rel2 in rels:
+                    rels1 = knowledge.get_by_object_term(rel2.subject_term)
+                    for rel1 in rels1:
+                        rel3 = rules.apply(rel1, rel2)
+                        if rel3 is not None:
+                            new_rels.append(rel3)
+            knowledge.add_many(new_rels)
+
+            # Iterate over the newly added relations and yield those which
+            # we are interested in
+            for relation in new_rels:
+                if isinstance(relation, query.relation):
+                    yield relation
+
+            # Add the newly discovered object terms to the list of nodes
+            # we have to visit
+            for rel in rels:
+                if rel.object_term not in visited_terms:
+                    terms_to_visit.append(rel.object_term)
+
+    def solve_bound(self, query):
+        """Solves queries where the object and the subject are both bound.
+
+        You may call this method directly instead of `solve()`_ if you
+        are sure that the query satisfies the preconditions of this method.
+        
+        Queries of this type can be reformulated as follows: can it be inferred
+        that the subject term is in the given relationship with the object
+        term, given the inference rules and the ontology?
+        
+        Currently this is implemented by iterating over the results provided
+        by `solve_unbound_object` and returning ``True`` as soon as we find
+        the relationship in the conclusions drawn by `solve_unbound_object`.
+        """
+        expected = query.relation(query.subject_term, query.object_term)
+        solutions = self.solve_unbound_object(query)
+        return any(solution == expected for solution in solutions)
 

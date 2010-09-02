@@ -9,7 +9,7 @@ Tests for the GO package.
 import unittest
 from Bio import GO
 from Bio.GO.annotation import EvidenceCode
-from Bio.GO.inference import Rules, Query, UNBOUND
+from Bio.GO.inference import InferenceEngine, Rules, Query, UNBOUND
 from Bio.GO.ontology import Aspect
 from Bio.GO.Parsers import oboparser as obo
 from Bio.GO.Parsers import annotation
@@ -347,18 +347,22 @@ class GeneOntologyNXTests(unittest.TestCase):
 class OboParserRealOntologyFileTests(unittest.TestCase):
 
     def test_mini_ontology(self):
+        # Smoke testing
         parser = obo.Parser(file("GO/miniontology.obo"))
         ontology = parser.parse()
 
+        # Get a root term
         term = ontology.get_term_by_id("GO:0003674")
         self.failUnless(term.name == "molecular_function")
         self.failUnless(term.tags["namespace"] == [\
             obo.Value("molecular_function", ())\
         ])
 
+        # Get the same term via one of its aliases
         term2 = ontology.get_term_by_id("GO:0005554")
         self.failUnless(term is term2)
-        
+
+        # Get another term
         term = ontology.get_term_by_id("GO:0003676")
         self.failUnless(term.name == "nucleic acid binding")
         self.failUnless(term.tags["def"] == [\
@@ -366,10 +370,20 @@ class OboParserRealOntologyFileTests(unittest.TestCase):
             "with any nucleic acid.", ("[GOC:jl]", ))\
         ])
 
+        # Testing an is_a relationship
         term2 = ontology.get_term_by_id("GO:0005488")
         self.failUnless(ontology.has_relationship(term, term2))
         rel = GO.ontology.IsARelationship(term, term2)
         self.failUnless(rel in ontology.get_relationships(object_term=term2))
+        self.failUnless(rel in ontology.get_relationships(subject_term=term))
+
+        # Testing a part_of relationship
+        term = ontology.get_term_by_id("GO:0006350")
+        term2 = ontology.get_term_by_id("GO:0008152")
+        self.failUnless(ontology.has_relationship(term, term2))
+        rel = GO.ontology.PartOfRelationship(term, term2)
+        self.failUnless(rel in ontology.get_relationships(object_term=term2))
+        self.failUnless(rel in ontology.get_relationships(subject_term=term))
 
 
 class AnnotationParserRealAnnotationFileTests(unittest.TestCase):
@@ -593,6 +607,91 @@ class InferenceRulesTests(unittest.TestCase):
             self.assertEquals(exp_rels, restricted_rels, message)
 
 
+class InferenceEngineTests(unittest.TestCase):
+    """Test cases for the default inference engine."""
+
+    ontology = get_mini_ontology()
+
+    def setUp(self):
+        self.engine = InferenceEngine()
+
+    def check_inference(self, term1_id, relationship, term2_id, negate=False):
+        """Checks whether we can infer from the ontology that
+        the term with ID `term1_id` stands in the given `relationship`
+        with the term having ID `term2_id`.
+
+        The method will check it both ways: using an unbound object
+        query and a fully bound query as well.
+        """
+        term1 = self.ontology.get_term_by_id(term1_id)
+        term2 = self.ontology.get_term_by_id(term2_id)
+        rel = "%r %s %r" % (term1.name, relationship, term2.name)
+
+        query = Query(self.ontology, term1, relationship, UNBOUND)
+        result = any(relationship in result.names and
+                     result.subject_term == term1 and
+                     result.object_term == term2
+                     for result in self.engine.solve(query))
+
+        if negate:
+            self.failIf(result, "unbound query inferred %s (which is false)")
+        else:
+            self.failUnless(result, "unbound query didn't infer that %s" % rel)
+
+        query = Query(self.ontology, term1, relationship, term2)
+        result = self.engine.solve(query)
+
+        if negate:
+            self.failIf(result, "unbound query inferred %s (which is false)")
+        else:
+            self.failUnless(result, "unbound query didn't infer that %s" % rel)
+
+    def check_not_provable(self, term1_id, rel, term2_id):
+        self.check_inference(term1_id, rel, term2_id, negate=True)
+
+    def test_infer_subject_is_a_simple(self):
+        # Try to infer that cytoplasm is_a cellular_component
+        self.check_inference("GO:0005737", "is_a", "GO:0005575")
+
+    def test_infer_subject_is_a_twice(self):
+        # Try to infer that transcription is_a metabolic process
+        # since it is_a biosynthetic process and biosynthetic process
+        # is_a metabolic process
+        self.check_inference("GO:0006350", "is_a", "GO:0008152")
+
+    def test_infer_subject_is_a_thrice(self):
+        # Try to infer that transcription is_a biological process
+        # since it is_a biosynthetic process, biosynthetic process
+        # is_a metabolic process and metabolic process is_a
+        # biological process
+        # Bonus: we use an alias of biological_process here
+        self.check_inference("GO:0006350", "is_a", "GO:0000004")
+
+    def test_infer_subject_part_of(self):
+        # Try to infer that transcription part_of metabolic process
+        self.check_inference("GO:0006350", "part_of", "GO:0008152")
+
+    def test_infer_subject_part_of_using_is_a(self):
+        # Try to infer that transcription part_of biological process
+        # since it part_of metabolic process and metabolic process
+        # is_a biological process
+        self.check_inference("GO:0006350", "part_of", "GO:0000004")
+
+    def test_infer_subject_part_of_using_is_a_2(self):
+        # Try to infer that lysosome part_of intracellular because
+        # lysosome is_a vacuole, vacuole part_of cytoplasm and
+        # cytoplasm part_of intracellular
+        self.check_inference("GO:0005764", "part_of", "GO:0005622")
+
+    def test_infer_subject_regulates(self):
+        # Try to infer that regulation of biological process
+        # regulates biological process
+        self.check_inference("GO:0050789", "regulates", "GO:0008150")
+
+    def test_cannot_infer_lysosome_part_of_vacuole(self):
+        # We should not be able to infer that lysosome part_of vacuole,
+        # nothing supports it
+        self.check_not_provable("GO:0005764", "part_of", "GO:0005773")
 
 if __name__ == "__main__":
     runner = unittest.TextTestRunner(verbosity = 2)

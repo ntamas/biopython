@@ -142,7 +142,25 @@ class GORelationship(object):
     """A generic class to represent a GO relationship between two terms
     in the ontology.
 
+    Relationships are considered **immutable** objects; equality of two
+    relationships is checked by the equality of the corresponding
+    `GOTerm` instances and the equality of the class itself. Relationships
+    are also hashable, and the hash code depends only on the identity of
+    the terms involved and the relationship itself. This is necessary so
+    we can detect specific situations in `Bio.GO.inference.InferenceEngine`;
+    for instance, when we inferred the same relationship twice in two
+    different ways, we do not want to store two copies in the knowledge
+    base.
+
+    The bottom line is: **don't** modify `GORelationship` objects after
+    they have been created, although theoretically you are able to do
+    so.
+
     """
+
+    # TODO: once BioPython drops support for Python 2.5, we should make
+    # this class derived from namedtuple, that would solve all our problems
+    # with immutability.
 
     __slots__ = ("subject_term", "object_term")
     names = ["any"]
@@ -152,8 +170,8 @@ class GORelationship(object):
         and object terms.
 
         :Parameters:
-        - `subject`: the subject term. Must be an instance of `GOTerm`.
-        - `object`: the object term. Must be an instance of `GOTerm`.
+        - `subject_term`: the subject term. Must be an instance of `GOTerm`.
+        - `object_term`: the object term. Must be an instance of `GOTerm`.
         """
         self.subject_term = subject_term
         self.object_term = object_term
@@ -163,9 +181,17 @@ class GORelationship(object):
                self.object_term == other.object_term and \
                self.__class__ == other.__class__
 
+    def __hash__(self):
+        return id(self.subject_term) ^ id(self.object_term) ^ id(self.__class__)
+
     def __repr__(self):
         return "%s(%r, %r)" % (self.__class__.__name__,
                 self.subject_term, self.object_term)
+
+    def __str__(self):
+        return "%r %s %r" % (self.subject_term.name,
+                             self.names[0],
+                             self.object_term.name)
 
     @classmethod
     def from_name(cls, name):
