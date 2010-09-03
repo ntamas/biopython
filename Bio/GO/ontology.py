@@ -492,9 +492,13 @@ class GeneOntologyNX(Ontology):
         # at the module level as the user might not have it.
         try:
             import networkx
+            # Check whether networkx is new enough to support dicts
+            # for nx.Graph.degree()
+            if isinstance(networkx.Graph().degree(), list):
+                raise ImportError
             self._nx = networkx
         except ImportError:
-            raise ImportError("networkx is required to use %s" % \
+            raise ImportError("networkx >= 1.1 is required to use %s" % \
                     (self.__class__.__name__, ))
 
         # The NetworkX directed graph will serve as the backbone for
@@ -700,6 +704,58 @@ class GeneOntologyNX(Ontology):
         """
         #TODO
         pass
+
+    def summary(self):
+        """Returns a summary of the ontology as a string.
+
+        The summary is similar to the contents of the Extended Info panel in
+        OBO-Edit 2.1. It can be used to check whether a large ontology file
+        has been parsed correctly; if the numbers you see here are equal to
+        what you see when loading the ontology in OBO-Edit, chances are that
+        the parsing was successful.
+        """
+        graph = self._internal_dag
+
+        # Calculate the number of terms
+        total_terms = len(graph)
+        lines = ["Total terms = %d" % total_terms]
+
+        # Find roots and out-degree distribution
+        roots, deg_dist = [], {}
+        max_degree = 5
+        for term, degree in graph.out_degree().iteritems():
+            degree = min(degree, max_degree+1)
+            deg_dist[degree] = deg_dist.get(degree, 0) + 1
+            if degree == 0:
+                roots.append(term)
+
+        # List roots
+        for root in sorted(roots, key = lambda x: x.id):
+            rev_graph = graph.reverse()
+            num_descendants = len(self._nx.dfs_preorder(rev_graph, root)) - 1
+            lines.append("  %s (%s) has %d descendants" %
+                         (root.name, root.id, num_descendants))
+
+        # Degree distribution
+        for degree in range(7):
+            if degree > max_degree:
+                degree_label = "> %d" % max_degree
+            else:
+                degree_label = degree
+            plural = ["", "s"][degree != 1]
+            count = deg_dist.get(degree, 0)
+            percentage = "%d" % (count * 100 / total_terms)
+            if percentage == "0" and count > 0:
+                percentage = "< 1"
+            lines.append("  terms with %s parent%s: %d (%s%%)" %
+                    (degree_label, plural, count, percentage))
+
+        # How many terms have definitions?
+        def_terms = sum(1 for term in graph if "def" in term.tags)
+        lines.append("  %d%% of terms have definitions (%d of %d)" %
+                ((def_terms * 100 / total_terms), def_terms, total_terms))
+
+        return "\n".join(lines)
 
 
 def _validate_and_normalize_go_id(go_id):
