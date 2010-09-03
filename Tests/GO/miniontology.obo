@@ -377,6 +377,14 @@ synonym: "regulation of physiological process" EXACT []
 is_a: GO:0008150 ! biological_process
 relationship: regulates GO:0008150 ! biological_process
 
+[Term]
+id: GO:0005574
+name: DNA
+namespace: cellular_component
+def: "OBSOLETE (was not defined before being made obsolete)." [GOC:ai]
+comment: Note that this term was deleted from GO and was restored to the ontology in Feb 2003 to ensure that the ID is not reused.
+is_obsolete: true
+
 [Typedef]
 id: has_part
 name: has_part

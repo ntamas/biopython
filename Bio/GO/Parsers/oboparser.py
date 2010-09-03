@@ -65,7 +65,7 @@ class Value(object):
             self.modifiers = None
 
     def __eq__(self, other):
-        """Tests whether this `Value` instance is equal with another one.
+        """Tests whether this `Value` instance is equal to another one.
         
         Two `Value` instances are equal if they have equal value with the
         same modifiers in the same order.
@@ -344,9 +344,10 @@ class Parser(object):
         if load_obsolete:
             stanza_iter = (stanza for stanza in self if stanza.name == "Term")
         else:
+            true_value = Value("true")
             stanza_iter = (stanza for stanza in self \
                            if stanza.name == "Term" and \
-                           "true" not in stanza.tags.get("is_obsolete", []))
+                           true_value not in stanza.tags.get("is_obsolete", []))
 
         # Dict to map relationship types to GORelationship classes
         rel_types = {
