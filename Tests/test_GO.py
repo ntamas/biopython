@@ -350,6 +350,7 @@ class OboParserRealOntologyFileTests(unittest.TestCase):
         # Smoke testing
         parser = obo.Parser(file("GO/miniontology.obo"))
         ontology = parser.parse()
+        self.assertEquals(list(ontology.orphaned_terms()), [])
 
         # Get a root term
         term = ontology.get_term_by_id("GO:0003674")

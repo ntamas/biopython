@@ -700,10 +700,11 @@ class GeneOntologyNX(Ontology):
         """
         Returns an iterable of terms that have no relationship to any
         other terms in the ontology.
-
         """
-        #TODO
-        pass
+        for term, degree in self._internal_dag.degree().iteritems():
+            if degree == 0:
+                yield term
+
 
     def summary(self):
         """Returns a summary of the ontology as a string.
