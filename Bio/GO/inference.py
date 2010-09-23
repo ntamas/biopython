@@ -362,7 +362,7 @@ class InferenceEngine(object):
         else:
             self.rules = rules
 
-    def solve(self, query):
+    def solve(self, query, knowledge_base=None):
         """Solves the given query.
         
         Returns a generator that will iterate over relationships that match
@@ -370,21 +370,30 @@ class InferenceEngine(object):
 
         :Parameters:
         - `query`: the query to be solved; an instance of `Query`.
+        - `knowledge_base`: the knowledge base to be used for the inference. If
+          ``None``, a new, empty knowledge base will be created. Specifying an
+          existing knowledge base allows one to collect inferences regarding GO
+          terms in a central place and re-use these inferences later; of
+          course, such inferences are valid only if the ontology does not
+          change in the meanwhile.
         """
+        if knowledge_base is None:
+            knowledge_base = KnowledgeBase()
+
         if query.subject_term is UNBOUND and query.object_term is UNBOUND:
             raise InvalidQueryError(query,
                     "subject and object are both unbound")
 
         if query.object_term is UNBOUND:
-            return self.solve_unbound_object(query)
+            return self.solve_unbound_object(query, knowledge_base)
 
         if query.subject_term is UNBOUND:
             raise NotImplementedError("unbound subject terms are not yet"
                                       "supported")
 
-        return self.solve_bound(query)
+        return self.solve_bound(query, knowledge_base)
 
-    def solve_unbound_object(self, query):
+    def solve_unbound_object(self, query, knowledge_base=None):
         """Solves queries where the object is unbound and the subject is
         bound.
 
@@ -404,7 +413,9 @@ class InferenceEngine(object):
 
         visited_terms = set()
         terms_to_visit = deque([subject_term])
-        knowledge = KnowledgeBase()
+
+        if knowledge_base is None:
+            knowledge_base = KnowledgeBase()
 
         while terms_to_visit:
             # Get an unvisited term
@@ -424,12 +435,12 @@ class InferenceEngine(object):
             else:
                 new_rels = []
                 for rel2 in rels:
-                    rels1 = knowledge.get_by_object_term(rel2.subject_term)
+                    rels1 = knowledge_base.get_by_object_term(rel2.subject_term)
                     for rel1 in rels1:
                         rel3 = rules.apply(rel1, rel2)
                         if rel3 is not None:
                             new_rels.append(rel3)
-            knowledge.add_many(new_rels)
+            knowledge_base.add_many(new_rels)
 
             # Iterate over the newly added relations and yield those which
             # we are interested in
