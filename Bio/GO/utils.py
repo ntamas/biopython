@@ -10,7 +10,19 @@ __author__  = "Tamas Nepusz"
 __email__   = "tamas@cs.rhul.ac.uk"
 __copyright__ = "Copyright (c) 2010, Tamas Nepusz"
 
-__all__ = ["pushback_iterator"]
+__all__ = ["db_cursor_iterator", "pushback_iterator"]
+
+def db_cursor_iterator(cursor, size=1):
+    """Iterates over the results of the given database cursor.
+
+    This enables us to use database cursors in ``for`` loops instead of
+    a ``while`` loop.
+    """
+    while True:
+        row = cursor.fetchone()
+        if row is None:
+            break
+        yield row
 
 # pylint:disable-msg=C0103
 # C0103: invalid name

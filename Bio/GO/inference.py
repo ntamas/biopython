@@ -11,7 +11,7 @@ __version__ = "0.1"
 
 __all__ = ["InferenceEngine", "Rules", "Query", "UNBOUND"]
 
-from Bio.GO.ontology import GORelationship, Ontology
+from Bio.GO.ontology import GORelationship, GORelationshipFactory, Ontology
 from collections import deque
 
 UNBOUND = None
@@ -74,7 +74,7 @@ class Query(object):
         if relation is UNBOUND:
             raise ValueError("relations may not be unbound")
         if not isinstance(relation, type) or not issubclass(relation, GORelationship):
-            relation = GORelationship.from_name(relation)
+            relation = GORelationshipFactory.from_name(relation)
         self._relation = relation
     relation = property(_get_relation, _set_relation,
                         doc="The relation part of the query")
@@ -108,10 +108,10 @@ class InvalidQueryError(Exception):
 
 def _ensure_relationship(rel):
     """Ensures that `rel` is a subclass of `GORelationship`. If it is a
-    string, the name will be resolved using `GORelationship.from_name`."""
+    string, the name will be resolved using `GORelationshipFactory.from_name`."""
     if isinstance(rel, type) and issubclass(rel, GORelationship):
         return rel
-    return GORelationship.from_name(rel)
+    return GORelationshipFactory.from_name(rel)
 
 class Rules(object):
     """Class that stores information about the rules of inference in the

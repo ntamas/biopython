@@ -24,7 +24,7 @@ __version__ = "0.1"
 __all__ = ["ParseError", "Parser"]
 
 from Bio.GO.annotation import Annotation
-from Bio.GO.Parsers.utils import pushback_iterator
+from Bio.GO.utils import pushback_iterator
 
 class ParseError(Exception):
     """Exception thrown when a parsing error occurred"""

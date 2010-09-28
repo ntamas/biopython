@@ -4,11 +4,15 @@
 """Classes for the Gene Ontology."""
 
 from Bio.Enum import Enum
+from Bio.GO.utils import db_cursor_iterator
+
+from collections import defaultdict
+from itertools import izip
 import sys
 
-__author__ = 'Chris Lasher'
-__email__ = 'chris DOT lasher <AT> gmail DOT com'
-
+# Based on the work of Chris Lasher (chris DOT lasher <AT> gmail DOT com)
+__author__ = 'Tamas Nepusz'
+__email__ = 'ntamas <AT> gmail DOT com'
 
 # The number of digits a GO ID should be, as determined by the GO
 # Consortium
@@ -31,8 +35,8 @@ class NoSuchTermError(Exception):
 
     """
 
-    def __init__(self, term):
-        super(NoSuchTermError, self).__init__("no such term: %s" % term.id)
+    def __init__(self, term_id):
+        super(NoSuchTermError, self).__init__("no such term: %s" % term_id)
 
 
 class NoSuchRelationshipError(Exception):
@@ -193,6 +197,31 @@ class GORelationship(object):
                              self.names[0],
                              self.object_term.name)
 
+    def implies(self, other):
+        """Returns ``True`` if this relationship implies `other`.
+
+        For instance, A ``negatively_regulates`` B implies that
+        A ``regulates`` B, but not the other way round.
+
+        The formal definition of this method is that the two terms
+        involved in `self` and `other` should be equal, while the
+        class of `other` must be a superclass of the class of `self`.
+        """
+        return self.subject_term == other.subject_term and \
+               self.object_term == other.object_term and \
+               isinstance(self, other.__class__)
+
+
+class GORelationshipFactory(object):
+    """Factory class that keeps track of a mapping from GO relationship names
+    to their corresponding classes.
+
+    This class is usually not instantiated - all the methods are class methods,
+    so you can call them without an instance.
+    """
+
+    _registry = {}
+
     @classmethod
     def from_name(cls, name):
         """Returns a subclass of `GORelationship` based on its
@@ -209,7 +238,7 @@ class GORelationship(object):
         for instance, `IsARelationship` is a subclass of `GORelationship`,
         it makes sense to perform tests such as::
 
-            >>> if issubclass(my_rel, GORelationship.from_name("inheritable")):
+            >>> if issubclass(my_rel, GORelationshipFactory.from_name("inheritable")):
             ...     print "The relationship is inheritable"
         """
         try:
@@ -217,19 +246,9 @@ class GORelationship(object):
         except KeyError:
             raise NoSuchRelationshipError(relation=name)
 
-    def implies(self, other):
-        """Returns ``True`` if this relationship implies `other`.
-
-        For instance, A ``negatively_regulates`` B implies that
-        A ``regulates`` B, but not the other way round.
-
-        The formal definition of this method is that the two terms
-        involved in `self` and `other` should be equal, while the
-        class of `other` must be a superclass of the class of `self`.
-        """
-        return self.subject_term == other.subject_term and \
-               self.object_term == other.object_term and \
-               isinstance(self, other.__class__)
+    @classmethod
+    def get_known_names(cls):
+        return cls._registry.keys()
 
     @classmethod
     def _register_relationships(cls, module):
@@ -240,8 +259,6 @@ class GORelationship(object):
         This method should be called once at the end of the
         initialization of this module.
         """
-        if not hasattr(cls, "_registry"):
-            cls._registry = {}
         for value in module.__dict__.itervalues():
             if not isinstance(value, type):
                 continue
@@ -357,12 +374,16 @@ class Ontology(object):
         IDs. This method can be used to look up terms based on both their primary
         or their alternative IDs.
 
+        Raises `NoSuchTermError` if the given term is not in this
+        ontology.
+
         :Parameters:
         - `term_id`: the primary or an alternative ID of a term we are
           looking for.
 
         :Returns:
         the `GOTerm` corresponding to the given `term_id`.
+
         """
         raise NotImplementedError
 
@@ -409,7 +430,9 @@ class Ontology(object):
 
         :Parameters:
         - `subject_term`: the subject term; an instance of `GOTerm`.
+          ``None`` means all terms.
         - `object_term`: the object term; an instance of `GOTerm`.
+          ``None`` means all terms.
 
         :Returns:
         a (possibly empty) list of relationships where `subject_term`
@@ -535,7 +558,7 @@ class GeneOntologyNX(Ontology):
 
 
     def has_term(self, term):
-        """Check to see if a term is present in the ontology.
+        """Checks whether the given term is in this ontology or not.
 
         Raises `InternalStorageInconsistentError` in the event that
         internal storage shows inconsistent states of storage for the
@@ -591,10 +614,16 @@ class GeneOntologyNX(Ontology):
 
         This method also supports alternative IDs.
 
+        Raises `NoSuchTermError` if the given term is not in this
+        ontology.
+
         :Parameters:
         - `term_id`: a GO identifier (e.g., "GO:1234567")
         """
-        return self._goid_dict[term_id]
+        try:
+            return self._goid_dict[term_id]
+        except KeyError:
+            raise NoSuchTermError(term_id)
 
 
     def remove_term(self, term):
@@ -611,7 +640,7 @@ class GeneOntologyNX(Ontology):
             self._internal_dag.remove_node(term)
             term.ontology = None
         except KeyError:
-            raise NoSuchTermError(term)
+            raise NoSuchTermError(term.id)
 
 
     def add_relationship(self, subject_term, object_term, relationship):
@@ -653,16 +682,7 @@ class GeneOntologyNX(Ontology):
         a (possibly empty) list of relationships where `subject_term`
         stands as the subject and `object_term` stands as the object.
 
-        If `subject_term` is ``None`` and `object_term` is not ``None``,
-        all relationships will be retrieved where `object_term` is the
-        object.
-
-        If `subject_term` is not ``None`` and `object_term` is ``None``,
-        all relationships will be retrieved where `subject_term` is
-        the subject.
-
-        If both `subject_term` and `object_term` are ``None``, all
-        relationships will be retrieved.
+        See `Ontology.get_relationships` for more details.
         """
         if subject_term is None and object_term is None:
             result = self._internal_dag.edges(data=True)
@@ -759,6 +779,255 @@ class GeneOntologyNX(Ontology):
         return "\n".join(lines)
 
 
+class GeneOntologySQL(Ontology):
+    """This class represents a gene ontology using a read-only database
+    as a backend.
+
+    Since the class uses the same cursor for all queries, it is not safe
+    to use the same instance of the class from multiple threads.
+    """
+
+    def __init__(self, connection):
+        """Creates a gene ontology that uses the given connection to a
+        database.
+
+        :Parameters:
+        - `connection`: a connection to a database. The connection object
+          must follow the semantics of the Python Database API
+          Specification v2.0.
+        """
+        self.connection = connection
+        self.cursor = connection.cursor()
+        self._goid_dict = {}
+        self._goid_to_dbid_dict = {}
+        self._relid_to_class_dict = {}
+        self._class_to_relid_dict = {}
+        self.clear_cache()
+
+    def _get_dbid_from_goid(self, goid):
+        """Returns the database ID (primary key) corresponding to the GO term
+        with the given GO ID"""
+        try:
+            return self._goid_to_dbid_dict[goid]
+        except KeyError:
+            query = "SELECT id FROM term WHERE acc = %s LIMIT 1"
+            self.cursor.execute(query, term_id)
+            row = self.cursor.fetchone()
+            if row is None:
+                raise KeyError(goid)
+            self._goid_to_dbid_dict[goid] = row[0]
+            return row[0]
+
+    def _initialize_relid_dicts(self):
+        """Initializes the cache mapping relationship type IDs to relationships
+        using the database."""
+        known_names = set(GORelationshipFactory.get_known_names())
+        query = "SELECT id, name FROM term WHERE term_type = \"relationship\" OR "\
+                "term_type = \"gene_ontology\""
+        self.cursor.execute(query)
+
+        self._relid_to_class_dict = {}
+        self._class_to_relid_dict = {}
+        for row in db_cursor_iterator(self.cursor):
+            if row[1] in known_names:
+                cls = GORelationshipFactory.from_name(row[1])
+                self._class_to_relid_dict[cls] = row[0]
+                self._relid_to_class_dict[row[0]] = cls
+
+    def clear_cache(self):
+        """Clears the internal caches of the ontology.
+
+        In ordinary use-cases with an ontology that does not change, you
+        should not have to call this method.
+        """
+        self._goid_dict = {}
+        self._goid_to_dbid_dict = {}
+        self._initialize_relid_dicts()
+
+    def has_term(self, term):
+        """Checks whether the given term is in this ontology or not.
+
+        :Parameters:
+        - `term`: a `GOTerm` instance or a GO term ID
+        """
+        if hasattr(term, "id"):
+            term = term.id
+
+        if term in self._goid_dict:
+            return True
+
+        query = "SELECT COUNT(*) FROM term WHERE acc = %s"
+        self.cursor.execute(query, term)
+        return self.cursor.fetchone()[0] > 0
+
+    def get_term_by_id(self, term_id):
+        """Retrieve a term from the ontology by its GO ID.
+
+        This method does not support alternative IDs as the database schema
+        itself does not support it. (In other words, synonyms have no GO IDs,
+        therefore you cannot use these IDs when querying the database).
+
+        Raises `NoSuchTermError` if the given term is not in this
+        ontology.
+
+        :Parameters:
+        - `term_id`: a GO identifier (e.g., "GO:1234567")
+        """
+        if term_id in self._goid_dict:
+            return self._goid_dict[term_id]
+
+        query = "SELECT id, acc, name FROM term WHERE acc = %s LIMIT 1"
+        self.cursor.execute(query, term_id)
+        row = self.cursor.fetchone()
+        if row is None:
+            raise NoSuchTermError(term_id)
+
+        result = GOTerm(row[1], row[2], ontology=self)
+        self._goid_dict[term_id] = result
+        self._goid_to_dbid_dict[term_id] = row[0]
+        return result
+
+    def get_terms_by_ids(self, term_ids):
+        """Retrieve multiple terms from the ontology by their GO IDs.
+
+        :Parameters:
+        - `term_id`: an iterable of GO identifiers
+        
+        :Returns:
+        - an iterable yielding exactly the same number of elements as there
+          are IDs in `term_ids`. The iterator will yield `None` for unknown
+          GO identifiers.
+        """
+        result = []
+        unknown_ids = defaultdict(set)
+        for idx, term_id in enumerate(term_ids):
+            if term_id in self._goid_dict:
+                result.append(self._goid_dict[term_id])
+            else:
+                result.append(None)
+                unknown_ids[term_id].add(idx)
+
+        if not unknown_ids:
+            return result
+
+        query = "SELECT id, acc, name FROM term WHERE acc IN (%s)" %\
+            (", ".join(repr(k) for k in unknown_ids.keys()))
+
+        self.cursor.execute(query)
+        for row in db_cursor_iterator(self.cursor):
+            term = GOTerm(row[1], row[2], ontology=self)
+            self._goid_dict[term_id] = term
+            self._goid_to_dbid_dict[term_id] = row[0]
+            for idx in unknown_ids[row[1]]:
+                result[idx] = term
+
+        for idx, term in enumerate(result):
+            if not isinstance(term, GOTerm):
+                result[idx] = None
+
+        return result
+
+    def get_relationships(self, subject_term=None, object_term=None):
+        """Returns all the relationships that were added to the two
+        given terms.
+
+        :Parameters:
+        - `subject_term`: the subject term; an instance of `GOTerm`.
+        - `object_term`: the object term; an instance of `GOTerm`.
+
+        :Returns:
+        a (possibly empty) list of relationships where `subject_term`
+        stands as the subject and `object_term` stands as the object.
+
+        See `Ontology.get_relationships` for more details.
+        """
+        if subject_term is not None:
+            if object_term is not None:
+                # Querying for relationships between two given terms
+                query = "SELECT relationship_type_id FROM term2term "\
+                        "WHERE term1_id = %s AND term2_id = %s"
+                subject_dbid = self._get_dbid_from_goid(subject_term.id)
+                object_dbid = self._get_dbid_from_goid(object_term.id)
+                self.cursor.execute(query, (object_dbid, subject_dbid))
+                return [self._relid_to_class_dict[row[0]](subject_term, object_term)
+                        for row in db_cursor_iterator(self.cursor)]
+            else:
+                # Querying for all relationships where the subject is given
+                query = "SELECT term.acc, term2term.relationship_type_id "\
+                        "FROM term2term JOIN term ON (term2term.term1_id = term.id) "\
+                        "WHERE term2_id = %s"
+                subject_dbid = self._get_dbid_from_goid(subject_term.id)
+                self.cursor.execute(query, subject_dbid)
+
+                rows = self.cursor.fetchall()
+                object_terms = self.get_terms_by_ids(row[0] for row in rows)
+                return [
+                    self._relid_to_class_dict[row[1]](subject_term, object_term)
+                    for row, object_term in izip(rows, object_terms)
+                    if object_term is not None
+                ]
+        elif object_term is not None:
+            # Querying for all relationships where the object is given
+            query = "SELECT term.acc, term2term.relationship_type_id "\
+                    "FROM term2term JOIN term ON (term2term.term2_id = term.id) "\
+                    "WHERE term1_id = %s"
+            object_dbid = self._get_dbid_from_goid(object_term.id)
+            self.cursor.execute(query, object_dbid)
+
+            rows = self.cursor.fetchall()
+            subject_terms = self.get_terms_by_ids(row[0] for row in rows)
+            return [
+                self._relid_to_class_dict[row[1]](subject_term, object_term)
+                for row, subject_term in izip(rows, subject_terms)
+                if subject_term is not None
+            ]
+        else:
+            # Returning all known relationships.
+            query = "SELECT term1.acc, term2.acc, term2term.relationship_type_id "\
+                    "FROM term2term JOIN term AS term1 "\
+                    "     ON (term2term.term1_id = term1.id) "\
+                    "     JOIN term AS term2 "\
+                    "     ON (term2term.term2_id = term2.id) "\
+                    "WHERE term1.acc LIKE 'GO:%' AND term2.acc LIKE 'GO:%'"
+            self.cursor.execute(query)
+
+            rows = self.cursor.fetchall()
+            subject_terms = self.get_terms_by_ids(row[1] for row in rows)
+            object_terms = self.get_terms_by_ids(row[0] for row in rows)
+            rels = [row[2] for row in rows]
+            del rows
+
+            return [
+                self._relid_to_class_dict[rel](subject_term, object_term)
+                for subject_term, object_term, rel in izip(subject_terms, object_terms, rels)
+                if subject_term is not None and object_term is not None
+            ]
+        raise NotImplementedError
+
+    def orphaned_terms(self):
+        """Returns an iterable of terms that have no relationship to any
+        other terms in the ontology.
+        """
+        query = "SELECT term.id, COUNT(term2term.term1_id) AS c "\
+                "FROM term LEFT OUTER JOIN term2term "\
+                "     ON (term.id=term2term.term2_id) "\
+                "WHERE term.acc LIKE 'GO:%' "\
+                "GROUP BY term.id HAVING c = 0"
+        self.cursor.execute(query)
+        ids = [row[0] for row in db_cursor_iterator(self.cursor)]
+        if ids:
+            ids = ", ".join(str(i) for i in ids)
+            query = "SELECT term.id, term.acc, COUNT(term2term.term2_id) AS c "\
+                    "FROM term LEFT OUTER JOIN term2term "\
+                    "     ON (term.id=term2term.term2_id) "\
+                    "WHERE term.id IN (%s) "\
+                    "GROUP BY term.id HAVING c = 0" % ids
+            self.cursor.execute(query)
+            orphaned_ids = [row[1] for row in db_cursor_iterator(self.cursor)]
+            return self.get_terms_by_ids(orphaned_ids)
+        else:
+            return []
+
 def _validate_and_normalize_go_id(go_id):
     """
     Validates the format of a given GO identifier.
@@ -794,5 +1063,5 @@ def _validate_and_normalize_go_id(go_id):
 
 
 # Register the GO relationships in this module to the class registry
-# of GORelationship
-GORelationship._register_relationships(sys.modules[__name__])
+# of GORelationshipFactory
+GORelationshipFactory._register_relationships(sys.modules[__name__])
