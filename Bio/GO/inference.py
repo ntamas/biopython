@@ -454,7 +454,7 @@ class InferenceEngine(object):
                 if rel.object_term not in visited_terms:
                     terms_to_visit.append(rel.object_term)
 
-    def solve_bound(self, query):
+    def solve_bound(self, query, knowledge_base=None):
         """Solves queries where the object and the subject are both bound.
 
         You may call this method directly instead of `solve()`_ if you
@@ -469,6 +469,6 @@ class InferenceEngine(object):
         the relationship in the conclusions drawn by `solve_unbound_object`.
         """
         expected = query.relation(query.subject_term, query.object_term)
-        solutions = self.solve_unbound_object(query)
+        solutions = self.solve_unbound_object(query, knowledge_base)
         return any(solution == expected for solution in solutions)
 

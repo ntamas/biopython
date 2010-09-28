@@ -10,7 +10,8 @@ import unittest
 from Bio import GO
 from Bio.GO.annotation import EvidenceCode
 from Bio.GO.inference import InferenceEngine, Rules, Query, UNBOUND
-from Bio.GO.ontology import Aspect
+from Bio.GO.ontology import Aspect, GORelationship, \
+                            GORelationshipFactory
 from Bio.GO.Parsers import oboparser as obo
 from Bio.GO.Parsers import annotation
 
@@ -21,7 +22,7 @@ def construct_relationship(term1, rel, term2, ontology=None):
     if ontology:
         term1 = ontology.ensure_term(term1)
         term2 = ontology.ensure_term(term2)
-    return GO.ontology.GORelationship.from_name(rel)(term1, term2)
+    return GORelationshipFactory.from_name(rel)(term1, term2)
 
 
 def first(iterable):
@@ -81,24 +82,27 @@ class OntologyFunctionsTests(unittest.TestCase):
             )
 
 
-class GORelationshipTests(unittest.TestCase):
-    """Test cases for `GO.ontology.GORelationship`."""
+class GORelationshipFactoryTests(unittest.TestCase):
+    """Test cases for `GO.ontology.GORelationshipFactory`."""
 
     def test_from_name(self):
         names = ["is a", "is_a", "Is A", "part_of", "part Of",
                  "negatively_rEgUlAtEs", "positively_regulates",
                  "regulates", "negatively regulates",
                  "positively regulates"]
-        GORelationship = GO.ontology.GORelationship
         for name in names:
-            rel = GORelationship.from_name(name) 
+            rel = GORelationshipFactory.from_name(name) 
             self.failUnless(issubclass(rel, GORelationship))
             self.assertNotEqual(rel, GORelationship)
             self.failUnless(name.lower().replace(" ", "_") in
                     [name.lower() for name in rel.names])
 
         self.assertRaises(GO.ontology.NoSuchRelationshipError,
-                GORelationship.from_name, "no_such_rel")
+                GORelationshipFactory.from_name, "no_such_rel")
+
+
+class GORelationshipTests(unittest.TestCase):
+    """Test cases for `GO.ontology.GORelationship`."""
 
     def test_implies(self):
         rels = [
@@ -476,7 +480,8 @@ class QueryTests(unittest.TestCase):
                          self.ontology.get_term_by_id("GO:0005488"))
         self.assertEqual(query.object_term,
                          self.ontology.get_term_by_id("GO:0003676"))
-        self.assertRaises(KeyError, Query, self.ontology,
+        self.assertRaises(GO.ontology.NoSuchTermError,
+                Query, self.ontology,
                 subject_term="no_such_term")
 
 class InferenceRulesTests(unittest.TestCase):
@@ -594,7 +599,7 @@ class InferenceRulesTests(unittest.TestCase):
         for rel, (exp_rules, exp_rels) in expected.iteritems():
             restricted_rules, restricted_rels = \
                 rules.restrict_to_rules_relevant_for(
-                    GO.ontology.GORelationship.from_name(rel)
+                    GORelationshipFactory.from_name(rel)
                 )
             message = "restrict_to_rules_relevant_for(%r) failed" % rel
             for rule, expected_rule in zip(restricted_rules.rules, exp_rules):
@@ -604,7 +609,7 @@ class InferenceRulesTests(unittest.TestCase):
                     self.assertEqual(expected_rule[2], rule[2], message)
                 else:
                     self.failUnless(expected_rule[2] in rule[2].names, message)
-            exp_rels = set(GO.ontology.GORelationship.from_name(rel) for rel in exp_rels)
+            exp_rels = set(GORelationshipFactory.from_name(rel) for rel in exp_rels)
             self.assertEquals(exp_rels, restricted_rels, message)
 
 
