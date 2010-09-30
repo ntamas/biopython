@@ -132,6 +132,13 @@ class GOTerm(object):
 
         self.ontology = ontology
 
+    def __eq__(self, other):
+        return self.id == other.id
+
+    def __ne__(self, other):
+        return self.id != other.id
+
+    __hash__ = None
 
     def __repr__(self):
         """String representation of a GO term"""
@@ -552,7 +559,7 @@ class GeneOntologyNX(Ontology):
 
         """
         storage_states = (
-                term in self._internal_dag,
+                term.id in self._internal_dag,
                 term.id in self._goid_dict
             )
         return storage_states
@@ -602,7 +609,7 @@ class GeneOntologyNX(Ontology):
         # Add the term to this ontology
         term.ontology = self
         self._goid_dict[term.id] = term
-        self._internal_dag.add_node(term)
+        self._internal_dag.add_node(term.id)
 
         # Register all the alternative IDs of this term in the
         # internal dict
@@ -638,7 +645,7 @@ class GeneOntologyNX(Ontology):
         """
         try:
             del self._goid_dict[term.id]
-            self._internal_dag.remove_node(term)
+            self._internal_dag.remove_node(term.id)
             term.ontology = None
         except KeyError:
             raise NoSuchTermError(term.id)
@@ -666,7 +673,7 @@ class GeneOntologyNX(Ontology):
         for term in (subject_term, object_term):
             if term not in self:
                 self.add_term(term)
-        self._internal_dag.add_edge(subject_term, object_term, \
+        self._internal_dag.add_edge(subject_term.id, object_term.id, \
                                     relationship=relationship)
 
     def get_relationships(self, subject_term=None, object_term=None):
@@ -688,15 +695,17 @@ class GeneOntologyNX(Ontology):
         if subject_term is None and object_term is None:
             result = self._internal_dag.edges(data=True)
         elif object_term is None:
-            result = self._internal_dag.out_edges(subject_term, data=True)
+            result = self._internal_dag.out_edges(subject_term.id, data=True)
         elif subject_term is None:
-            result = self._internal_dag.in_edges(object_term, data=True)
+            result = self._internal_dag.in_edges(object_term.id, data=True)
         else:
-            result = self._internal_dag.out_edges(subject_term, data=True)
-            result = [edge for edge in result if edge[1] == object_term]
+            result = self._internal_dag.out_edges(subject_term.id, data=True)
+            result = [edge for edge in result if edge[1] == object_term.id]
 
         # Construct the Relationship objects here on-the-fly
-        return [data["relationship"](src, dst) for src, dst, data in result]
+        return [data["relationship"](
+                self._goid_dict[src], self._goid_dict[dst]
+            ) for src, dst, data in result]
 
     def remove_relationship(self, subject_term, object_term, relationship):
         """
@@ -712,7 +721,7 @@ class GeneOntologyNX(Ontology):
           from those two terms.
         """
         try:
-            self._internal_dag.remove_edge(subject_term, object_term)
+            self._internal_dag.remove_edge(subject_term.id, object_term.id)
         except self._nx.exception.NetworkXError:
             raise NoSuchRelationshipError(subject_term, object_term)
 
@@ -722,9 +731,9 @@ class GeneOntologyNX(Ontology):
         Returns an iterable of terms that have no relationship to any
         other terms in the ontology.
         """
-        for term, degree in self._internal_dag.degree().iteritems():
+        for term_id, degree in self._internal_dag.degree().iteritems():
             if degree == 0:
-                yield term
+                yield self._goid_dict[term_id]
 
 
     def summary(self):
@@ -745,14 +754,15 @@ class GeneOntologyNX(Ontology):
         # Find roots and out-degree distribution
         roots, deg_dist = [], {}
         max_degree = 5
-        for term, degree in graph.out_degree().iteritems():
+        for term_id, degree in graph.out_degree().iteritems():
             degree = min(degree, max_degree+1)
             deg_dist[degree] = deg_dist.get(degree, 0) + 1
             if degree == 0:
-                roots.append(term)
+                roots.append(term_id)
 
         # List roots
-        for root in sorted(roots, key = lambda x: x.id):
+        for root_id in sorted(roots):
+            root = self._goid_dict[root_id]
             rev_graph = graph.reverse()
             num_descendants = len(self._nx.dfs_preorder(rev_graph, root)) - 1
             lines.append("  %s (%s) has %d descendants" %
@@ -773,7 +783,8 @@ class GeneOntologyNX(Ontology):
                     (degree_label, plural, count, percentage))
 
         # How many terms have definitions?
-        def_terms = sum(1 for term in graph if "def" in term.tags)
+        def_terms = sum(1 for term_id in graph
+                        if "def" in self._goid_dict[term_id].tags)
         lines.append("  %d%% of terms have definitions (%d of %d)" %
                 ((def_terms * 100 / total_terms), def_terms, total_terms))
 
@@ -813,7 +824,7 @@ class GeneOntologySQL(Ontology):
             return self._goid_to_dbid_dict[goid]
         except KeyError:
             self.cursor.execute(self._queries["dbid_from_goid"],
-                                (term_id, ))
+                                (goid, ))
             row = self.cursor.fetchone()
             if row is None:
                 raise KeyError(goid)
@@ -952,9 +963,9 @@ class GeneOntologySQL(Ontology):
         self.cursor.execute(query)
         for row in db_cursor_iterator(self.cursor):
             term = GOTerm(row[1], row[2], ontology=self)
-            self._goid_dict[term_id] = term
-            self._goid_to_dbid_dict[term_id] = row[0]
-            for idx in unknown_ids[row[1]]:
+            self._goid_dict[term.id] = term
+            self._goid_to_dbid_dict[term.id] = row[0]
+            for idx in unknown_ids[term.id]:
                 result[idx] = term
 
         for idx, term in enumerate(result):

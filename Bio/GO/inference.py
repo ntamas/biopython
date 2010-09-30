@@ -310,19 +310,19 @@ class KnowledgeBase(object):
         self._relationships.add(relationship)
 
         if relationship.subject_term not in self._index_by_subject:
-            self._index_by_subject[relationship.subject_term] = set()
-        self._index_by_subject[relationship.subject_term].add(relationship)
+            self._index_by_subject[relationship.subject_term.id] = set()
+        self._index_by_subject[relationship.subject_term.id].add(relationship)
 
         if relationship.object_term not in self._index_by_object:
-            self._index_by_object[relationship.object_term] = set()
-        self._index_by_object[relationship.object_term].add(relationship)
+            self._index_by_object[relationship.object_term.id] = set()
+        self._index_by_object[relationship.object_term.id].add(relationship)
 
     def add_many(self, relationships):
         """Adds many relationships to the knowledge base."""
         self._relationships.update(relationships)
 
-        subjects = set(rel.subject_term for rel in relationships)
-        objects = set(rel.object_term for rel in relationships)
+        subjects = set(rel.subject_term.id for rel in relationships)
+        objects = set(rel.object_term.id for rel in relationships)
         for term in subjects:
             if term not in self._index_by_subject:
                 self._index_by_subject[term] = set()
@@ -331,20 +331,20 @@ class KnowledgeBase(object):
                 self._index_by_object[term] = set()
 
         for rel in relationships:
-            self._index_by_subject[rel.subject_term].add(rel)
-            self._index_by_object[rel.object_term].add(rel)
+            self._index_by_subject[rel.subject_term.id].add(rel)
+            self._index_by_object[rel.object_term.id].add(rel)
 
     def get_by_object_term(self, term):
         """Retrieves the set of relations where `term` is the object."""
         try:
-            return set(self._index_by_object[term])
+            return set(self._index_by_object[term.id])
         except KeyError:
             return set()
 
     def get_by_subject_term(self, term):
         """Retrieves the set of relations where `term` is the subject."""
         try:
-            return set(self._index_by_subject[term])
+            return set(self._index_by_subject[term.id])
         except KeyError:
             return set()
 
@@ -423,6 +423,8 @@ class InferenceEngine(object):
 
             # Get the relationships where this term is a subject
             rels = ontology.get_relationships(subject_term=term)
+            if any(rel.subject_term == rel.object_term for rel in rels):
+                raise ValueError
 
             # Filter to the relations of interest
             rels = [rel for rel in rels if isinstance(rel, rel_types)]
@@ -451,7 +453,7 @@ class InferenceEngine(object):
             # Add the newly discovered object terms to the list of nodes
             # we have to visit
             for rel in rels:
-                if rel.object_term not in visited_terms:
+                if rel.object_term.id not in visited_terms:
                     terms_to_visit.append(rel.object_term)
 
     def solve_bound(self, query, knowledge_base=None):

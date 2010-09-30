@@ -20,6 +20,22 @@ from Bio.GO.Parsers import annotation
 from cStringIO import StringIO
 
 
+def create_sqlite_db(*args):
+    """Creates an in-memory SQLite database and loads the fixtures
+    given in the arguments. Returns a connection to the database."""
+    import sqlite3
+
+    db = sqlite3.connect(":memory:")
+    db.executescript(open(
+        os.path.join("GO", "sql", "schema.sql")
+    ).read())
+    db.commit()
+
+    for fixture in args:
+        import_fixtures(db, fixture)
+
+    return db
+
 def construct_relationship(term1, rel, term2, ontology=None):
     """Helper function, constructs a GO relationship from
     term IDs and relationship names."""
@@ -76,6 +92,10 @@ def get_mini_ontology():
         load.cache = load()
     return load.cache
 
+def get_mini_ontology_sql():
+    """Creates an in-memory SQLite database storing a mini ontology."""
+    db = create_sqlite_db("init", "miniontology")
+    return GO.ontology.GeneOntologySQL(db)
 
 ###########################################################################
 ## Tests for Bio.GO.ontology                                             ##
@@ -167,7 +187,7 @@ class GOTermTests(unittest.TestCase):
         )
 
 
-class GenericOntologyTests(object):
+class GenericOntologyTestMixin(object):
     """Test cases for ontologies in general.
 
     This is a class that can be used as a mixin to test classes for
@@ -297,7 +317,7 @@ class GenericOntologyTests(object):
         self.failIf(self.ontology.has_term(term))
 
 
-class GeneOntologyNXTests(unittest.TestCase, GenericOntologyTests):
+class GeneOntologyNXTests(unittest.TestCase, GenericOntologyTestMixin):
     """Test cases for `GO.ontology.GeneOntologyNX`."""
 
     def setUp(self):
@@ -373,22 +393,14 @@ class GeneOntologyNXTests(unittest.TestCase, GenericOntologyTests):
         self.failUnless(term.ontology is None)
 
 
-class GeneOntologySQLTests(unittest.TestCase, GenericOntologyTests):
+class GeneOntologySQLTests(unittest.TestCase, GenericOntologyTestMixin):
     """Test cases for `GO.ontology.GeneOntologySQL`."""
 
     def setUp(self):
         self.create_empty_ontology()
 
     def create_empty_ontology(self):
-        import sqlite3
-
-        self.db = sqlite3.connect(":memory:")
-        self.db.executescript(open(
-            os.path.join("GO", "sql", "schema.sql")
-        ).read())
-        self.db.commit()
-
-        import_fixtures(self.db, "init")
+        self.db = create_sqlite_db("init")
         self.ontology = GO.ontology.GeneOntologySQL(self.db)
 
     def prepare_ontology(self):
@@ -577,6 +589,7 @@ class QueryTests(unittest.TestCase):
                 Query, self.ontology,
                 subject_term="no_such_term")
 
+
 class InferenceRulesTests(unittest.TestCase):
     def get_mini_ontology(self):
         parser = obo.Parser(file("GO/miniontology.obo"))
@@ -703,13 +716,15 @@ class InferenceRulesTests(unittest.TestCase):
             self.assertEquals(exp_rels, restricted_rels, message)
 
 
-class InferenceEngineTests(unittest.TestCase):
-    """Test cases for the default inference engine."""
+class InferenceEngineTestMixin(object):
+    """Mixin class that should be mixed in to test classes that test
+    `InferenceEngine` with various ontology classes.
 
-    ontology = get_mini_ontology()
-
-    def setUp(self):
-        self.engine = InferenceEngine()
+    Theoretically, a test class that tests `InferenceEngine` has to
+    be derived from `unittest.TestCase` as well as `InferenceEngineTests`,
+    and must override the `setUp()` method to create ``self.ontology``
+    and ``self.engine`` accordingly.
+    """
 
     def check_inference(self, term1_id, relationship, term2_id, negate=False):
         """Checks whether we can infer from the ontology that
@@ -730,7 +745,7 @@ class InferenceEngineTests(unittest.TestCase):
                      for result in self.engine.solve(query))
 
         if negate:
-            self.failIf(result, "unbound query inferred %s (which is false)")
+            self.failIf(result, "unbound query inferred %s (which is false)" % rel)
         else:
             self.failUnless(result, "unbound query didn't infer that %s" % rel)
 
@@ -738,7 +753,7 @@ class InferenceEngineTests(unittest.TestCase):
         result = self.engine.solve(query)
 
         if negate:
-            self.failIf(result, "unbound query inferred %s (which is false)")
+            self.failIf(result, "unbound query inferred %s (which is false)" % rel)
         else:
             self.failUnless(result, "unbound query didn't infer that %s" % rel)
 
@@ -788,6 +803,25 @@ class InferenceEngineTests(unittest.TestCase):
         # We should not be able to infer that lysosome part_of vacuole,
         # nothing supports it
         self.check_not_provable("GO:0005764", "part_of", "GO:0005773")
+
+
+class InferenceEngineNXTests(unittest.TestCase, InferenceEngineTestMixin):
+    """Test cases for the default inference engine backed by a
+    `GeneOntologyNX` instance."""
+
+    def setUp(self):
+        self.ontology = get_mini_ontology()
+        self.engine = InferenceEngine()
+
+
+class InferenceEngineSQLTests(unittest.TestCase, InferenceEngineTestMixin):
+    """Test cases for the default inference engine backed by a
+    `GeneOntologyNX` instance."""
+
+    def setUp(self):
+        self.ontology = get_mini_ontology_sql()
+        self.engine = InferenceEngine()
+
 
 ###########################################################################
 ## Tests for Bio.GO.utils                                                ##
