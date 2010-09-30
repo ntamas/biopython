@@ -1,0 +1,6 @@
+1	is_a	relationship	is_a	0	0	1
+13	has_part	gene_ontology	has_part	0	0	1
+14	negatively_regulates	gene_ontology	negatively_regulates	0	0	1
+15	part_of	gene_ontology	part_of	0	0	1
+16	positively_regulates	gene_ontology	positively_regulates	0	0	1
+17	regulates	gene_ontology	regulates	0	0	1

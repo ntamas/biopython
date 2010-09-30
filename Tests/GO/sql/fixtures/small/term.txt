@@ -1,0 +1,4 @@
+100	biological_process	biological_process	GO:0008150	0	0	0
+101	multi-organism process	biological_process	GO:0051704	0	0	0
+102	negative regulation of multi-organism process	biological_process	GO:0043901	0	0	0
+103	molecular_function	molecular_function	GO:0003674	0	0	0

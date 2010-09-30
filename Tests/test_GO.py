@@ -6,14 +6,18 @@ Tests for the GO package.
 
 """
 
+import os
 import unittest
+
 from Bio import GO
 from Bio.GO.annotation import EvidenceCode
 from Bio.GO.inference import InferenceEngine, Rules, Query, UNBOUND
 from Bio.GO.ontology import Aspect, GORelationship, \
-                            GORelationshipFactory
+                            GORelationshipFactory, GOTerm
+from Bio.GO.utils import rewrite_db_query_markers
 from Bio.GO.Parsers import oboparser as obo
 from Bio.GO.Parsers import annotation
+from cStringIO import StringIO
 
 
 def construct_relationship(term1, rel, term2, ontology=None):
@@ -24,7 +28,6 @@ def construct_relationship(term1, rel, term2, ontology=None):
         term2 = ontology.ensure_term(term2)
     return GORelationshipFactory.from_name(rel)(term1, term2)
 
-
 def first(iterable):
     """Helper function, returns the first element of an iterable or
     raises `IndexError` if the iterable is empty"""
@@ -32,6 +35,33 @@ def first(iterable):
         return elem
     raise IndexError
 
+def import_fixture_table(db, fixture_name, table_name):
+    """Imports the contents of the given table `table_name`
+    from the given fixture `fixture_name` to the given
+    SQLite database `db`."""
+    fp = os.path.join("GO", "sql", "fixtures", fixture_name,
+            "%s.txt" % table_name)
+    fp = open(fp)
+
+    cursor = db.cursor()
+    for line in fp:
+        parts = line.strip().split("\t")
+        for idx, part in enumerate(parts):
+            if part == "\\N":
+                parts[idx] = None
+        query = "INSERT INTO %s VALUES (%s)" % (
+            table_name, ",".join(["?"] * len(parts))
+        )
+        cursor.execute(query, parts)
+    db.commit()
+
+def import_fixtures(db, fixture_name):
+    """Imports all the tables from the given fixture `fixture_name`
+    to the given SQLite database `db`."""
+    fixture_dir = os.path.join("GO", "sql", "fixtures", fixture_name)
+    for fname in os.listdir(fixture_dir):
+        if fname[-4:].lower() == ".txt":
+            import_fixture_table(db, fixture_name, fname[:-4])
 
 def get_mini_ontology():
     """Loads the mini ontology from the test fixtures.
@@ -132,124 +162,79 @@ class GOTermTests(unittest.TestCase):
     def test_repr(self):
 
         self.assertEqual(
-                GO.ontology.GOTerm('GO:1234567', 'somethingase').__repr__(),
+                GOTerm('GO:1234567', 'somethingase').__repr__(),
                 "GOTerm('GO:1234567', 'somethingase', [], {}, None)"
         )
 
 
-class GeneOntologyNXTests(unittest.TestCase):
-    """Test cases for GO.ontology.GeneOntologyNX."""
+class GenericOntologyTests(object):
+    """Test cases for ontologies in general.
 
+    This is a class that can be used as a mixin to test classes for
+    descendants of `GO.ontology.Ontology`. The class contains tests for
+    the basic interface of `GO.ontology.Ontology` assuming that the
+    ontology is read-only, but it does not tell how to prepare an
+    ontology instance to be tested. Override `prepare_ontology()` in
+    subclasses to specify how to load the terms and relationships into
+    the ontology instance that is to be tested. Also override
+    `create_empty_ontology()` to specify how to create an empty
+    ``self.ontology``.
 
-    def setUp(self):
-        self.ontology = GO.ontology.GeneOntologyNX('biological_process')
+    The `terms` and `relationships` class variables specify what
+    terms and relationships we will need in the ontology.
+    This ontology must be built in `prepare_ontology()`.
+    """
 
-        GOTerm = GO.ontology.GOTerm
-        IsARelationship = GO.ontology.IsARelationship
-        NegativelyRegulatesRelationship = \
-                GO.ontology.NegativelyRegulatesRelationship
+    #: The terms we need in the ontology
+    terms = (
+        ('GO:0008150', 'biological_process'),
+        ('GO:0051704', 'multi-organism process'),
+        ('GO:0043901', 'negative regulation of multi-organism process'),
+        ('GO:0003674', 'molecular function', ["GO:0005554"])
+    )
 
-        self.terms = (
-                GOTerm('GO:0008150', 'biological_process'),
-                GOTerm('GO:0051704', 'multi-organism process'),
-                GOTerm('GO:0043901', 'negative regulation of '
-                    'multi-organism process'),
-                GOTerm('GO:0003674', 'molecular function', \
-                        ["GO:0005554"], {})
-            )
-        self.relationships = (
-                ("GO:0051704", "GO:0008150", IsARelationship),
-                ("GO:0043901", "GO:0051704", NegativelyRegulatesRelationship)
-        )
+    #: The relationships we need in the ontology
+    relationships = (
+        ("GO:0051704", "GO:0008150", "is_a"),
+        ("GO:0043901", "GO:0051704", "negatively_regulates")
+    )
+
+    def create_empty_ontology(self):
+        """Creates an empty ontology and assigns it to `self.ontology`.
+        Should be overridden in child classes."""
+        raise NotImplementedError
 
     def prepare_ontology(self):
-        """Prepares ``self.ontology`` by adding all the terms and
-        relationships"""
-        for term in self.terms:
-            self.ontology.add_term(term)
-
-        for subject_id, object_id, rel in self.relationships:
-            subject_term = first(term for term in self.terms \
-                                 if term.id == subject_id)
-            object_term = first(term for term in self.terms \
-                                if term.id == object_id)
-            self.ontology.add_relationship(subject_term, object_term, rel)
-
-    def test_term_stored_consistently(self):
-
-        term = self.terms[0]
-        result = self.ontology._test_existence_in_internal_storage(term)
-        self.assertEqual(
-                result,
-                (False, False)
-        )
-
-        self.ontology.add_term(term)
-        result = self.ontology._test_existence_in_internal_storage(term)
-        self.assertEqual(
-                result,
-                (True, True)
-        )
-
-        del self.ontology._goid_dict[term.id]
-        result = self.ontology._test_existence_in_internal_storage(term)
-        self.assertEqual(
-                result,
-                (True, False)
-        )
-
+        """Prepares an instance of the ontology to be tested. Should be
+        overridden in child classes."""
+        raise NotImplementedError
 
     def test_contains(self):
-        term = self.terms[0]
-        self.failIf(term in self.ontology)
+        self.prepare_ontology()
 
-        self.ontology.add_term(term)
+        term = self.ontology.get_term_by_id("GO:0008150")
         self.failUnless(term in self.ontology)
 
-    def test_contains_raises_InternalStorageInconsistentError(self):
-        term = self.terms[0]
-        self.ontology.add_term(term)
-        del self.ontology._goid_dict[term.id]
-        self.assertRaises(
-                GO.ontology.InternalStorageInconsistentError,
-                self.ontology.__contains__,
-                term
-        )
+        term = GOTerm('GO:1234567', 'nonexistent term')
+        self.failIf(term in self.ontology)
 
     def test_get_term_by_id(self):
+        self.prepare_ontology()
         for term in self.terms:
-            self.ontology.add_term(term)
-            result = self.ontology.get_term_by_id(term.id)
-            self.failUnless(result is term)
-
+            result = self.ontology.get_term_by_id(term[0])
+            self.failUnless(result.id == term[0])
+            # Cannot test "result is term" here because that does not
+            # hold for the SQL test cases where terms are constructed
+            # on-the-fly as they are retrieved from the DB
 
     def test_get_term_by_id_aliases(self):
+        self.prepare_ontology()
         for term in self.terms:
-            self.ontology.add_term(term)
-            for alias in term.tags.get("alt_id", []):
+            if len(term) < 3:
+                continue
+            for alias in term[2]:
                 result = self.ontology.get_term_by_id(alias)
-                self.failUnless(result is term)
-
-    def test_has_term(self):
-        term = self.terms[0]
-        self.failIf(term in self.ontology)
-        self.failUnless(term.ontology is None)
-
-        self.ontology.add_term(term)
-        self.failUnless(term in self.ontology)
-        self.failUnless(term.ontology is self.ontology)
-
-    def test_remove_term(self):
-        term = self.terms[0]
-        self.assertRaises(
-                GO.ontology.NoSuchTermError,
-                self.ontology.remove_term, term
-        )
-
-        self.ontology.add_term(term)
-        self.ontology.remove_term(term)
-        self.failIf(term in self.ontology)
-        self.failUnless(term.ontology is None)
+                self.failUnless(result.id == term[0])
 
     def test_get_relationships_single(self):
         self.prepare_ontology()
@@ -298,10 +283,118 @@ class GeneOntologyNXTests(unittest.TestCase):
 
         for rel in returned_rels:
             rel = (rel.subject_term.id, rel.object_term.id, \
-                   rel.__class__)
+                   rel.__class__.names[0])
             missing_rels.remove(rel)
         self.assertEquals(missing_rels, [])
 
+    def test_has_term(self):
+        self.prepare_ontology()
+
+        term = self.ontology.get_term_by_id("GO:0008150")
+        self.failUnless(self.ontology.has_term(term))
+
+        term = GOTerm('GO:1234567', 'nonexistent term')
+        self.failIf(self.ontology.has_term(term))
+
+
+class GeneOntologyNXTests(unittest.TestCase, GenericOntologyTests):
+    """Test cases for `GO.ontology.GeneOntologyNX`."""
+
+    def setUp(self):
+        self.create_empty_ontology()
+
+    def create_empty_ontology(self):
+        self.ontology = GO.ontology.GeneOntologyNX('biological_process')
+
+    def prepare_ontology(self):
+        """Prepares ``self.ontology`` by adding all the terms and
+        relationships"""
+        terms = [GOTerm(*term) for term in self.terms]
+        for term in terms:
+            self.ontology.add_term(term)
+        for subject_id, object_id, rel in self.relationships:
+            subject_term = first(term for term in terms \
+                                 if term.id == subject_id)
+            object_term = first(term for term in terms \
+                                if term.id == object_id)
+            rel = GORelationshipFactory.from_name(rel)
+            self.ontology.add_relationship(subject_term, object_term, rel)
+
+    def test_add_term(self):
+        term = GOTerm('GO:0008150', 'biological_process')
+        self.failIf(term in self.ontology)
+
+        self.ontology.add_term(term)
+        self.failUnless(term in self.ontology)
+
+    def test_term_stored_consistently(self):
+        term = GOTerm(*self.terms[0])
+        result = self.ontology._test_existence_in_internal_storage(term)
+        self.assertEqual(
+                result,
+                (False, False)
+        )
+
+        self.ontology.add_term(term)
+        result = self.ontology._test_existence_in_internal_storage(term)
+        self.assertEqual(
+                result,
+                (True, True)
+        )
+
+        del self.ontology._goid_dict[term.id]
+        result = self.ontology._test_existence_in_internal_storage(term)
+        self.assertEqual(
+                result,
+                (True, False)
+        )
+
+
+    def test_contains_raises_InternalStorageInconsistentError(self):
+        term = GOTerm(*self.terms[0])
+        self.ontology.add_term(term)
+        del self.ontology._goid_dict[term.id]
+        self.assertRaises(
+                GO.ontology.InternalStorageInconsistentError,
+                self.ontology.__contains__,
+                term
+        )
+
+    def test_remove_term(self):
+        term = GOTerm(*self.terms[0])
+        self.assertRaises(
+                GO.ontology.NoSuchTermError,
+                self.ontology.remove_term, term
+        )
+
+        self.ontology.add_term(term)
+        self.ontology.remove_term(term)
+        self.failIf(term in self.ontology)
+        self.failUnless(term.ontology is None)
+
+
+class GeneOntologySQLTests(unittest.TestCase, GenericOntologyTests):
+    """Test cases for `GO.ontology.GeneOntologySQL`."""
+
+    def setUp(self):
+        self.create_empty_ontology()
+
+    def create_empty_ontology(self):
+        import sqlite3
+
+        self.db = sqlite3.connect(":memory:")
+        self.db.executescript(open(
+            os.path.join("GO", "sql", "schema.sql")
+        ).read())
+        self.db.commit()
+
+        import_fixtures(self.db, "init")
+        self.ontology = GO.ontology.GeneOntologySQL(self.db)
+
+    def prepare_ontology(self):
+        """Prepares ``self.ontology`` by adding all the terms and
+        relationships"""
+        import_fixtures(self.db, "small")
 
 
 #class OboparserFundamentalParsingTests(unittest.TestCase):
@@ -486,12 +579,9 @@ class QueryTests(unittest.TestCase):
 
 class InferenceRulesTests(unittest.TestCase):
     def get_mini_ontology(self):
-        GOTerm = GO.ontology.GOTerm
         parser = obo.Parser(file("GO/miniontology.obo"))
         ontology = parser.parse()
         ontology.add_term(GOTerm("GO:0040008", "regulation of growth"))
-        ontology.add_term(GOTerm("GO:0048519",
-            "negative regulation of biological process"))
         ontology.add_term(GOTerm("GO:0045926",
             "negative regulation of growth"))
         return ontology
@@ -698,6 +788,43 @@ class InferenceEngineTests(unittest.TestCase):
         # We should not be able to infer that lysosome part_of vacuole,
         # nothing supports it
         self.check_not_provable("GO:0005764", "part_of", "GO:0005773")
+
+###########################################################################
+## Tests for Bio.GO.utils                                                ##
+###########################################################################
+
+class RewriteDbQueryMarkersTest(unittest.TestCase):
+    def setUp(self):
+        self.examples = [
+            "",
+            "%s",
+            "SELECT * FROM term WHERE id = %s",
+            "SELECT * FROM term WHERE id = %s AND acc = %s",
+            "SELECT * FROM term WHERE id = %s AND acc = %s AND 1 = 1"
+        ]
+
+    def _test_queries(self, expected, style):
+        for idx, (input, exp) in enumerate(zip(self.examples, expected)):
+            obs = rewrite_db_query_markers(input, style)
+            self.assertEquals(exp, obs,
+                "query rewriting failed for style `%s' and query: `%s', "
+                "expected: `%s', got: `%s'" % (style, input, exp, obs))
+
+    def test_qmark(self):
+        expected = ["", "?", "SELECT * FROM term WHERE id = ?",
+                "SELECT * FROM term WHERE id = ? AND acc = ?",
+                "SELECT * FROM term WHERE id = ? AND acc = ? AND 1 = 1"]
+        self._test_queries(expected, "qmark")
+
+    def test_numeric(self):
+        expected = ["", ":1", "SELECT * FROM term WHERE id = :1",
+                "SELECT * FROM term WHERE id = :1 AND acc = :2",
+                "SELECT * FROM term WHERE id = :1 AND acc = :2 AND 1 = 1"]
+        self._test_queries(expected, "numeric")
+
+    def test_format(self):
+        self._test_queries(self.examples, "format")
+
 
 if __name__ == "__main__":
     runner = unittest.TextTestRunner(verbosity = 2)

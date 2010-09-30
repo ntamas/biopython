@@ -59,7 +59,7 @@ is_a: GO:0003676 ! nucleic acid binding
 
 [Term]
 id: GO:0003700
-name: transcription factor activity
+name: sequence-specific DNA binding transcription factor activity
 namespace: molecular_function
 alt_id: GO:0000130
 def: "The function of binding to a specific DNA sequence in order to modulate transcription. The transcription factor may or may not also interact selectively with a protein or macromolecular complex." [GOC:curators]
@@ -339,6 +339,24 @@ xref: Wikipedia:Organelle
 is_a: GO:0005575 ! cellular_component
 
 [Term]
+id: GO:0043900
+name: regulation of multi-organism process
+namespace: biological_process
+def: "Any process that modulates the frequency, rate or extent of a multi-organism process, a process by which an organism has an effect on another organism of the same or different species." [GOC:jl]
+subset: gosubset_prok
+is_a: GO:0050789 ! regulation of biological process
+relationship: regulates GO:0051704 ! multi-organism process
+
+[Term]
+id: GO:0043901
+name: negative regulation of multi-organism process
+namespace: biological_process
+def: "Any process that stops, prevents or reduces the frequency, rate or extent of a multi-organism process, a process by which an organism has an effect on another organism of the same or different species." [GOC:jl]
+is_a: GO:0043900 ! regulation of multi-organism process
+is_a: GO:0048519 ! negative regulation of biological process
+relationship: negatively_regulates GO:0051704 ! multi-organism process
+
+[Term]
 id: GO:0044238
 name: primary metabolic process
 namespace: biological_process
@@ -365,6 +383,21 @@ synonym: "translation factor activity" EXACT []
 is_a: GO:0003674 ! molecular_function
 
 [Term]
+id: GO:0048519
+name: negative regulation of biological process
+namespace: biological_process
+alt_id: GO:0043118
+def: "Any process that stops, prevents or reduces the frequency, rate or extent of a biological process. Biological processes are regulated by many means; examples include the control of gene expression, protein modification or interaction with a protein or substrate molecule." [GOC:jid]
+subset: gosubset_prok
+exact_synonym: "down regulation of biological process" []
+exact_synonym: "down-regulation of biological process" []
+exact_synonym: "downregulation of biological process" []
+exact_synonym: "negative regulation of physiological process" []
+narrow_synonym: "inhibition of biological process" []
+is_a: GO:0050789 ! regulation of biological process
+relationship: negatively_regulates GO:0008150 ! biological_process
+
+[Term]
 id: GO:0050789
 name: regulation of biological process
 namespace: biological_process
@@ -376,6 +409,20 @@ subset: gosubset_prok
 synonym: "regulation of physiological process" EXACT []
 is_a: GO:0008150 ! biological_process
 relationship: regulates GO:0008150 ! biological_process
+
+[Term]
+id: GO:0051704
+name: multi-organism process
+namespace: biological_process
+alt_id: GO:0051706
+def: "Any process by which an organism has an effect on another organism of the same or different species." [GOC:ai]
+subset: goslim_goa
+subset: goslim_pir
+subset: gosubset_prok
+exact_synonym: "interaction between organisms" []
+exact_synonym: "physiological interaction between organisms" []
+exact_synonym: "physiological interaction with other organism" []
+is_a: GO:0008150 ! biological_process
 
 [Term]
 id: GO:0005574

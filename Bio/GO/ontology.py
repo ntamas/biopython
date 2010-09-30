@@ -4,9 +4,10 @@
 """Classes for the Gene Ontology."""
 
 from Bio.Enum import Enum
-from Bio.GO.utils import db_cursor_iterator
+from Bio.GO.utils import db_cursor_iterator, rewrite_db_query_markers
 
 from collections import defaultdict
+from inspect import getmodule
 from itertools import izip
 import sys
 
@@ -802,6 +803,7 @@ class GeneOntologySQL(Ontology):
         self._goid_to_dbid_dict = {}
         self._relid_to_class_dict = {}
         self._class_to_relid_dict = {}
+        self._initialize_queries(connection)
         self.clear_cache()
 
     def _get_dbid_from_goid(self, goid):
@@ -810,29 +812,61 @@ class GeneOntologySQL(Ontology):
         try:
             return self._goid_to_dbid_dict[goid]
         except KeyError:
-            query = "SELECT id FROM term WHERE acc = %s LIMIT 1"
-            self.cursor.execute(query, term_id)
+            self.cursor.execute(self._queries["dbid_from_goid"],
+                                (term_id, ))
             row = self.cursor.fetchone()
             if row is None:
                 raise KeyError(goid)
             self._goid_to_dbid_dict[goid] = row[0]
             return row[0]
 
+    def _initialize_queries(self, connection):
+        """Initializes the SQL queries that will be used in this class.
+        `connection` is the database connection that will be used."""
+        module = getmodule(connection.__class__)
+        if hasattr(module, "paramstyle"):
+            paramstyle = module.paramstyle
+        else:
+            # Well, let's hope that the standard format strings work.
+            # This should be OK for MySQL and PostgreSQL.
+            paramstyle = "format"
+        self._queries = dict(
+            dbid_from_goid="SELECT id FROM term WHERE acc = %s LIMIT 1",
+            rel_type_t1="SELECT term.acc, term2term.relationship_type_id "
+                        "FROM term2term JOIN term "
+                        "ON (term2term.term2_id = term.id) "
+                        "WHERE term1_id = %s",
+            rel_type_t1t2="SELECT relationship_type_id FROM term2term "
+                          "WHERE term1_id = %s AND term2_id = %s",
+            rel_type_t2="SELECT term.acc, term2term.relationship_type_id "
+                        "FROM term2term JOIN term "
+                        "ON (term2term.term1_id = term.id) "
+                        "WHERE term2_id = %s",
+            term_count="SELECT COUNT(*) FROM term WHERE acc = %s",
+            term_by_id="SELECT id, acc, name FROM term WHERE acc = %s LIMIT 1",
+            term_by_synonym="SELECT term.id, term.acc, term.name "
+                            "FROM term JOIN term_synonym "
+                            "ON term.id=term_synonym.term_id "
+                            "WHERE term_synonym.acc_synonym = %s LIMIT 1"
+        )
+        for k, v in self._queries.iteritems():
+            self._queries[k] = rewrite_db_query_markers(v, paramstyle)
+
     def _initialize_relid_dicts(self):
         """Initializes the cache mapping relationship type IDs to relationships
         using the database."""
         known_names = set(GORelationshipFactory.get_known_names())
-        query = "SELECT id, name FROM term WHERE term_type = \"relationship\" OR "\
-                "term_type = \"gene_ontology\""
+        query = "SELECT id, name FROM term WHERE term_type = \"relationship\""\
+                " OR term_type = \"gene_ontology\""
         self.cursor.execute(query)
 
         self._relid_to_class_dict = {}
         self._class_to_relid_dict = {}
         for row in db_cursor_iterator(self.cursor):
-            if row[1] in known_names:
+            if str(row[1]) in known_names:
                 cls = GORelationshipFactory.from_name(row[1])
-                self._class_to_relid_dict[cls] = row[0]
-                self._relid_to_class_dict[row[0]] = cls
+                self._class_to_relid_dict[cls] = int(row[0])
+                self._relid_to_class_dict[int(row[0])] = cls
 
     def clear_cache(self):
         """Clears the internal caches of the ontology.
@@ -856,8 +890,7 @@ class GeneOntologySQL(Ontology):
         if term in self._goid_dict:
             return True
 
-        query = "SELECT COUNT(*) FROM term WHERE acc = %s"
-        self.cursor.execute(query, term)
+        self.cursor.execute(self._queries["term_count"], (term, ))
         return self.cursor.fetchone()[0] > 0
 
     def get_term_by_id(self, term_id):
@@ -876,11 +909,15 @@ class GeneOntologySQL(Ontology):
         if term_id in self._goid_dict:
             return self._goid_dict[term_id]
 
-        query = "SELECT id, acc, name FROM term WHERE acc = %s LIMIT 1"
-        self.cursor.execute(query, term_id)
+        self.cursor.execute(self._queries["term_by_id"], (term_id, ))
         row = self.cursor.fetchone()
         if row is None:
-            raise NoSuchTermError(term_id)
+            # Hmmm, not found by primary ID. Maybe using a synonym?
+            self.cursor.execute(self._queries["term_by_synonym"],
+                    (term_id, ))
+            row = self.cursor.fetchone()
+            if row is None:
+                raise NoSuchTermError(term_id)
 
         result = GOTerm(row[1], row[2], ontology=self)
         self._goid_dict[term_id] = result
@@ -911,8 +948,7 @@ class GeneOntologySQL(Ontology):
             return result
 
         query = "SELECT id, acc, name FROM term WHERE acc IN (%s)" %\
-            (", ".join(repr(k) for k in unknown_ids.keys()))
-
+            (", ".join(repr(str(k)) for k in unknown_ids.keys()))
         self.cursor.execute(query)
         for row in db_cursor_iterator(self.cursor):
             term = GOTerm(row[1], row[2], ontology=self)
@@ -944,8 +980,7 @@ class GeneOntologySQL(Ontology):
         if subject_term is not None:
             if object_term is not None:
                 # Querying for relationships between two given terms
-                query = "SELECT relationship_type_id FROM term2term "\
-                        "WHERE term1_id = %s AND term2_id = %s"
+                query = self._queries["rel_type_t1t2"]
                 subject_dbid = self._get_dbid_from_goid(subject_term.id)
                 object_dbid = self._get_dbid_from_goid(object_term.id)
                 self.cursor.execute(query, (object_dbid, subject_dbid))
@@ -953,11 +988,9 @@ class GeneOntologySQL(Ontology):
                         for row in db_cursor_iterator(self.cursor)]
             else:
                 # Querying for all relationships where the subject is given
-                query = "SELECT term.acc, term2term.relationship_type_id "\
-                        "FROM term2term JOIN term ON (term2term.term1_id = term.id) "\
-                        "WHERE term2_id = %s"
+                query = self._queries["rel_type_t2"]
                 subject_dbid = self._get_dbid_from_goid(subject_term.id)
-                self.cursor.execute(query, subject_dbid)
+                self.cursor.execute(query, (subject_dbid, ))
 
                 rows = self.cursor.fetchall()
                 object_terms = self.get_terms_by_ids(row[0] for row in rows)
@@ -968,11 +1001,9 @@ class GeneOntologySQL(Ontology):
                 ]
         elif object_term is not None:
             # Querying for all relationships where the object is given
-            query = "SELECT term.acc, term2term.relationship_type_id "\
-                    "FROM term2term JOIN term ON (term2term.term2_id = term.id) "\
-                    "WHERE term1_id = %s"
+            query = self._queries["rel_type_t1"]
             object_dbid = self._get_dbid_from_goid(object_term.id)
-            self.cursor.execute(query, object_dbid)
+            self.cursor.execute(query, (object_dbid, ))
 
             rows = self.cursor.fetchall()
             subject_terms = self.get_terms_by_ids(row[0] for row in rows)
@@ -1019,7 +1050,7 @@ class GeneOntologySQL(Ontology):
             ids = ", ".join(str(i) for i in ids)
             query = "SELECT term.id, term.acc, COUNT(term2term.term2_id) AS c "\
                     "FROM term LEFT OUTER JOIN term2term "\
-                    "     ON (term.id=term2term.term2_id) "\
+                    "     ON (term.id=term2term.term1_id) "\
                     "WHERE term.id IN (%s) "\
                     "GROUP BY term.id HAVING c = 0" % ids
             self.cursor.execute(query)

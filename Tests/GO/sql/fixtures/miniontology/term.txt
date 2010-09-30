@@ -1,0 +1,29 @@
+286	intracellular	cellular_component	GO:0005622	0	0	0
+912	metabolic process	biological_process	GO:0008152	0	0	0
+2668	molecular_function	molecular_function	GO:0003674	0	0	0
+2670	nucleic acid binding	molecular_function	GO:0003676	0	0	0
+2671	DNA binding	molecular_function	GO:0003677	0	0	0
+2693	sequence-specific DNA binding transcription factor activity	molecular_function	GO:0003700	0	0	0
+3201	lysosome	cellular_component	GO:0005764	0	0	0
+3245	vacuole	cellular_component	GO:0005773	0	0	0
+4317	binding	molecular_function	GO:0005488	0	0	0
+4395	DNA	cellular_component	GO:0005574	1	0	0
+4396	cellular_component	cellular_component	GO:0005575	0	0	0
+4441	cell	cellular_component	GO:0005623	0	0	0
+4462	cytoplasm	cellular_component	GO:0005737	0	0	0
+4924	nucleobase, nucleoside, nucleotide and nucleic acid metabolic process	biological_process	GO:0006139	0	0	0
+5129	transcription	biological_process	GO:0006350	0	0	0
+5877	growth	biological_process	GO:0040007	0	0	0
+6475	translation factor activity, nucleic acid binding	molecular_function	GO:0008135	0	0	0
+6490	biological_process	biological_process	GO:0008150	0	0	0
+7350	biosynthetic process	biological_process	GO:0009058	0	0	0
+12876	protein metabolic process	biological_process	GO:0019538	0	0	0
+14492	transcription regulator activity	molecular_function	GO:0030528	0	0	0
+20620	organelle	cellular_component	GO:0043226	0	0	0
+21261	regulation of multi-organism process	biological_process	GO:0043900	0	0	0
+21262	negative regulation of multi-organism process	biological_process	GO:0043901	0	0	0
+21296	translation regulator activity	molecular_function	GO:0045182	0	0	0
+21588	primary metabolic process	biological_process	GO:0044238	0	0	0
+25048	negative regulation of biological process	biological_process	GO:0048519	0	0	0
+26228	regulation of biological process	biological_process	GO:0050789	0	0	0
+27058	multi-organism process	biological_process	GO:0051704	0	0	0

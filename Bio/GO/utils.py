@@ -16,8 +16,12 @@ def db_cursor_iterator(cursor, size=1):
     """Iterates over the results of the given database cursor.
 
     This enables us to use database cursors in ``for`` loops instead of
-    a ``while`` loop.
+    a ``while`` loop, even for cursors that do not support iteration
+    by design.
     """
+    if hasattr(cursor, "__iter__"):
+        for row in cursor:
+            yield row
     while True:
         row = cursor.fetchone()
         if row is None:
@@ -56,3 +60,37 @@ class pushback_iterator(object):
         returned when the user calls `next()` for the next time
         instead of the next element from the original iterable."""
         self.buffer.append(item)
+
+
+def rewrite_db_query_markers(query, paramstyle):
+    """Given an SQL query where the parameters are denoted by ``%s``
+    markers, rewrites the query for the given parameter style.
+
+    This method should be used for SQL queries when it is not known
+    in advance which parameter style the database backend uses.
+
+    It is assumed that ``%s`` occurs only unquoted (i.e. not within
+    hard-coded string literals) in the query. It is also assumed that
+    no other percent-style markers are present that could confuse
+    Python's string substitution operator.
+
+    :Parameters:
+    - `paramstyle`: the desired parameter style. Must be one of:
+      `format` (the query will not be touched at all),
+      `qmark` (``%s`` will be replaced by ``?``) or
+      `numeric` (``%s`` will be replaced by ``:1``, ``:2`` and so
+      on, in this order).
+    """
+
+    if paramstyle == "format":
+        return query
+
+    if paramstyle == "qmark":
+        return query.replace("%s", "?")
+
+    if paramstyle == "numeric":
+        n = query.count("%s")
+        replacements = tuple(":%d" % i for i in xrange(1, n+1))
+        return query % replacements
+
+    raise NotImplementedError("unknown parameter style: %s" % paramstyle)
