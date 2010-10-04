@@ -306,8 +306,15 @@ class KnowledgeBase(object):
         return len(self.relationships)
 
     def add(self, relationship):
-        """Adds a relationship to the knowledge base."""
+        """Adds a relationship to the knowledge base.
+        
+        Returns ``True`` if the relationship was not in the knowledge base, or
+        ``False`` if the relationship was already known to the knowledge base.
+        """
+        num_rels = len(self._relationships)
         self._relationships.add(relationship)
+        if len(self._relationships) == num_rels:
+            return False
 
         if relationship.subject_term not in self._index_by_subject:
             self._index_by_subject[relationship.subject_term.id] = set()
@@ -317,12 +324,22 @@ class KnowledgeBase(object):
             self._index_by_object[relationship.object_term.id] = set()
         self._index_by_object[relationship.object_term.id].add(relationship)
 
-    def add_many(self, relationships):
-        """Adds many relationships to the knowledge base."""
-        self._relationships.update(relationships)
+        return True
 
-        subjects = set(rel.subject_term.id for rel in relationships)
-        objects = set(rel.object_term.id for rel in relationships)
+    def add_many(self, relationships):
+        """Adds many relationships to the knowledge base.
+        
+        Returns those relationships which have not been added to the knowledge
+        base before."""
+        result = set(relationships)
+        result.difference_update(self._relationships)
+        if not result:
+            return set()
+
+        self._relationships.update(result)
+
+        subjects = set(rel.subject_term.id for rel in result)
+        objects = set(rel.object_term.id for rel in result)
         for term in subjects:
             if term not in self._index_by_subject:
                 self._index_by_subject[term] = set()
@@ -330,9 +347,11 @@ class KnowledgeBase(object):
             if term not in self._index_by_object:
                 self._index_by_object[term] = set()
 
-        for rel in relationships:
+        for rel in result:
             self._index_by_subject[rel.subject_term.id].add(rel)
             self._index_by_object[rel.object_term.id].add(rel)
+
+        return result
 
     def get_by_object_term(self, term):
         """Retrieves the set of relations where `term` is the object."""
@@ -411,7 +430,7 @@ class InferenceEngine(object):
         subject_term = query.subject_term
         ontology = subject_term.ontology
 
-        visited_terms = set()
+        queued_term_ids = set([subject_term.id])
         terms_to_visit = deque([subject_term])
 
         if knowledge_base is None:
@@ -442,19 +461,20 @@ class InferenceEngine(object):
                         rel3 = rules.apply(rel1, rel2)
                         if rel3 is not None:
                             new_rels.append(rel3)
-            knowledge_base.add_many(new_rels)
+            added_rels = knowledge_base.add_many(new_rels)
 
             # Iterate over the newly added relations and yield those which
-            # we are interested in
-            for relation in new_rels:
+            # we are interested in. Suppress those that we have seen before.
+            for relation in added_rels:
                 if isinstance(relation, query.relation):
                     yield relation
 
             # Add the newly discovered object terms to the list of nodes
             # we have to visit
             for rel in rels:
-                if rel.object_term.id not in visited_terms:
+                if rel.object_term.id not in queued_term_ids:
                     terms_to_visit.append(rel.object_term)
+                    queued_term_ids.add(rel.object_term.id)
 
     def solve_bound(self, query, knowledge_base=None):
         """Solves queries where the object and the subject are both bound.
