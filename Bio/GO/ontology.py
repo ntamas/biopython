@@ -846,13 +846,13 @@ class GeneOntologySQL(Ontology):
             rel_type_t1="SELECT term.acc, term2term.relationship_type_id "
                         "FROM term2term JOIN term "
                         "ON (term2term.term2_id = term.id) "
-                        "WHERE term1_id = %s AND term.acc <> 'all'",
+                        "WHERE term1_id = %s AND term.is_root != 1",
             rel_type_t1t2="SELECT relationship_type_id FROM term2term "
                           "WHERE term1_id = %s AND term2_id = %s",
             rel_type_t2="SELECT term.acc, term2term.relationship_type_id "
                         "FROM term2term JOIN term "
                         "ON (term2term.term1_id = term.id) "
-                        "WHERE term2_id = %s AND term.acc <> 'all'",
+                        "WHERE term2_id = %s AND term.is_root != 1",
             term_count="SELECT COUNT(*) FROM term WHERE acc = %s",
             term_by_id="SELECT id, acc, name FROM term WHERE acc = %s LIMIT 1",
             term_by_synonym="SELECT term.id, term.acc, term.name "
