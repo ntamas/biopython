@@ -238,6 +238,11 @@ class GenericOntologyTestMixin(object):
         term = GOTerm('GO:1234567', 'nonexistent term')
         self.failIf(term in self.ontology)
 
+    def test_get_number_of_terms_and_relationships(self):
+        self.prepare_ontology()
+        self.assertEqual(self.ontology.get_number_of_terms(), 4)
+        self.assertEqual(self.ontology.get_number_of_relationships(), 2)
+
     def test_get_term_by_id(self):
         self.prepare_ontology()
         for term in self.terms:
