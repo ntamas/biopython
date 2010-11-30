@@ -159,7 +159,7 @@ def _parse_pdb_header_list(header):
         # From here, all the keys from the header are being parsed
         if key=="TITLE":
             name=_chop_end_codes(tail).lower()
-            if dict.has_key('name'):
+            if 'name' in dict:
                 dict['name'] += " "+name
             else:
                 dict['name']=name
@@ -207,7 +207,7 @@ def _parse_pdb_header_list(header):
                 dict['source'][comp_molid][last_src_key]+=tok[0]+" "
         elif key=="KEYWDS":
             kwd=_chop_end_codes(tail).lower()
-            if dict.has_key('keywords'):
+            if 'keywords' in dict:
                 dict['keywords']+=" "+kwd
             else:
                 dict['keywords']=kwd
@@ -227,13 +227,13 @@ def _parse_pdb_header_list(header):
                 dict['release_date']=_format_date(_nice_case(rr.group()))
         elif key=="JRNL":
             # print key,tail
-            if dict.has_key('journal'):
+            if 'journal' in dict:
                 dict['journal']+=tail
             else:
                 dict['journal']=tail
         elif key=="AUTHOR":
             auth = _nice_case(_chop_end_codes(tail))
-            if dict.has_key('author'):
+            if 'author' in dict:
                 dict['author']+=auth
             else:
                 dict['author']=auth
@@ -258,11 +258,12 @@ if __name__=='__main__':
     # some data and returns it as a dictionary.
     import sys
     filename = sys.argv[1]
-    file = open(filename,'r')
-    dict = parse_pdb_header(file)
+    handle = open(filename,'r')
+    data_dict = parse_pdb_header(handle)
+    handle.close()
 
     # print the dictionary
-    for d in dict.keys():
+    for k, y in data_dict.iteritems():
         print "-"*40
-        print d
-        print dict[d]
+        print k
+        print y

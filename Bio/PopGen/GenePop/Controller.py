@@ -157,7 +157,11 @@ class _FileIterator:
 
     def __del__(self):
         self.stream.close()
-        os.remove(self.fname)
+        try:
+            os.remove(self.fname)
+        except OSError:
+            #Jython seems to call the iterator twice
+            pass
 
 class _GenePopCommandline(AbstractCommandline):
     """ Command Line Wrapper for GenePop.
@@ -279,17 +283,8 @@ class GenePopController:
         self.controller.set_input(fname)
         for opt in opts:
             self.controller.set_parameter(opt, opt+"="+str(opts[opt]))
-        child = subprocess.Popen(str(self.controller),
-                             stdin=subprocess.PIPE,
-                             stdout=subprocess.PIPE,
-                             stderr=subprocess.PIPE,
-                             shell=(sys.platform!="win32"))
-        r_out, e_out = child.communicate()
-        # capture error code:
-        ret = child.returncode
-
+        self.controller() #checks error level is zero
         self._remove_garbage(None)
-        if ret != 0: raise IOError("GenePop not found")
         return
 
 
@@ -601,7 +596,7 @@ class GenePopController:
             else:
                 l = self.stream.readline()
             loci_content = {}
-            while l<>'':
+            while l != '':
                 l = l.rstrip()
                 if l.find("Tables of allelic frequencies for each locus")>-1:
                     return self.curr_pop, loci_content
@@ -630,7 +625,7 @@ class GenePopController:
                 while l.find("Genotypes  Obs.")==-1:
                     l = self.stream.readline()
 
-                while l<>"\n":
+                while l != "\n":
                     m2 = re.match(" +([0-9]+) , ([0-9]+) *([0-9]+) *(.+)",l)
                     if m2 != None:
                         geno_list.append((_gp_int(m2.group(1)), _gp_int(m2.group(2)),
@@ -695,7 +690,7 @@ class GenePopController:
         self._run_genepop([ext], [5,2], fname)
         f = open(fname + ext)
         l = f.readline()
-        while l<>"":
+        while l != "":
             l = l.rstrip()
             if l.startswith("Statistics per sample over all loci with at least two individuals typed"):
                 avg_fis = _read_table(f, [str, _gp_float, _gp_float, _gp_float])
@@ -751,7 +746,7 @@ class GenePopController:
         self._run_genepop([".FST"], [6,1], fname)
         f = open(fname + ".FST")
         l = f.readline()
-        while l<>'':
+        while l != '':
             if l.startswith('           All:'):
                 toks=filter(lambda x:x!="", l.rstrip().split(' '))
                 try:
@@ -781,7 +776,7 @@ class GenePopController:
             fit = None
             qintra = None
             qinter = None
-            while l<>'':
+            while l != '':
                 l = l.rstrip()
                 if l.startswith('  Locus:'):
                     if locus != None:
@@ -813,7 +808,7 @@ class GenePopController:
         self._run_genepop([".ST2", ".MIG"], [6,2], fname)
         f = open(fname + ".ST2")
         l = f.readline()
-        while l<>"":
+        while l != "":
             l = l.rstrip()
             if l.startswith("Estimates for all loci"):
                 avg_fst = _read_headed_triangle_matrix(f)

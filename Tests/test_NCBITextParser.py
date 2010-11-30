@@ -25,9 +25,9 @@ class TestBlastRecord(unittest.TestCase):
         handle = open(path)
         record = self.parser.parse(handle)
         generic_align = record.multiple_alignment.to_generic(IUPAC.protein)
-        test_seq = generic_align.get_seq_by_num(0)
+        test_seq = generic_align[0].seq
         self.assertEqual(test_seq.alphabet, IUPAC.protein)
-        self.assertEqual(test_seq.data[:60], record.multiple_alignment.alignment[0][2])
+        self.assertEqual(test_seq[:60].tostring(), record.multiple_alignment.alignment[0][2])
 
 
 class TestNCBITextParser(unittest.TestCase):
@@ -14188,7 +14188,7 @@ class TestNCBITextParser(unittest.TestCase):
         for (a,b) in zip(record.alignments, descrs):
             self.assertEqual(a.title[0], ">")
             if b[0].endswith("..."):
-                self.assert_(a.title.startswith(">"+b[0][:-3]))
+                self.assertTrue(a.title.startswith(">"+b[0][:-3]))
             else:
                 self.assertEqual(a.title, ">" + b[0])
 

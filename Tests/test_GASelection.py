@@ -31,7 +31,7 @@ def test_fitness(genome):
     """Simple class for calculating fitnesses.
     """
     genome_seq = genome.toseq()
-    return int(genome_seq.data)
+    return int(genome_seq.tostring())
 
 class NoSelection:
     """A simple 'selection' class that just returns the generated population.
@@ -133,7 +133,7 @@ class TournamentSelectionTest(unittest.TestCase):
         #Sort them so org_1 is most fit
         if org_2.fitness > org_1.fitness:
             org_1, org_2 = org_2, org_1
-        self.assert_(org_1.fitness > org_2.fitness)
+        self.assertTrue(org_1.fitness > org_2.fitness)
         
         pop = [org_1, org_2]
         new_pop = self.selector.select(pop)

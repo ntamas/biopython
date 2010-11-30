@@ -19,9 +19,9 @@ from Bio.Align import MultipleSeqAlignment
 from Bio.Seq import Seq
 from Bio.SeqFeature import SeqFeature, FeatureLocation
 from Bio.SeqRecord import SeqRecord
+import Bio
 
-import BaseTree
-import _sugar
+from Bio.Phylo import BaseTree
 
 
 class PhyloXMLWarning(Warning):
@@ -62,12 +62,12 @@ class Phyloxml(PhyloElement):
         if isinstance(index, int) or isinstance(index, slice):
             return self.phylogenies[index]
         if not isinstance(index, basestring):
-            raise KeyError, "can't use %s as an index" % type(index)
+            raise KeyError("can't use %s as an index" % type(index))
         for tree in self.phylogenies:
             if tree.name == index:
                 return tree
         else:
-            raise KeyError, "no phylogeny found with name " + repr(index)
+            raise KeyError("no phylogeny found with name " + repr(index))
 
     def __iter__(self):
         """Iterate through the phylogenetic trees in this object."""
@@ -173,16 +173,15 @@ class Phylogeny(PhyloElement, BaseTree.Tree):
         """
         return Clade.from_clade(clade).to_phylogeny(**kwargs)
 
-    # XXX Backward compatibility shim
-    @classmethod
-    def from_subtree(cls, clade, **kwargs):
-        """DEPRECATED: use from_clade() instead."""
-        warnings.warn("use from_clade() instead.""",
-                DeprecationWarning, stacklevel=2)
-        return cls.from_clade(clade, **kwargs)
+    def as_phyloxml(self):
+        """Return this tree, a PhyloXML-compatible Phylogeny object.
 
-    def to_phyloxml(self, **kwargs):
-        """Create a new PhyloXML object containing just this phylogeny."""
+        Overrides the BaseTree method.
+        """
+        return self
+
+    def to_phyloxml_container(self, **kwargs):
+        """Create a new Phyloxml object containing just this phylogeny."""
         return Phyloxml(kwargs, phylogenies=[self])
 
     def to_alignment(self):
@@ -216,6 +215,10 @@ class Phylogeny(PhyloElement, BaseTree.Tree):
         return self.confidences[0]
 
     def _set_confidence(self, value):
+        if value is None:
+            # Special case: mirror the behavior of _get_confidence
+            self.confidences = []
+            return
         if isinstance(value, float) or isinstance(value, int):
             value = Confidence(value)
         elif not isinstance(value, Confidence):
@@ -228,7 +231,10 @@ class Phylogeny(PhyloElement, BaseTree.Tree):
             raise ValueError("multiple confidence values already exist; "
                              "use Phylogeny.confidences instead")
 
-    confidence = property(_get_confidence, _set_confidence)
+    def _del_confidence(self):
+        self.confidences = []
+
+    confidence = property(_get_confidence, _set_confidence, _del_confidence)
 
 
 class Clade(PhyloElement, BaseTree.Clade):
@@ -300,16 +306,9 @@ class Clade(PhyloElement, BaseTree.Clade):
         new_clade = cls(branch_length=clade.branch_length,
                     name=clade.name)
         new_clade.clades = [cls.from_clade(c) for c in clade]
+        new_clade.confidence = clade.confidence
         new_clade.__dict__.update(kwargs)
         return new_clade
-
-    # XXX Backward compatibility shim
-    @classmethod
-    def from_subtree(cls, clade, **kwargs):
-        """DEPRECATED: use from_clade() instead."""
-        warnings.warn("use from_clade() instead.""",
-                DeprecationWarning, stacklevel=2)
-        return cls.from_clade(clade, **kwargs)
 
     def to_phylogeny(self, **kwargs):
         """Create a new phylogeny containing just this clade."""
@@ -318,6 +317,7 @@ class Clade(PhyloElement, BaseTree.Clade):
         return phy
 
     # Shortcuts for list attributes that are usually only 1 item
+    # NB: Duplicated from Phylogeny class
     def _get_confidence(self):
         if len(self.confidences) == 0:
             return None
@@ -327,6 +327,10 @@ class Clade(PhyloElement, BaseTree.Clade):
         return self.confidences[0]
 
     def _set_confidence(self, value):
+        if value is None:
+            # Special case: mirror the behavior of _get_confidence
+            self.confidences = []
+            return
         if isinstance(value, float) or isinstance(value, int):
             value = Confidence(value)
         elif not isinstance(value, Confidence):
@@ -339,7 +343,10 @@ class Clade(PhyloElement, BaseTree.Clade):
             raise ValueError("multiple confidence values already exist; "
                              "use Phylogeny.confidences instead")
 
-    confidence = property(_get_confidence, _set_confidence)
+    def _del_confidence(self):
+        self.confidences = []
+
+    confidence = property(_get_confidence, _set_confidence, _del_confidence)
 
     def _get_taxonomy(self):
         if len(self.taxonomies) == 0:
@@ -572,9 +579,8 @@ class BranchColor(PhyloElement):
 
     def __repr__(self):
         """Preserve the standard RGB order when representing this object."""
-        return ('%s(red=%d, green=%d, blue=%d)'
-                % (self.__class__.__name__, self.red, self.green, self.blue)
-                ).encode('utf-8')
+        return (u'%s(red=%d, green=%d, blue=%d)'
+                % (self.__class__.__name__, self.red, self.green, self.blue))
 
     def __str__(self):
         """Show the color's RGB values."""
@@ -698,23 +704,14 @@ class Events(PhyloElement):
         self.losses = losses
         self.confidence = confidence
 
-    def iteritems(self):
-        return ((k, v) for k, v in self.__dict__.iteritems() if v is not None)
-
-    def iterkeys(self):
-        return (k for k, v in self.__dict__.iteritems() if v is not None)
-
-    def itervalues(self):
-        return (v for v in self.__dict__.itervalues() if v is not None)
-
     def items(self):
-        return list(self.iteritems())
+        return [(k, v) for k, v in self.__dict__.iteritems() if v is not None]
 
     def keys(self):
-        return list(self.iterkeys())
+        return [k for k, v in self.__dict__.iteritems() if v is not None]
 
     def values(self):
-        return list(self.itervalues())
+        return [v for v in self.__dict__.itervalues() if v is not None]
 
     def __len__(self):
         return len(self.values())
@@ -734,7 +731,7 @@ class Events(PhyloElement):
         setattr(self, key, None)
 
     def __iter__(self):
-        return iter(self.iterkeys())
+        return iter(self.keys())
 
     def __contains__(self, key):
         return (hasattr(self, key) and getattr(self, key) is not None)

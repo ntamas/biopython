@@ -61,10 +61,8 @@ class GraphData:
 
         o __len__(self) Returns the length of sequence covered by the data
 
-        o __getitem__(self, key)    Returns the value at the base specified
-
-        o __getslice__(self, low, high) Returns graph data in the base range
-                        specified
+        o __getitem__(self, index)  Returns the value at the base specified,
+                                    or graph data in the base range
 
         o __str__(self) Returns a formatted string describing the graph data
 
@@ -135,10 +133,13 @@ class GraphData:
         self.center = center        # value at which x-axis crosses y-axis
 
     def _set_centre(self, value):
+        import warnings
+        import Bio
+        warnings.warn("The _set_centre method and .centre attribute are deprecated; please use the .center attribute instead", Bio.BiopythonDeprecationWarning)
         self.center = value
     centre = property(fget = lambda self : self.center,
                        fset = _set_centre,
-                       doc="Backwards compatible alias for center (OBSOLETE)")
+                       doc="Backwards compatible alias for center (DEPRECATED)")
 
     def set_data(self, data):
         """ set_data(self, data)
@@ -184,8 +185,8 @@ class GraphData:
         data = self.data.values()
         data.sort()
         datalen = len(data)
-        return(data[0], data[datalen/4], data[datalen/2],
-               data[3*datalen/4], data[-1])
+        return(data[0], data[datalen//4], data[datalen//2],
+               data[3*datalen//4], data[-1])
 
 
     def range(self):
@@ -236,33 +237,35 @@ class GraphData:
         return len(self.data)
 
 
-    def __getitem__(self, key):
-        """ __getitem__(self, key) -> Float
+    def __getitem__(self, index):
+        """ __getitem__(self, index) -> Float or list of tuples
 
-            o key       Integer representing position on the sequence
+            Given an integer representing position on the sequence
+            returns a float - the data value at the passed position.
+
+            If a slice, returns graph data from the region as a list or
+            (position, value) tuples. Slices with step are not supported.
 
             Returns the data value at the passed position
         """
-        return self.data[key]
-
-
-    def __getslice__(self, low, high):
-        """ __getslice__(self, low, high) -> [(int, float), (int, float), ...]
-
-            o low       The start point for the data range
-            
-            o high      The end point for the data range
-
-            Returns a slice of the graph data from the passed low to the passed
-            high value as a list of (position, value) tuples
-        """
-        positions = self.data.keys()
-        positions.sort()
-        outlist = []
-        for pos in positions:
-            if pos >= low and pos <=high:
-                outlist.append((pos, self.data[pos]))
-        return outlist
+        if isinstance(index, int):
+            return self.data[index]
+        elif isinstance(index, slice):
+            #TODO - Why does it treat the end points both as inclusive?
+            #This doesn't match Python norms does it?
+            low = index.start
+            high = index.stop
+            if index.step is not None and index.step != 1:
+                raise ValueError
+            positions = self.data.keys()
+            positions.sort()
+            outlist = []
+            for pos in positions:
+                if pos >= low and pos <=high:
+                    outlist.append((pos, self.data[pos]))
+            return outlist
+        else:
+            raise TypeError("Need an integer or a slice")
 
 
     def __str__(self):

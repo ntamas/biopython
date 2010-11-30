@@ -5,16 +5,61 @@
 
 """Unittests for the Seq objects."""
 import unittest
-from string import maketrans
+import sys
+if sys.version_info[0] == 3:
+   maketrans = str.maketrans
+else:
+   from string import maketrans
 
 from Bio.Alphabet import generic_protein, generic_nucleotide, \
                          generic_dna, generic_rna
 from Bio.Alphabet.IUPAC import protein, extended_protein
 from Bio.Alphabet.IUPAC import unambiguous_dna, ambiguous_dna, ambiguous_rna
 from Bio.Data.IUPACData import ambiguous_dna_values, ambiguous_rna_values
-from Bio.Seq import Seq, UnknownSeq, MutableSeq
-from Bio.Data.CodonTable import TranslationError
+from Bio.Seq import Seq, UnknownSeq, MutableSeq, translate
+from Bio.Data.CodonTable import TranslationError, CodonTable
 
+#This is just the standard table with less stop codons
+#(replaced with coding for O as an artifical example)
+special_table = CodonTable(forward_table={
+    'TTT': 'F', 'TTC': 'F', 'TTA': 'L', 'TTG': 'L',
+    'TCT': 'S', 'TCC': 'S', 'TCA': 'S', 'TCG': 'S',
+    'TAT': 'Y', 'TAC': 'Y', 'TAA': 'O',
+    'TGT': 'C', 'TGC': 'C', 'TGA': 'O', 'TGG': 'W',
+    'CTT': 'L', 'CTC': 'L', 'CTA': 'L', 'CTG': 'L',
+    'CCT': 'P', 'CCC': 'P', 'CCA': 'P', 'CCG': 'P',
+    'CAT': 'H', 'CAC': 'H', 'CAA': 'Q', 'CAG': 'Q',
+    'CGT': 'R', 'CGC': 'R', 'CGA': 'R', 'CGG': 'R',
+    'ATT': 'I', 'ATC': 'I', 'ATA': 'I', 'ATG': 'M',
+    'ACT': 'T', 'ACC': 'T', 'ACA': 'T', 'ACG': 'T',
+    'AAT': 'N', 'AAC': 'N', 'AAA': 'K', 'AAG': 'K',
+    'AGT': 'S', 'AGC': 'S', 'AGA': 'R', 'AGG': 'R',
+    'GTT': 'V', 'GTC': 'V', 'GTA': 'V', 'GTG': 'V',
+    'GCT': 'A', 'GCC': 'A', 'GCA': 'A', 'GCG': 'A',
+    'GAT': 'D', 'GAC': 'D', 'GAA': 'E', 'GAG': 'E',
+    'GGT': 'G', 'GGC': 'G', 'GGA': 'G', 'GGG': 'G'},
+    start_codons=['TAA', 'TAG', 'TGA'],
+    stop_codons=['TAG'])
+
+Chilodonella_uncinata_table = CodonTable(forward_table={
+    'TTT': 'F', 'TTC': 'F', 'TTA': 'L', 'TTG': 'L',
+    'TCT': 'S', 'TCC': 'S', 'TCA': 'S', 'TCG': 'S',
+    'TAT': 'Y', 'TAC': 'Y',             'TAG': 'Q', 
+    'TGT': 'C', 'TGC': 'C', 'TGA': 'W', 'TGG': 'W',
+    'CTT': 'L', 'CTC': 'L', 'CTA': 'L', 'CTG': 'L',
+    'CCT': 'P', 'CCC': 'P', 'CCA': 'P', 'CCG': 'P',
+    'CAT': 'H', 'CAC': 'H', 'CAA': 'Q', 'CAG': 'Q',
+    'CGT': 'R', 'CGC': 'R', 'CGA': 'R', 'CGG': 'R',
+    'ATT': 'I', 'ATC': 'I', 'ATA': 'I', 'ATG': 'M',
+    'ACT': 'T', 'ACC': 'T', 'ACA': 'T', 'ACG': 'T',
+    'AAT': 'N', 'AAC': 'N', 'AAA': 'K', 'AAG': 'K',
+    'AGT': 'S', 'AGC': 'S', 'AGA': 'R', 'AGG': 'R',
+    'GTT': 'V', 'GTC': 'V', 'GTA': 'V', 'GTG': 'V',
+    'GCT': 'A', 'GCC': 'A', 'GCA': 'A', 'GCG': 'A',
+    'GAT': 'D', 'GAC': 'D', 'GAA': 'E', 'GAG': 'E',
+    'GGT': 'G', 'GGC': 'G', 'GGA': 'G', 'GGG': 'G'},
+    start_codons = [ 'ATG'],
+    stop_codons = ['TAA' ])
 
 class StringMethodTests(unittest.TestCase):
     _examples = [ \
@@ -50,7 +95,7 @@ class StringMethodTests(unittest.TestCase):
 
     def _test_method(self, method_name, pre_comp_function=None, start_end=False):
         """Check this method matches the plain string's method."""
-        assert isinstance(method_name, str)
+        self.assertTrue(isinstance(method_name, str))
         for example1 in self._examples:
             if not hasattr(example1, method_name):
                 #e.g. MutableSeq does not support find
@@ -142,7 +187,7 @@ class StringMethodTests(unittest.TestCase):
         self._test_method("startswith", start_end=True)
 
         try:
-            self.assert_("ABCDE".startswith(("ABE","OBE","ABC")))
+            self.assertTrue("ABCDE".startswith(("ABE","OBE","ABC")))
         except TypeError:
             #Base string only supports this on Python 2.5+, skip this
             return
@@ -170,7 +215,7 @@ class StringMethodTests(unittest.TestCase):
         self._test_method("endswith", start_end=True)
 
         try:
-            self.assert_("ABCDE".endswith(("ABE","OBE","CDE")))
+            self.assertTrue("ABCDE".endswith(("ABE","OBE","CDE")))
         except TypeError:
             #Base string only supports this on Python 2.5+, skip this
             return
@@ -262,21 +307,17 @@ class StringMethodTests(unittest.TestCase):
                                              str1[i:j:step])
 
     def test_tostring(self):
-        """Check str(obj) and obj.tostring() match.
-
-        Also check the obj.data attribute for non-MutableSeq objects."""
+        """Check str(obj) and obj.tostring() match."""
         for example1 in self._examples:
             str1 = str(example1)
             self.assertEqual(example1.tostring(), str1)
-            if not isinstance(example1, MutableSeq):
-                self.assertEqual(example1.data, str1)
 
     def test_tomutable(self):
         """Check obj.tomutable() method."""
         for example1 in self._examples:
             if isinstance(example1, MutableSeq) : continue
             mut = example1.tomutable()
-            self.assert_(isinstance(mut, MutableSeq))
+            self.assertTrue(isinstance(mut, MutableSeq))
             self.assertEqual(str(mut), str(example1))
             self.assertEqual(mut.alphabet, example1.alphabet)
 
@@ -286,9 +327,9 @@ class StringMethodTests(unittest.TestCase):
             try :
                 seq = example1.toseq()
             except AttributeError :
-                self.assert_(isinstance(example1, Seq))
+                self.assertTrue(isinstance(example1, Seq))
                 continue
-            self.assert_(isinstance(seq, Seq))
+            self.assertTrue(isinstance(seq, Seq))
             self.assertEqual(str(seq), str(example1))
             self.assertEqual(seq.alphabet, example1.alphabet)
 
@@ -315,8 +356,7 @@ class StringMethodTests(unittest.TestCase):
                 mapping = maketrans("CGcg","GCgc")
             else :
                 #TODO - look at alphabet?
-                assert False, example1
-                continue
+                raise ValueError(example1)
             self.assertEqual(str1.translate(mapping), str(comp))
             self.assertEqual(comp.alphabet, example1.alphabet)
                 
@@ -390,7 +430,7 @@ class StringMethodTests(unittest.TestCase):
                 #This is based on the limited example not having stop codons:
                 if tran.alphabet not in [extended_protein, protein, generic_protein]:
                     print tran.alphabet
-                    self.assert_(False)
+                    self.assertTrue(False)
                 #TODO - check the actual translation, and all the optional args
 
     def test_the_translation_of_stops(self):
@@ -409,8 +449,19 @@ class StringMethodTests(unittest.TestCase):
             self.assertEqual("**WSS", str(nuc.translate(table=9)))
             self.assertEqual("**CRR", str(nuc.translate(table='Euplotid Nuclear')))
             self.assertEqual("***RR", str(nuc.translate(table=11)))
+            self.assertEqual("***RR", str(nuc.translate(table='11')))
             self.assertEqual("***RR", str(nuc.translate(table='Bacterial')))
             self.assertEqual("", str(nuc.translate(to_stop=True)))
+            self.assertEqual("O*ORR", str(nuc.translate(table=special_table)))
+            self.assertEqual("*QWRR", str(nuc.translate(table=Chilodonella_uncinata_table)))
+            #These test the Bio.Seq.translate() function - move these?:
+            self.assertEqual("*QWRR", translate(str(nuc), table=Chilodonella_uncinata_table))
+            self.assertEqual("O*ORR", translate(str(nuc), table=special_table))
+            self.assertEqual("", translate(str(nuc), to_stop=True))
+            self.assertEqual("***RR", translate(str(nuc), table='Bacterial'))
+            self.assertEqual("***RR", translate(str(nuc), table='11'))
+            self.assertEqual("***RR", translate(str(nuc), table=11))
+            self.assertEqual("**W**", translate(str(nuc), table=2))
         self.assertEqual(str(Seq("TAT").translate()), "Y")
         self.assertEqual(str(Seq("TAR").translate()), "*")
         self.assertEqual(str(Seq("TAN").translate()), "X")
@@ -434,7 +485,7 @@ class StringMethodTests(unittest.TestCase):
                         Seq(codon, unambiguous_dna)]:
                 try :
                     print nuc.translate()
-                    self.assert_(False, "Transating %s should fail" % codon)
+                    self.assertTrue(False, "Transating %s should fail" % codon)
                 except TranslationError :
                     pass
 
@@ -454,7 +505,7 @@ class StringMethodTests(unittest.TestCase):
                         if t=="*":
                             self.assertEqual(values, set("*"))
                         elif t=="X":
-                            self.assert_(len(values) > 1, \
+                            self.assertTrue(len(values) > 1, \
                                 "translate('%s') = '%s' not '%s'" \
                                 % (c1+c2+c3, t, ",".join(values)))
                         elif t=="Z":
@@ -468,7 +519,12 @@ class StringMethodTests(unittest.TestCase):
                         #TODO - Use the Bio.Data.IUPACData module for the
                         #ambiguous protein mappings?
 
-                    
+    def test_init_typeerror(self):
+        """Check Seq __init__ gives TypeError exceptions."""
+        #Only expect it to take strings and unicode - not Seq objects!
+        self.assertRaises(TypeError, Seq, (1066))
+        self.assertRaises(TypeError, Seq, (Seq("ACGT", generic_dna)))
+
     #TODO - Addition...
 
 if __name__ == "__main__":

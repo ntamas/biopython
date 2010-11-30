@@ -6,7 +6,7 @@ try:
     from numpy import array
 except ImportError:
     from Bio import MissingExternalDependencyError
-    raise MissingExternalDependencyError(\
+    raise MissingExternalDependencyError(
         "Install NumPy if you want to use Bio.Statistics.lowess.")
 
 from Bio.Statistics.lowess import lowess
@@ -23,7 +23,7 @@ class test_lowess(unittest.TestCase):
         # Smooth output calculated by the lowess function
         output = lowess(x, y, f=2./3., iter = 3)
         for precomputed, calculated in zip(ys, output):
-            self.assertAlmostEqual(precomputed, calculated, 4)
+            self.assertAlmostEqual(precomputed, calculated, places=4)
 
 if __name__ == "__main__":
     runner = unittest.TextTestRunner(verbosity = 2)

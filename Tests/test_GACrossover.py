@@ -30,7 +30,7 @@ def test_fitness(genome):
     """Simple class for calculating fitnesses.
     """
     seq_genome = genome.toseq()
-    return int(seq_genome.data)
+    return int(seq_genome.tostring())
 
 class SinglePointTest(unittest.TestCase):
     """Test simple point crossovers.
@@ -105,7 +105,7 @@ class UniformTest(unittest.TestCase):
                                                            self.org_3)
 
 
-        self.assert_(len(new_org_1.genome) > len(new_org_2.genome),
+        self.assertTrue(len(new_org_1.genome) > len(new_org_2.genome),
                      "Strings are of wrong sizes after uniform crossover.")
 
         self.assertEqual(new_org_2.genome.tostring().count("1"),
@@ -324,8 +324,8 @@ class TestCrossover:
     def do_crossover(self, org_1, org_2):
         seq_org1 = org_1.genome.toseq()
         seq_org2 = org_2.genome.toseq()
-        org1_genome = seq_org1.data
-        org2_genome = seq_org2.data
+        org1_genome = seq_org1.tostring()
+        org2_genome = seq_org2.tostring()
 
         new_org_1 = org_1.copy()
         new_org_2 = org_2.copy()
@@ -390,7 +390,7 @@ class SafeFitnessTest(unittest.TestCase):
         self.test_crossover.type = "higher"
         new_org_1, new_org_2 = crossover.do_crossover(self.org_1, self.org_2)
 
-        self.assert_(new_org_1.fitness > self.org_1.fitness and \
+        self.assertTrue(new_org_1.fitness > self.org_1.fitness and \
                      new_org_2.fitness > self.org_2.fitness,
                      "Did not get new organism when it had higher fitness.")
 
@@ -418,7 +418,7 @@ class SafeFitnessTest(unittest.TestCase):
         self.test_crossover.type = "higher"
         new_org_1, new_org_2 = crossover.do_crossover(self.org_1, self.org_2)
 
-        self.assert_(new_org_1.fitness > self.org_1.fitness and \
+        self.assertTrue(new_org_1.fitness > self.org_1.fitness and \
                      new_org_2.fitness > self.org_2.fitness,
                      "Did not get new organism under higher fitness conditions.")
 

@@ -34,7 +34,7 @@ example above.
 from Bio.Alphabet import single_letter_alphabet
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
-from Interfaces import SequentialSequenceWriter
+from Bio.SeqIO.Interfaces import SequentialSequenceWriter
 
 #This is a generator function!
 def TabIterator(handle, alphabet = single_letter_alphabet):
@@ -63,7 +63,9 @@ def TabIterator(handle, alphabet = single_letter_alphabet):
                              % (line.count("\t"), repr(line)))
         title = title.strip()
         seq = seq.strip() #removes the trailing new line
-        yield SeqRecord(Seq(seq, alphabet), id = title, name = title)
+        yield SeqRecord(Seq(seq, alphabet),
+                        id=title, name=title,
+                        description="")
 
 class TabWriter(SequentialSequenceWriter):
     """Class to write simple tab separated format files.
