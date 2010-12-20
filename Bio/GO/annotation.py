@@ -47,6 +47,26 @@ class EvidenceCode(Enum):
 
     NR  = "Not recorded"
 
+experimental_evidence_codes = frozenset([
+        EvidenceCode.EXP,
+        EvidenceCode.IDA,
+        EvidenceCode.IPI,
+        EvidenceCode.IMP,
+        EvidenceCode.IGI,
+        EvidenceCode.IEP
+])
+computational_evidence_codes = frozenset([
+        EvidenceCode.ISS,
+        EvidenceCode.ISO,
+        EvidenceCode.ISA,
+        EvidenceCode.ISM,
+        EvidenceCode.IGC,
+        EvidenceCode.RCA
+])
+author_evidence_codes = frozenset([EvidenceCode.TAS, EvidenceCode.NAS])
+curator_evidence_codes = frozenset([EvidenceCode.IC, EvidenceCode.ND])
+obsolete_evidence_codes = frozenset([EvidenceCode.NR])
+automatic_evidence_codes = frozenset([EvidenceCode.IEA])
 
 class Annotation(object):
     """Class representing an entry from an annotation file.
@@ -226,14 +246,14 @@ class AnnotationCollection(object):
         Ontology term ID, and the ``db_object_id`` of the annotation will
         be used for the gene ID.
 
-        If `add_aliases` is ``True``, contents of the ``db_object_name``
+        If `add_aliases` is ``True``, contents of the ``db_object_symbol``
         and ``db_object_synonyms`` properties of the annotation will be
         registered as aliases to the gene ID.
         """
-        self.add(annotation.go_id, annotation.db_object_id)
+        dbid = annotation.db_object_id
+        self.add(dbid, annotation.go_id)
         if add_aliases:
-            dbid = annotation.db_object_id
-            self.add_gene_alias(dbid, annotation.db_object_name)
+            self.add_gene_alias(dbid, annotation.db_object_symbol)
             for synonym in annotation.db_object_synonyms:
                 self.add_gene_alias(dbid, synonym)
 
@@ -245,7 +265,7 @@ class AnnotationCollection(object):
         fetch the Gene Ontology term ID, and the ``db_object_id`` of the
         annotation will be used for the gene ID.
 
-        If `add_aliases` is ``True``, contents of the ``db_object_name``
+        If `add_aliases` is ``True``, contents of the ``db_object_symbol``
         and ``db_object_synonyms`` properties of the annotations will be
         registered as aliases to the gene ID.
         """
@@ -255,7 +275,7 @@ class AnnotationCollection(object):
             self.gene_ids_to_term_ids[gene_id].add(term_id)
             if add_aliases:
                 dbid = annotation.db_object_id
-                self.add_gene_alias(dbid, annotation.db_object_name)
+                self.add_gene_alias(dbid, annotation.db_object_symbol)
                 for synonym in annotation.db_object_synonyms:
                     self.add_gene_alias(dbid, synonym)
 
@@ -265,7 +285,7 @@ class AnnotationCollection(object):
 
     def get_genes_for_term(self, term_id):
         """Returns the gene IDs associated to the given term ID."""
-        return self.term_ids_to_gene_ids[term_id]
+        return set(self.term_ids_to_gene_ids[term_id])
 
     def get_number_of_genes(self):
         """Returns the number of genes in the collection."""
@@ -278,11 +298,26 @@ class AnnotationCollection(object):
     def get_terms_for_gene(self, gene_id):
         """Returns the term IDs associated to the given gene ID."""
         if gene_id in self.gene_ids_to_term_ids:
-            return self.gene_ids_to_term_ids[gene_id]
+            return set(self.gene_ids_to_term_ids[gene_id])
         try:
-            return self.gene_ids_to_term_ids[self.gene_aliases[gene_id]]
+            return set(self.gene_ids_to_term_ids[self.gene_aliases[gene_id]])
         except KeyError:
             return set()
+
+    def has_genes(self, term_id):
+        """Returns whether the given term has associated genes."""
+        if term_id in self.term_ids_to_gene_ids:
+            return bool(self.term_ids_to_gene_ids[term_id])
+        return False
+
+    def has_terms(self, gene_id):
+        """Returns whether the given gene has associated terms."""
+        if gene_id in self.gene_ids_to_term_ids:
+            return bool(self.gene_ids_to_term_ids[gene_id])
+        try:
+            return bool(self.gene_ids_to_term_ids[self.gene_aliases[gene_id]])
+        except KeyError:
+            return False
 
     def remove(self, gene_id, term_id):
         """Removes the association between the given gene ID and
