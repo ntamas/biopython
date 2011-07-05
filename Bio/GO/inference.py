@@ -407,8 +407,7 @@ class InferenceEngine(object):
             return self.solve_unbound_object(query, knowledge_base)
 
         if query.subject_term is UNBOUND:
-            raise NotImplementedError("unbound subject terms are not yet"
-                                      "supported")
+            return self.solve_unbound_subject(query, knowledge_base)
 
         return self.solve_bound(query, knowledge_base)
 
@@ -443,7 +442,7 @@ class InferenceEngine(object):
             # Get the relationships where this term is a subject
             rels = ontology.get_relationships(subject_term=term)
             if any(rel.subject_term == rel.object_term for rel in rels):
-                raise ValueError
+                raise ValueError("loop detected in relationship graph")
 
             # Filter to the relations of interest
             rels = [rel for rel in rels if isinstance(rel, rel_types)]
@@ -475,6 +474,70 @@ class InferenceEngine(object):
                 if rel.object_term.id not in queued_term_ids:
                     terms_to_visit.append(rel.object_term)
                     queued_term_ids.add(rel.object_term.id)
+
+    def solve_unbound_subject(self, query, knowledge_base=None):
+        """Solves queries where the subject is unbound and the object is
+        bound.
+
+        Returns a generator that will iterate over relationships that match
+        the query.
+
+        You may call this method directly instead of `solve()`_ if you
+        are sure that the query satisfies the preconditions of this method.
+        """
+
+        # TODO: cache the result of restrict_to_rules_relevant_for
+        rules, rel_types = self.rules.restrict_to_rules_relevant_for(query.relation)
+        rel_types = tuple(rel_types)
+
+        object_term = query.object_term
+        ontology = object_term.ontology
+
+        queued_term_ids = set([object_term.id])
+        terms_to_visit = deque([object_term])
+
+        if knowledge_base is None:
+            knowledge_base = KnowledgeBase()
+
+        while terms_to_visit:
+            # Get an unvisited term
+            term = terms_to_visit.popleft()
+
+            # Get the relationships where this term is an object
+            rels = ontology.get_relationships(object_term=term)
+            if any(rel.subject_term == rel.object_term for rel in rels):
+                raise ValueError("loop detected in relationship graph")
+
+            # Filter to the relations of interest
+            rels = [rel for rel in rels if isinstance(rel, rel_types)]
+
+            # See if any of these new relations can be combined with the ones
+            # in the knowledge base to infer new relations where the object
+            # is the one given originally
+            if term is object_term:
+                new_rels = rels
+            else:
+                new_rels = []
+                for rel2 in rels:
+                    rels1 = knowledge_base.get_by_subject_term(rel2.object_term)
+                    for rel1 in rels1:
+                        rel3 = rules.apply(rel2, rel1)
+                        if rel3 is not None:
+                            new_rels.append(rel3)
+            added_rels = knowledge_base.add_many(new_rels)
+
+            # Iterate over the newly added relations and yield those which
+            # we are interested in. Suppress those that we have seen before.
+            for relation in added_rels:
+                if isinstance(relation, query.relation):
+                    yield relation
+
+            # Add the newly discovered subject terms to the list of nodes
+            # we have to visit
+            for rel in rels:
+                if rel.subject_term.id not in queued_term_ids:
+                    terms_to_visit.append(rel.subject_term)
+                    queued_term_ids.add(rel.subject_term.id)
 
     def solve_bound(self, query, knowledge_base=None):
         """Solves queries where the object and the subject are both bound.

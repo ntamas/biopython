@@ -736,13 +736,15 @@ class InferenceEngineTestMixin(object):
         the term with ID `term1_id` stands in the given `relationship`
         with the term having ID `term2_id`.
 
-        The method will check it both ways: using an unbound object
-        query and a fully bound query as well.
+        The method will check it all the three possible ways: using an
+        unbound object query, an unbound subject query and a fully bound
+        query as well.
         """
         term1 = self.ontology.get_term_by_id(term1_id)
         term2 = self.ontology.get_term_by_id(term2_id)
         rel = "%r %s %r" % (term1.name, relationship, term2.name)
 
+        # Try unbound object query
         query = Query(self.ontology, term1, relationship, UNBOUND)
         result = any(relationship in result.names and
                      result.subject_term == term1 and
@@ -750,10 +752,23 @@ class InferenceEngineTestMixin(object):
                      for result in self.engine.solve(query))
 
         if negate:
-            self.failIf(result, "unbound query inferred %s (which is false)" % rel)
+            self.failIf(result, "unbound object query inferred %s (which is false)" % rel)
         else:
-            self.failUnless(result, "unbound query didn't infer that %s" % rel)
+            self.failUnless(result, "unbound object query didn't infer that %s" % rel)
 
+        # Try unbound subject query
+        query = Query(self.ontology, UNBOUND, relationship, term2)
+        result = any(relationship in result.names and
+                     result.subject_term == term1 and
+                     result.object_term == term2
+                     for result in self.engine.solve(query))
+
+        if negate:
+            self.failIf(result, "unbound subject query inferred %s (which is false)" % rel)
+        else:
+            self.failUnless(result, "unbound subject query didn't infer that %s" % rel)
+
+        # Try fully bound query
         query = Query(self.ontology, term1, relationship, term2)
         result = self.engine.solve(query)
 
