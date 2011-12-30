@@ -529,7 +529,7 @@ class GeneOntologyNX(Ontology):
                 raise ImportError
             self._nx = networkx
         except ImportError:
-            raise ImportError("networkx >= 1.1 is required to use %s" % \
+            raise ImportError("networkx >= 1.4 is required to use %s" % \
                     (self.__class__.__name__, ))
 
         # The NetworkX directed graph will serve as the backbone for
@@ -764,7 +764,7 @@ class GeneOntologyNX(Ontology):
         for root_id in sorted(roots):
             root = self._goid_dict[root_id]
             rev_graph = graph.reverse()
-            num_descendants = len(self._nx.dfs_preorder(rev_graph, root)) - 1
+            num_descendants = len(list(self._nx.dfs_preorder_nodes(rev_graph, root.id))) - 1
             lines.append("  %s (%s) has %d descendants" %
                          (root.name, root.id, num_descendants))
 
@@ -1082,7 +1082,7 @@ def _validate_and_normalize_go_id(go_id):
     """
 
     try:
-        if go_id.startswith('GO:'):
+        if go_id.startswith('GO:') or True:
             digits = go_id[3:]
             normalized_id = go_id
         else:
