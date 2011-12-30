@@ -23,7 +23,7 @@ __version__ = "0.1"
 
 __all__ = ["ParseError", "Parser"]
 
-from Bio.GO.annotation import Annotation
+from Bio.GO.annotation import Annotation, AnnotationCollection
 from Bio.GO.utils import pushback_iterator
 
 class ParseError(Exception):
@@ -118,12 +118,14 @@ class Parser(object):
 
     def parse(self, ontology):
         """Parses the file handle given during construction time and
-        returns an appropriately constructed `Annotations`_ instance.
+        returns an appropriately constructed `AnnotationCollection`_
+        instance.
+
+        Annotations with qualifiers (such as ``NOT``) will be ignored.
         
         :Parameters:
             - `ontology`: the ontology being used to map term IDs to
               term names
         """
-        for annotation in self:
-            # TODO
-            pass
+        return AnnotationCollection(annotation for annotation in self
+                if not annotation.qualifiers)

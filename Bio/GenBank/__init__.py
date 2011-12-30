@@ -43,6 +43,7 @@ for more details of this format, and an example.
 Added by Ying Huang & Iddo Friedberg
 """
 import cStringIO
+import re
 
 # other Biopython stuff
 from Bio import SeqFeature
@@ -50,7 +51,6 @@ from Bio.ParserSupport import AbstractConsumer
 from Bio import Entrez
 
 # other Bio.GenBank stuff
-import LocationParser
 from utils import FeatureValueCleaner
 from Scanner import GenBankScanner
 
@@ -63,6 +63,234 @@ FEATURE_KEY_INDENT = 5
 FEATURE_QUALIFIER_INDENT = 21
 FEATURE_KEY_SPACER = " " * FEATURE_KEY_INDENT
 FEATURE_QUALIFIER_SPACER = " " * FEATURE_QUALIFIER_INDENT
+
+#Regular expresions for location parsing
+_solo_location = r"[<>]?\d+"
+_pair_location = r"[<>]?\d+\.\.[<>]?\d+"
+_between_location = r"\d+\^\d+"
+
+_within_position = r"\(\d+\.\d+\)"
+_re_within_position = re.compile(_within_position)
+_within_location = r"([<>]?\d+|%s)\.\.([<>]?\d+|%s)" \
+                   % (_within_position,_within_position)
+assert _re_within_position.match("(3.9)")
+assert re.compile(_within_location).match("(3.9)..10")
+assert re.compile(_within_location).match("26..(30.33)")
+assert re.compile(_within_location).match("(13.19)..(20.28)")
+
+_oneof_position = r"one\-of\(\d+(,\d+)+\)"
+_re_oneof_position = re.compile(_oneof_position)
+_oneof_location = r"([<>]?\d+|%s)\.\.([<>]?\d+|%s)" \
+                   % (_oneof_position,_oneof_position)
+assert _re_oneof_position.match("one-of(6,9)")
+assert re.compile(_oneof_location).match("one-of(6,9)..101")
+assert re.compile(_oneof_location).match("one-of(6,9)..one-of(101,104)")
+assert re.compile(_oneof_location).match("6..one-of(101,104)")
+
+assert not _re_oneof_position.match("one-of(3)")
+assert _re_oneof_position.match("one-of(3,6)")
+assert _re_oneof_position.match("one-of(3,6,9)")
+
+
+_simple_location = r"\d+\.\.\d+"
+_re_simple_location = re.compile(_simple_location)
+_re_simple_compound = re.compile(r"^(join|order|bond)\(%s(,%s)*\)$" \
+                                 % (_simple_location, _simple_location))
+_complex_location = r"([a-zA-z][a-zA-Z0-9]*(\.[a-zA-Z0-9]+)?\:)?(%s|%s|%s|%s|%s)" \
+                    % (_pair_location, _solo_location, _between_location,
+                       _within_location, _oneof_location)
+_re_complex_location = re.compile(r"^%s$" % _complex_location)
+_possibly_complemented_complex_location = r"(%s|complement\(%s\))" \
+                                          % (_complex_location, _complex_location)
+_re_complex_compound = re.compile(r"^(join|order|bond)\(%s(,%s)*\)$" \
+                                 % (_possibly_complemented_complex_location,
+                                    _possibly_complemented_complex_location))
+
+assert _re_simple_location.match("104..160")
+assert not _re_simple_location.match("<104..>160")
+assert not _re_simple_location.match("104")
+assert not _re_simple_location.match("<1")
+assert not _re_simple_location.match(">99999")
+assert not _re_simple_location.match("join(104..160,320..390,504..579)")
+assert not _re_simple_compound.match("bond(12,63)")
+assert _re_simple_compound.match("join(104..160,320..390,504..579)")
+assert _re_simple_compound.match("order(1..69,1308..1465)")
+assert not _re_simple_compound.match("order(1..69,1308..1465,1524)")
+assert not _re_simple_compound.match("join(<1..442,992..1228,1524..>1983)")
+assert not _re_simple_compound.match("join(<1..181,254..336,422..497,574..>590)")
+assert not _re_simple_compound.match("join(1475..1577,2841..2986,3074..3193,3314..3481,4126..>4215)")
+assert not _re_simple_compound.match("test(1..69,1308..1465)")
+assert not _re_simple_compound.match("complement(1..69)")
+assert not _re_simple_compound.match("(1..69)")
+assert _re_complex_location.match("(3.9)..10")
+assert _re_complex_location.match("26..(30.33)")
+assert _re_complex_location.match("(13.19)..(20.28)")
+assert _re_complex_location.match("41^42") #between
+assert _re_complex_location.match("AL121804:41^42")
+assert _re_complex_location.match("AL121804:41..610")
+assert _re_complex_location.match("AL121804.2:41..610")
+assert _re_complex_location.match("one-of(3,6)..101")
+assert _re_complex_compound.match("join(153490..154269,AL121804.2:41..610,AL121804.2:672..1487)")
+assert not _re_simple_compound.match("join(153490..154269,AL121804.2:41..610,AL121804.2:672..1487)")
+assert _re_complex_compound.match("join(complement(69611..69724),139856..140650)")
+
+def _pos(pos_str, offset=0):
+    """Build a Position object (PRIVATE).
+    
+    For an end position, leave offset as zero (default):
+
+    >>> _pos("5")
+    ExactPosition(5)
+
+    For a start position, set offset to minus one (for Python counting):
+
+    >>> _pos("5", -1)
+    ExactPosition(4)
+
+    This also covers fuzzy positions:
+
+    >>> _pos("<5")
+    BeforePosition(5)
+    >>> _pos(">5")
+    AfterPosition(5)
+    >>> _pos("one-of(5,8,11)")
+    OneOfPosition([ExactPosition(5), ExactPosition(8), ExactPosition(11)])
+    >>> _pos("(8.10)")
+    WithinPosition(8,2)
+    """
+    if pos_str.startswith("<"):
+        return SeqFeature.BeforePosition(int(pos_str[1:])+offset)
+    elif pos_str.startswith(">"):
+        return SeqFeature.AfterPosition(int(pos_str[1:])+offset)
+    elif _re_within_position.match(pos_str):
+        s,e = pos_str[1:-1].split(".")
+        return SeqFeature.WithinPosition(int(s)+offset, int(e)-int(s))
+    elif _re_oneof_position.match(pos_str):
+        assert pos_str.startswith("one-of(")
+        assert pos_str[-1]==")"
+        parts = [SeqFeature.ExactPosition(int(pos)+offset) \
+                 for pos in pos_str[7:-1].split(",")]
+        return SeqFeature.OneOfPosition(parts)
+    else:
+        return SeqFeature.ExactPosition(int(pos_str)+offset)
+
+def _loc(loc_str, expected_seq_length):
+    """FeatureLocation from non-compound non-complement location (PRIVATE).
+    
+    Simple examples,
+
+    >>> _loc("123..456", 1000)
+    FeatureLocation(ExactPosition(122),ExactPosition(456))
+    >>> _loc("<123..>456", 1000)
+    FeatureLocation(BeforePosition(122),AfterPosition(456))
+
+    A more complex location using within positions,
+
+    >>> _loc("(9.10)..(20.25)", 1000)
+    FeatureLocation(WithinPosition(8,1),WithinPosition(20,5))
+
+    Zero length between feature,
+
+    >>> _loc("123^124", 1000)
+    FeatureLocation(ExactPosition(123),ExactPosition(123))
+    
+    The expected sequence length is needed for a special case, a between
+    position at the start/end of a circular genome:
+
+    >>> _loc("1000^1", 1000)
+    FeatureLocation(ExactPosition(1000),ExactPosition(1000))
+    
+    Apart from this special case, between positions P^Q must have P+1==Q,
+
+    >>> _loc("123^456", 1000)
+    Traceback (most recent call last):
+       ...
+    ValueError: Invalid between location '123^456'
+    """
+    try:
+        s, e = loc_str.split("..")
+    except ValueError:
+        assert ".." not in loc_str
+        if "^" in loc_str:
+            #A between location like "67^68" (one based counting) is a
+            #special case (note it has zero length). In python slice
+            #notation this is 67:67, a zero length slice.  See Bug 2622
+            #Further more, on a circular genome of length N you can have
+            #a location N^1 meaning the junction at the origin. See Bug 3098.
+            #NOTE - We can imagine between locations like "2^4", but this
+            #is just "3".  Similarly, "2^5" is just "3..4"
+            s, e = loc_str.split("^")
+            if int(s)+1==int(e):
+                pos = _pos(s)
+            elif int(s)==expected_seq_length and e=="1":
+                pos = _pos(s)
+            else:
+                raise ValueError("Invalid between location %s" % repr(loc_str))
+            return SeqFeature.FeatureLocation(pos, pos)
+        else:
+            #e.g. "123"
+            s = loc_str
+            e = loc_str
+    return SeqFeature.FeatureLocation(_pos(s,-1), _pos(e))
+
+def _split_compound_loc(compound_loc):
+    """Split a tricky compound location string (PRIVATE).
+    
+    >>> list(_split_compound_loc("123..145"))
+    ['123..145']
+    >>> list(_split_compound_loc("123..145,200..209"))
+    ['123..145', '200..209']
+    >>> list(_split_compound_loc("one-of(200,203)..300"))
+    ['one-of(200,203)..300']
+    >>> list(_split_compound_loc("complement(123..145),200..209"))
+    ['complement(123..145)', '200..209']
+    >>> list(_split_compound_loc("123..145,one-of(200,203)..209"))
+    ['123..145', 'one-of(200,203)..209']
+    >>> list(_split_compound_loc("123..145,one-of(200,203)..one-of(209,211),300"))
+    ['123..145', 'one-of(200,203)..one-of(209,211)', '300']
+    >>> list(_split_compound_loc("123..145,complement(one-of(200,203)..one-of(209,211)),300"))
+    ['123..145', 'complement(one-of(200,203)..one-of(209,211))', '300']
+    >>> list(_split_compound_loc("123..145,200..one-of(209,211),300"))
+    ['123..145', '200..one-of(209,211)', '300']
+    >>> list(_split_compound_loc("123..145,200..one-of(209,211)"))
+    ['123..145', '200..one-of(209,211)']
+    """
+    if "one-of(" in compound_loc:
+        #Hard case
+        while "," in compound_loc:
+            assert compound_loc[0] != ","
+            assert compound_loc[0:2] != ".."
+            i = compound_loc.find(",")
+            part = compound_loc[:i]
+            compound_loc = compound_loc[i:] #includes the comma
+            while part.count("(") > part.count(")"):
+                assert "one-of(" in part, (part, compound_loc)
+                i = compound_loc.find(")")
+                part += compound_loc[:i+1]
+                compound_loc = compound_loc[i+1:]
+            if compound_loc.startswith(".."):
+                i = compound_loc.find(",")
+                if i==-1:
+                    part += compound_loc
+                    compound_loc = ""
+                else:
+                    part += compound_loc[:i]
+                    compound_loc = compound_loc[i:] #includes the comma
+            while part.count("(") > part.count(")"):
+                assert part.count("one-of(") == 2
+                i = compound_loc.find(")")
+                part += compound_loc[:i+1]
+                compound_loc = compound_loc[i+1:]
+            if compound_loc.startswith(","):
+                compound_loc = compound_loc[1:]
+            assert part
+            yield part
+        if compound_loc:
+            yield compound_loc
+    else:
+        #Easy case
+        for part in compound_loc.split(","):
+            yield part
 
 class Iterator:
     """Iterator interface to move over a file of GenBank entries one at a time.
@@ -646,16 +874,11 @@ class _FeatureConsumer(_BaseGenBankConsumer):
     def location(self, content):
         """Parse out location information from the location string.
 
-        This uses a comprehensive but slow spark based parser to do the
-        parsing, and then translates the results of the parse into appropriate
-        Location objects.
+        This uses simple Python code with some regular expressions to do the
+        parsing, and then translates the results into appropriate objects.
         """
-        # --- first preprocess the location for the spark parser
-        
-        # we need to clean up newlines and other whitespace inside
-        # the location before feeding it to the parser.
-        # locations should have no whitespace whatsoever based on the
-        # grammer
+        # clean up newlines and other whitespace inside the location before
+        # parsing - locations should have no whitespace whatsoever
         location_line = self._clean_location(content)
 
         # Older records have junk like replace(266,"c") in the
@@ -666,259 +889,90 @@ class _FeatureConsumer(_BaseGenBankConsumer):
         if location_line.find('replace') != -1:
             comma_pos = location_line.find(',')
             location_line = location_line[8:comma_pos]
-
-        # feed everything into the scanner and parser
-        try:
-            parse_info = \
-                       LocationParser.parse(LocationParser.scan(location_line))
-        # spark raises SystemExit errors when parsing fails
-        except SystemExit:
-            raise LocationParserError(location_line)
-
-        # print "parse_info:", repr(parse_info)
         
-        # add the parser information the current feature
-        self._set_location_info(parse_info, self._cur_feature)
+        cur_feature = self._cur_feature
 
-    def _set_function(self, function, cur_feature):
-        """Set the location information based on a function.
-
-        This handles all of the location functions like 'join', 'complement'
-        and 'order'.
-
-        Arguments:
-        o function - A LocationParser.Function object specifying the
-        function we are acting on.
-        o cur_feature - The feature to add information to.
-        """
-        assert isinstance(function, LocationParser.Function), \
-               "Expected a Function object, got %s" % function
-        
-        if function.name == "complement":
-            # mark the current feature as being on the opposite strand
+        #Handle top level complement here for speed        
+        if location_line.startswith("complement("):
+            assert location_line.endswith(")")
+            location_line = location_line[11:-1]
             cur_feature.strand = -1
-            # recursively deal with whatever is left inside the complement
-            for inner_info in function.args:
-                self._set_location_info(inner_info, cur_feature)
-        # deal with functions that have multipe internal segments that
-        # are connected somehow.
-        # join and order are current documented functions.
-        # one-of is something I ran across in old files. Treating it
-        # as a sub sequence feature seems appropriate to me.
-        # bond is some piece of junk I found in RefSeq files. I have
-        # no idea how to interpret it, so I jam it in here
-        elif (function.name == "join" or function.name == "order" or
-              function.name == "one-of" or function.name == "bond"):
-            self._set_ordering_info(function, cur_feature)
-        elif (function.name == "gap"):
-            assert len(function.args) == 1, \
-              "Unexpected number of arguments in gap %s" % function.args
-            # make the cur information location a gap object
-            position = self._get_position(function.args[0].local_location)
-            cur_feature.location = SeqFeature.PositionGap(position)
-        else:
-            raise ValueError("Unexpected function name: %s" % function.name)
+            #And continue...
 
-    def _set_ordering_info(self, function, cur_feature):
-        """Parse a join or order and all of the information in it.
-
-        This deals with functions that order a bunch of locations,
-        specifically 'join' and 'order'. The inner locations are
-        added as subfeatures of the top level feature
-        """
-        # for each inner element, create a sub SeqFeature within the
-        # current feature, then get the information for this feature
-        cur_feature.location_operator = function.name
-        for inner_element in function.args:
-            new_sub_feature = SeqFeature.SeqFeature()
-            # inherit the type from the parent
-            new_sub_feature.type = cur_feature.type 
-            # add the join or order info to the location_operator
-            new_sub_feature.location_operator = function.name
-            # inherit references and strand from the parent feature
-            new_sub_feature.ref = cur_feature.ref
-            new_sub_feature.ref_db = cur_feature.ref_db
-            new_sub_feature.strand = cur_feature.strand
-
-            # set the information for the inner element
-            self._set_location_info(inner_element, new_sub_feature)
-
-            # now add the feature to the sub_features
-            cur_feature.sub_features.append(new_sub_feature)
-
-        # set the location of the top -- this should be a combination of
-        # the start position of the first sub_feature and the end position
-        # of the last sub_feature
-
-        # these positions are already converted to python coordinates 
-        # (when the sub_features were added) so they don't need to
-        # be converted again
-        feature_start = cur_feature.sub_features[0].location.start
-        feature_end = cur_feature.sub_features[-1].location.end
-        cur_feature.location = SeqFeature.FeatureLocation(feature_start,
-                                                          feature_end)
-        # Historically a join on the reverse strand has been represented
-        # in Biopython with both the parent SeqFeature and its children
-        # (the exons for a CDS) all given a strand of -1.  Likewise, for
-        # a join feature on the forward strand they all have strand +1.
-        # However, we must also consider evil mixed strand examples like
-        # this, join(complement(69611..69724),139856..140087,140625..140650)
-        strands = set(sf.strand for sf in cur_feature.sub_features)
-        if len(strands)==1:
-            cur_feature.strand = cur_feature.sub_features[0].strand
-        else:
-            cur_feature.strand = None # i.e. mixed strands
-
-    def _set_location_info(self, parse_info, cur_feature):
-        """Set the location information for a feature from the parse info.
-
-        Arguments:
-        o parse_info - The classes generated by the LocationParser.
-        o cur_feature - The feature to add the information to.
-        """
-        # base case -- we are out of information
-        if parse_info is None:
+        #Special case handling of the most common cases for speed
+        if _re_simple_location.match(location_line):
+            #e.g. "123..456"
+            s, e = location_line.split("..")
+            cur_feature.location = SeqFeature.FeatureLocation(int(s)-1,
+                                                              int(e))
             return
-        # parse a location -- this is another base_case -- we assume
-        # we have no information after a single location
-        elif isinstance(parse_info, LocationParser.AbsoluteLocation):
-            self._set_location(parse_info, cur_feature)
+        if _re_simple_compound.match(location_line):
+            #e.g. join(<123..456,480..>500)
+            i = location_line.find("(")
+            cur_feature.location_operator = location_line[:i]
+            #we can split on the comma because these are simple locations
+            for part in location_line[i+1:-1].split(","):
+                s, e = part.split("..")
+                f = SeqFeature.SeqFeature(SeqFeature.FeatureLocation(int(s)-1,
+                                                                     int(e)),
+                        location_operator=cur_feature.location_operator,
+                        strand=cur_feature.strand, type=cur_feature.type)
+                cur_feature.sub_features.append(f)
+            s = cur_feature.sub_features[0].location.start
+            e = cur_feature.sub_features[-1].location.end
+            cur_feature.location = SeqFeature.FeatureLocation(s,e)
             return
-        # parse any of the functions (join, complement, etc)
-        elif isinstance(parse_info, LocationParser.Function):
-            self._set_function(parse_info, cur_feature)
-        # otherwise we are stuck and should raise an error
-        else:
-            raise ValueError("Could not parse location info: %s"
-                             % parse_info)
-
-    def _set_location(self, location, cur_feature):
-        """Set the location information for a feature.
-
-        Arguments:
-        o location - An AbsoluteLocation object specifying the info
-        about the location.
-        o cur_feature - The feature to add the information to.
-        """
-        # check to see if we have a cross reference to another accession
-        # ie. U05344.1:514..741
-        if location.path is not None:
-            cur_feature.ref = location.path.accession
-            cur_feature.ref_db = location.path.database
-        # now get the actual location information
-        cur_feature.location = self._get_location(location.local_location)
-
-    def _get_location(self, range_info):
-        """Return a (possibly fuzzy) location from a Range object.
-
-        Arguments:
-        o range_info - A location range (ie. something like 67..100). This
-        may also be a single position (ie 27).
-
-        This returns a FeatureLocation object.
-        If parser.use_fuzziness is set at one, the positions for the
-        end points will possibly be fuzzy.
-        """
-        if isinstance(range_info, LocationParser.Between):
-            if not (range_info.low.val+1 == range_info.high.val \
-            or range_info.low.val==self._expected_size \
-            and range_info.high.val==1):
-                raise ValueError(range_info)
-            #A between location like "67^68" (one based counting) is a
-            #special case (note it has zero length). In python slice
-            #notation this is 67:67, a zero length slice.  See Bug 2622
-            #Further more, on a circular genome of length N you can have
-            #a location N^1 meaning the junction at the origin. See Bug 3098.
-            pos = self._get_position(range_info.low)
-            return SeqFeature.FeatureLocation(pos, pos)
-            #NOTE - We can imagine between locations like "2^4", but this
-            #is just "3".  Similarly, "2^5" is just "3..4"
-        # check if we just have a single base
-        elif not(isinstance(range_info, LocationParser.Range)):
-            #A single base like "785" becomes [784:785] in python
-            s_pos = self._get_position(range_info)
-            # move the single position back one to be consistent with how
-            # python indexes numbers (starting at 0)
-            s_pos.position = s_pos.position  - 1
-            e_pos = self._get_position(range_info)
-            return SeqFeature.FeatureLocation(s_pos, e_pos)
-        # otherwise we need to get both sides of the range
-        else:
-            # get *Position objects for the start and end
-            start_pos = self._get_position(range_info.low)
-            end_pos = self._get_position(range_info.high)
-
-            start_pos.position, end_pos.position = \
-              self._convert_to_python_numbers(start_pos.position,
-                                              end_pos.position)
-            #If the start location is a one-of position, we also need to
-            #adjust their positions to use python counting.
-            if isinstance(start_pos, SeqFeature.OneOfPosition):
-                for p in start_pos.position_choices:
-                    p.position -= 1
-                
-            return SeqFeature.FeatureLocation(start_pos, end_pos)
-
-    def _get_position(self, position):
-        """Return a (possibly fuzzy) position for a single coordinate.
-
-        Arguments:
-        o position - This is a LocationParser.* object that specifies
-        a single coordinate. We will examine the object to determine
-        the fuzziness of the position.
-
-        This is used with _get_location to parse out a location of any
-        end_point of arbitrary fuzziness.
-        """
-        # case 1 -- just a normal number
-        if (isinstance(position, LocationParser.Integer)):
-            final_pos = SeqFeature.ExactPosition(position.val) 
-        # case 2 -- we've got a > sign
-        elif isinstance(position, LocationParser.LowBound):
-            final_pos = SeqFeature.AfterPosition(position.base.val)
-        # case 3 -- we've got a < sign
-        elif isinstance(position, LocationParser.HighBound):
-            final_pos = SeqFeature.BeforePosition(position.base.val)
-        # case 4 -- we've got 100^101
-        # Is the extension is zero in this example?
-        elif isinstance(position, LocationParser.Between):
-            #NOTE - We don't *expect* this code to get called!
-            #We only except between locations like 3^4 (consecutive)
-            #which are handled in _get_location.  We don't expect
-            #non consecutive variants like "2^5" as this is just "3..4".
-            #Similarly there is no reason to expect composite locations
-            #like "(3^4)..6" which should just be "4..6".
-            final_pos = SeqFeature.BetweenPosition(position.low.val,
-                                 position.high.val-position.low.val)
-        # case 5 -- we've got (100.101)
-        elif isinstance(position, LocationParser.TwoBound):
-            final_pos = SeqFeature.WithinPosition(position.low.val,
-                                position.high.val-position.low.val)
-        # case 6 -- we've got a one-of(100, 110) location
-        elif isinstance(position, LocationParser.Function) and \
-                        position.name == "one-of":
-            # first convert all of the arguments to positions
-            position_choices = []
-            for arg in position.args:
-                # we only handle AbsoluteLocations with no path
-                # right now. Not sure if other cases will pop up
-                assert isinstance(arg, LocationParser.AbsoluteLocation), \
-                  "Unhandled Location type %r" % arg
-                assert arg.path is None, "Unhandled path in location"
-                position = self._get_position(arg.local_location)
-                position_choices.append(position)
-            final_pos = SeqFeature.OneOfPosition(position_choices)
-        # if it is none of these cases we've got a problem!
-        else:
-            raise ValueError("Unexpected LocationParser object %r" %
-                             position)
-
-        # if we are using fuzziness return what we've got
-        if self._use_fuzziness:
-            return final_pos
-        # otherwise return an ExactPosition equivalent
-        else:
-            return SeqFeature.ExactPosition(final_pos.location)
+        
+        #Handle the general case with more complex regular expressions
+        if _re_complex_location.match(location_line):
+            #e.g. "AL121804.2:41..610"
+            if ":" in location_line:
+                cur_feature.ref, location_line = location_line.split(":")
+            cur_feature.location = _loc(location_line, self._expected_size)
+            return
+        if _re_complex_compound.match(location_line):
+            i = location_line.find("(")
+            cur_feature.location_operator = location_line[:i]
+            #Can't split on the comma because of ositions like one-of(1,2,3)
+            for part in _split_compound_loc(location_line[i+1:-1]):
+                if part.startswith("complement("):
+                    assert part[-1]==")"
+                    part = part[11:-1]
+                    assert cur_feature.strand != -1, "Double complement?"
+                    strand = -1
+                else:
+                    strand = cur_feature.strand
+                if ":" in part:
+                    ref, part = part.split(":")
+                else:
+                    ref = None
+                try:
+                    loc = _loc(part, self._expected_size)
+                except ValueError, err:
+                    print location_line
+                    print part
+                    raise err
+                f = SeqFeature.SeqFeature(location=loc, ref=ref,
+                        location_operator=cur_feature.location_operator,
+                        strand=strand, type=cur_feature.type)
+                cur_feature.sub_features.append(f)
+            # Historically a join on the reverse strand has been represented
+            # in Biopython with both the parent SeqFeature and its children
+            # (the exons for a CDS) all given a strand of -1.  Likewise, for
+            # a join feature on the forward strand they all have strand +1.
+            # However, we must also consider evil mixed strand examples like
+            # this, join(complement(69611..69724),139856..140087,140625..140650)
+            strands = set(sf.strand for sf in cur_feature.sub_features)
+            if len(strands)==1:
+                cur_feature.strand = cur_feature.sub_features[0].strand
+            else:
+                cur_feature.strand = None # i.e. mixed strands
+            s = cur_feature.sub_features[0].location.start
+            e = cur_feature.sub_features[-1].location.end
+            cur_feature.location = SeqFeature.FeatureLocation(s,e)
+            return
+        #Not recognised
+        raise LocationParserError(location_line)
 
     def _add_qualifier(self):
         """Add a qualifier to the current feature without loss of info.
@@ -952,12 +1006,11 @@ class _FeatureConsumer(_BaseGenBankConsumer):
             # add a qualifier if we've got one
             self._add_qualifier()
 
-            # remove the / and = from the qualifier if they're present
-            qual_key = content.replace('/', '')
-            qual_key = qual_key.replace('=', '')
-            qual_key = qual_key.strip()
+            # assume the / and = have been removed, and it has been trimmed
+            assert '/' not in content and  '=' not in content \
+                   and content == content.strip(), content
             
-            self._cur_qualifier_key = qual_key
+            self._cur_qualifier_key = content
             self._cur_qualifier_value = []
         
     def feature_qualifier_description(self, content):
@@ -1001,10 +1054,8 @@ class _FeatureConsumer(_BaseGenBankConsumer):
         into a list of strings, and then uses string.join later to put
         them together. Supposedly, this is a big time savings
         """
-        new_seq = content.replace(' ', '')
-        new_seq = new_seq.upper()
-
-        self._seq_data.append(new_seq)
+        assert ' ' not in content
+        self._seq_data.append(content.upper())
 
     def record_end(self, content):
         """Clean up when we've finished the record.
@@ -1056,7 +1107,7 @@ class _FeatureConsumer(_BaseGenBankConsumer):
                     seq_alphabet = IUPAC.ambiguous_dna
                 else:
                     seq_alphabet = IUPAC.ambiguous_rna
-            elif self._seq_type.find('PROTEIN') != -1:
+            elif self._seq_type.upper().find('PROTEIN') != -1:
                 seq_alphabet = IUPAC.protein  # or extended protein?
             # work around ugly GenBank records which have circular or
             # linear but no indication of sequence type
@@ -1290,8 +1341,8 @@ class _RecordConsumer(_BaseGenBankConsumer):
         list together to make the final sequence. This is faster than
         adding on the new string every time.
         """
-        new_seq = content.replace(' ', '')
-        self._seq_data.append(new_seq.upper())
+        assert ' ' not in content
+        self._seq_data.append(content.upper())
 
     def record_end(self, content):
         """Signal the end of the record and do any necessary clean-up.
@@ -1303,3 +1354,12 @@ class _RecordConsumer(_BaseGenBankConsumer):
         self._add_feature()
 
 
+def _test():
+    """Run the Bio.GenBank module's doctests."""
+    print "Runing doctests..."
+    import doctest
+    doctest.testmod()
+    print "Done"
+
+if __name__ == "__main__":
+    _test()

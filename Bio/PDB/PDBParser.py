@@ -3,16 +3,16 @@
 # license.  Please see the LICENSE file that should have been included
 # as part of this package.  
 
-# Python stuff
+"""Parser for PDB files."""
+
 import warnings
+
 import numpy
 
-# My stuff
-from StructureBuilder import StructureBuilder
-from PDBExceptions import PDBConstructionException, PDBConstructionWarning
-from parse_pdb_header import _parse_pdb_header_list
-
-__doc__="Parser for PDB files."
+from Bio.PDB.PDBExceptions import \
+        PDBConstructionException, PDBConstructionWarning
+from Bio.PDB.StructureBuilder import StructureBuilder
+from Bio.PDB.parse_pdb_header import _parse_pdb_header_list
 
 
 # If PDB spec says "COLUMNS 18-20" this means line[17:20]

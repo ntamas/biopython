@@ -9,6 +9,7 @@ Initially this takes matched tests of GenBank and FASTA files from the NCBI
 and confirms they are consistent using our different parsers.
 """
 import unittest
+from Bio import SeqIO
 from Bio.Alphabet import generic_dna, generic_rna, generic_protein
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
@@ -39,7 +40,7 @@ class SeqRecordCreation(unittest.TestCase):
         #Now try modifying it to a bad value...
         try:
             rec.letter_annotations["bad"] = "abc"
-            self.assert_(False, "Adding a bad letter_annotation should fail!")
+            self.assertTrue(False, "Adding a bad letter_annotation should fail!")
         except (TypeError, ValueError), e:
             pass
         #Now try setting it afterwards to a bad value...
@@ -47,7 +48,7 @@ class SeqRecordCreation(unittest.TestCase):
                         id="Test", name="Test", description="Test")
         try:
             rec.letter_annotations={"test" : [1, 2, 3]}
-            self.assert_(False, "Changing to bad letter_annotations should fail!")
+            self.assertTrue(False, "Changing to bad letter_annotations should fail!")
         except (TypeError, ValueError), e:
             pass
         #Now try setting it at creation time to a bad value...
@@ -55,7 +56,7 @@ class SeqRecordCreation(unittest.TestCase):
             rec = SeqRecord(Seq("ACGT", generic_dna),
                             id="Test", name="Test", description="Test",
                             letter_annotations={"test" : [1, 2, 3]})
-            self.assert_(False, "Wrong length letter_annotations should fail!")
+            self.assertTrue(False, "Wrong length letter_annotations should fail!")
         except (TypeError, ValueError), e:
             pass
 
@@ -139,6 +140,29 @@ class SeqRecordMethods(unittest.TestCase):
             self.assertEqual(rec.features[0].location.nofuzzy_start, 0)
             self.assertEqual(rec.features[0].location.nofuzzy_end, 26) #not +3
 
+    def test_add_seqrecord(self):
+        """Simple left addition of SeqRecord from genbank file."""
+        other = SeqIO.read("GenBank/dbsource_wrap.gb", "gb")
+        other.dbxrefs = ["dummy"]
+        rec = self.record + other
+        self.assertEqual(len(rec), len(self.record)+len(other))
+        self.assertEqual(str(rec.seq), str(self.record.seq)+str(other.seq))
+        self.assertEqual(rec.id, "<unknown id>")
+        self.assertEqual(rec.name, "<unknown name>")
+        self.assertEqual(rec.description, "<unknown description>")
+        self.assertEqual(rec.dbxrefs, ["TestXRef", "dummy"])
+        self.assertEqual(len(rec.annotations), 0)
+        self.assertEqual(len(rec.letter_annotations),0)
+        self.assertEqual(len(rec.features),
+                         len(self.record.features) + len(other.features))
+        self.assertEqual(rec.features[0].type, "source")
+        self.assertEqual(rec.features[0].location.nofuzzy_start, 0)
+        self.assertEqual(rec.features[0].location.nofuzzy_end, len(self.record)) #not +3
+        i = len(self.record.features)
+        self.assertEqual(rec.features[i].type, "source")
+        self.assertEqual(rec.features[i].location.nofuzzy_start, len(self.record))
+        self.assertEqual(rec.features[i].location.nofuzzy_end, len(rec))
+
     def test_add_seq_left(self):
         """Simple left addition of Seq or string"""
         for other in [Seq("BIO"), "BIO"] :
@@ -168,7 +192,7 @@ class SeqRecordMethods(unittest.TestCase):
             self.assertEqual(rec.dbxrefs, []) # May change this...
             self.assertEqual(rec.annotations, {}) # May change this...
             self.assertEqual(rec.letter_annotations, {"fake":"X"*26})
-            self.assert_(len(rec.features) <= len(self.record.features))
+            self.assertTrue(len(rec.features) <= len(self.record.features))
 
     def test_slice_add_shift(self):
         """Simple slice and add to shift"""
@@ -182,7 +206,7 @@ class SeqRecordMethods(unittest.TestCase):
             self.assertEqual(rec.dbxrefs, []) # May change this...
             self.assertEqual(rec.annotations, {}) # May change this...
             self.assertEqual(rec.letter_annotations, {"fake":"X"*26})
-            self.assert_(len(rec.features) <= len(self.record.features))
+            self.assertTrue(len(rec.features) <= len(self.record.features))
             
 if __name__ == "__main__":
     runner = unittest.TextTestRunner(verbosity = 2)

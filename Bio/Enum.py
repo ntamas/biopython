@@ -128,15 +128,16 @@ class Enum(object):
 
     Usage example::
 
-        class GOEvidenceCode(Enum):
-            EXP = "Inferred from Experiment"
-            IDA = "Inferred from Direct Assay"
-            IPI = "Inferred from Physical Interaction"
-            IMP = "Inferred from Mutant Phenotype"
-            [...]
-
+        >>> class GOEvidenceCode(Enum):
+        ...     EXP = "Inferred from Experiment"
+        ...     IDA = "Inferred from Direct Assay"
+        ...     IPI = "Inferred from Physical Interaction"
+        ...     IMP = "Inferred from Mutant Phenotype"
+        ...
         >>> GOEvidenceCode.EXP
         GOEvidenceCode.EXP
+        >>> GOEvidenceCode.EXP.key
+        'EXP'
         >>> GOEvidenceCode.EXP.value
         'Inferred from Experiment'
 
@@ -144,7 +145,7 @@ class Enum(object):
     values. Enums even provide methods similar to the non-mutating methods
     of Python dictionaries::
 
-        >>> values = GOEvidenceCode.values()
+        >>> sorted(GOEvidenceCode.values())          #doctest: +ELLIPSIS
         [GOEvidenceCode.EXP, GOEvidenceCode.IDA, ...]
     """
 
@@ -156,6 +157,12 @@ class Enum(object):
             raise TypeError("Enums should not be instantiated directly")
         self._key = key
         self._value = value
+
+    def __cmp__(self, other):
+        """Compares this enum instance with another.
+
+        Enums are ordered by their keys."""
+        return cmp(self._key, other._key)
 
     def __repr__(self):
         """Returns an executable representation of this instance.
@@ -169,3 +176,12 @@ class Enum(object):
 
     def __str__(self):
         return "%s.%s" % (self.__class__.__name__, self._key)
+
+    @property
+    def key(self):
+        return self._key
+
+    @property
+    def value(self):
+        return self._value
+

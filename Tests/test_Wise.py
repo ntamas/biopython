@@ -9,7 +9,7 @@ import cStringIO
 import doctest, unittest
 import sys
 
-if sys.modules.has_key('requires_wise'):
+if 'requires_wise' in sys.modules:
     del sys.modules['requires_wise']
 import requires_wise
 
@@ -23,12 +23,16 @@ class TestWiseDryRun(unittest.TestCase):
     def test_dnal(self):
         """Call dnal, and do a trivial check on its output."""
         Wise.align(["dnal"], ("seq1.fna", "seq2.fna"), kbyte=100000, dry_run=True)
-        self.assert_(sys.stdout.getvalue().startswith("dnal -kbyte 100000 seq1.fna seq2.fna"))
+        #If test output is redirected to a file, the wrapper adds -quiet
+        output = sys.stdout.getvalue().replace(" -quiet ", " ")
+        self.assertTrue(output.startswith("dnal -kbyte 100000 seq1.fna seq2.fna"), output[:200])
 
     def test_psw(self):
         """Call psw, and do a trivial check on its output."""
         Wise.align(["psw"], ("seq1.faa", "seq2.faa"), dry_run=True, kbyte=4)
-        self.assert_(sys.stdout.getvalue().startswith("psw -kbyte 4 seq1.faa seq2.faa"))
+        #If test output is redirected to a file, the wrapper adds -quiet
+        output = sys.stdout.getvalue().replace(" -quiet ", " ")
+        self.assertTrue(output.startswith("psw -kbyte 4 seq1.faa seq2.faa"), output[:200])
 
     def tearDown(self):
         sys.stdout = self.old_stdout
@@ -49,8 +53,7 @@ class TestWise(unittest.TestCase):
             pass
         else:
             #Bad!
-            self.assert_(False, line)
-
+            self.assertTrue(False, line)
 
 
 if __name__ == "__main__":

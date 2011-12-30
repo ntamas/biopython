@@ -375,6 +375,14 @@ class Ontology(object):
             return term_or_id
         return self.get_term_by_id(term_or_id)
 
+    def get_number_of_relationships(self):
+        """Returns the number of relationships in this ontology."""
+        raise NotImplementedError
+
+    def get_number_of_terms(self):
+        """Returns the number of terms in this ontology."""
+        raise NotImplementedError
+
     def get_term_by_id(self, term_id):
         """Retrieves the given term from this ontology using its unique ID.
 
@@ -485,6 +493,10 @@ class Ontology(object):
         - `relationship`: the type of the relationship to be removed
           from those two terms.
         """
+        raise NotImplementedError
+
+    def terms(self):
+        """Returns an iterable of all the terms in the ontology."""
         raise NotImplementedError
 
     def __contains__(self, term):
@@ -615,6 +627,16 @@ class GeneOntologyNX(Ontology):
         # internal dict
         for alt_id in term.aliases:
             self._goid_dict[alt_id] = term
+
+
+    def get_number_of_terms(self):
+        """Returns the number of terms in this ontology."""
+        return self._internal_dag.number_of_nodes()
+
+
+    def get_number_of_relationships(self):
+        """Returns the number of relationships in this ontology."""
+        return self._internal_dag.number_of_edges()
 
 
     def get_term_by_id(self, term_id):
@@ -791,6 +813,11 @@ class GeneOntologyNX(Ontology):
         return "\n".join(lines)
 
 
+    def terms(self):
+        """Returns an iterable of all the terms in the ontology."""
+        return (self._goid_dict[term_id] for term_id in self._internal_dag)
+
+
 class GeneOntologySQL(Ontology):
     """This class represents a gene ontology using a read-only database
     as a backend.
@@ -904,6 +931,23 @@ class GeneOntologySQL(Ontology):
         self.cursor.execute(self._queries["term_count"], (term, ))
         return self.cursor.fetchone()[0] > 0
 
+    def get_number_of_relationships(self):
+        """Returns the number of relationships in this ontology."""
+        query = "SELECT COUNT(*) FROM term2term JOIN term AS term1 "\
+                "     ON (term2term.term1_id = term1.id) "\
+                "     JOIN term AS term2 "\
+                "     ON (term2term.term2_id = term2.id) "\
+                "WHERE term1.acc LIKE 'GO:%' AND term2.acc LIKE 'GO:%'"
+        self.cursor.execute(query)
+        return int(self.cursor.fetchone()[0])
+
+    def get_number_of_terms(self):
+        """Returns the number of terms in this ontology."""
+        query = "SELECT COUNT(*) FROM term WHERE acc LIKE 'GO:%' AND "\
+                "is_obsolete=0"
+        self.cursor.execute(query)
+        return int(self.cursor.fetchone()[0])
+
     def get_term_by_id(self, term_id):
         """Retrieve a term from the ontology by its GO ID.
 
@@ -958,8 +1002,9 @@ class GeneOntologySQL(Ontology):
         if not unknown_ids:
             return result
 
-        query = "SELECT id, acc, name FROM term WHERE acc IN (%s)" %\
-            (", ".join(repr(str(k)) for k in unknown_ids.keys()))
+        condition = "acc IN (%s)" % (", ".join(repr(str(k))
+            for k in unknown_ids.keys()))
+        query = "SELECT id, acc, name FROM term WHERE %s" % condition
         self.cursor.execute(query)
         for row in db_cursor_iterator(self.cursor):
             term = GOTerm(row[1], row[2], ontology=self)
@@ -1069,6 +1114,18 @@ class GeneOntologySQL(Ontology):
             return self.get_terms_by_ids(orphaned_ids)
         else:
             return []
+
+    def terms(self):
+        """Returns an iterable of all the terms in the ontology."""
+        query = "SELECT id, acc, name FROM term "\
+                "WHERE acc LIKE 'GO:%' AND is_obsolete=0"
+        self.cursor.execute(query)
+        for row in db_cursor_iterator(self.cursor):
+            if row[1] in self._goid_dict:
+                yield self._goid_dict[term.id]
+            else:
+                yield GOTerm(row[1], row[2], ontology=self)
+
 
 def _validate_and_normalize_go_id(go_id):
     """

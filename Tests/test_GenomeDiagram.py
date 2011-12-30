@@ -14,14 +14,14 @@ import unittest
 import math
 
 # Do we have ReportLab?  Raise error if not present.
-from Bio import MissingExternalDependencyError
+from Bio import MissingPythonDependencyError
 try:
     from reportlab.lib import colors
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
     from reportlab.lib.units import cm
 except ImportError:
-    raise MissingExternalDependencyError(\
+    raise MissingPythonDependencyError(
             "Install reportlab if you want to use Bio.Graphics.")
 
 # Biopython core
@@ -50,7 +50,7 @@ def apply_to_window(sequence, window_size, function, step=None):
         o window_size   Int describing the length of sequence to consider
 
         o step          Int describing the step to take between windows
-                        (default = window_size/2)
+                        (default = window_size//2)
 
         o function      Method or function that accepts a Bio.Seq.Seq object
                         as its sole argument and returns a single value
@@ -61,7 +61,7 @@ def apply_to_window(sequence, window_size, function, step=None):
     """
     seqlen = len(sequence)      # Total length of sequence to be used
     if step is None:    # No step specified, so use half window-width or 1 if larger
-        step = max(window_size/2, 1)
+        step = max(window_size//2, 1)
     else:               # Use specified step, or 1 if greater
         step = max(step, 1)
 
@@ -72,7 +72,7 @@ def apply_to_window(sequence, window_size, function, step=None):
     pos = 0
     while pos < seqlen-window_size+1:
         # Obtain sequence fragment
-        start, middle, end = pos, (pos+window_size+pos)/2, pos+window_size
+        start, middle, end = pos, (pos+window_size+pos)//2, pos+window_size
         fragment = sequence[start:end]
         # Apply function to the sequence fragment
         value = function(fragment)
@@ -85,7 +85,7 @@ def apply_to_window(sequence, window_size, function, step=None):
     if pos != seqlen - window_size:
         # Obtain sequence fragment
         pos = seqlen - window_size
-        start, middle, end = pos, (pos+window_size+pos)/2, pos+window_size
+        start, middle, end = pos, (pos+window_size+pos)//2, pos+window_size
         fragment = sequence[start:end]
         # Apply function to sequence fragment
         value = function(fragment)
@@ -120,7 +120,6 @@ def calc_at_content(sequence):
 
         Returns the % A+T content in a passed sequence
     """
-    seq = sequence.data
     d = {}
     for nt in ['A','T','G','C']:
         d[nt] = sequence.count(nt) + sequence.count(nt.lower())
@@ -230,7 +229,7 @@ class GraphTest(unittest.TestCase):
                  start=0, end=points)
         gdd.write(os.path.join('Graphics', "line_graph.pdf"), "pdf")
         #Circular diagram - move tracks to make an empty space in the middle
-        for track_number in gdd.tracks.keys():
+        for track_number in gdd.tracks:
             gdd.move_track(track_number,track_number+1)
         gdd.draw(tracklines=False,
                  pagesize=(15*cm,15*cm),
@@ -274,7 +273,7 @@ class LabelTest(unittest.TestCase):
         #self.gdd.write(os.path.join('Graphics', name+".png"), "png")
         if circular:
             #Circular diagram - move tracks to make an empty space in the middle
-            for track_number in self.gdd.tracks.keys():
+            for track_number in self.gdd.tracks:
                 self.gdd.move_track(track_number,track_number+1)
             self.gdd.draw(tracklines=False,
                           pagesize=(15*cm,15*cm),
@@ -350,7 +349,7 @@ class SigilsTest(unittest.TestCase):
         #self.gdd.write(os.path.join('Graphics', name+".png"), "png")
         if circular:
             #Circular diagram - move tracks to make an empty space in the middle
-            for track_number in self.gdd.tracks.keys():
+            for track_number in self.gdd.tracks:
                 self.gdd.move_track(track_number,track_number+1)
             self.gdd.draw(tracklines=False,
                           pagesize=(15*cm,15*cm),
@@ -516,7 +515,7 @@ class DiagramTest(unittest.TestCase):
         #We'll just use one feature set for these features,
         gds_features = gdt_features.new_set()
         for feature in genbank_entry.features:
-            if feature.type <> "CDS":
+            if feature.type != "CDS":
                 #We're going to ignore these.
                 continue
             if feature.location.end.position < start:
@@ -638,7 +637,7 @@ class DiagramTest(unittest.TestCase):
                                   greytrack_labels=True)
         gds_at_gc = gdt_at_gc.new_set(type="graph")
 
-        step = len(genbank_entry)/200
+        step = len(genbank_entry)//200
         gds_at_gc.new_graph(apply_to_window(genbank_entry.seq, step, calc_gc_content, step),
                         'GC content', style='line', 
                         color=colors.lightgreen,
@@ -724,7 +723,7 @@ class DiagramTest(unittest.TestCase):
 
         #Use a fairly large step so we can easily tell the difference
         #between the bar and line graphs.
-        step = len(genbank_entry)/200
+        step = len(genbank_entry)//200
         gdgs1 = GraphSet('GC skew')
         
         graphdata1 = apply_to_window(genbank_entry.seq, step, calc_gc_skew, step)
@@ -757,7 +756,7 @@ class DiagramTest(unittest.TestCase):
         gdt5.add_set(gdgs2)
 
         gdgs3 = GraphSet('Di-nucleotide count')
-        step = len(genbank_entry)/400 #smaller step
+        step = len(genbank_entry)//400 #smaller step
         gdgs3.new_graph(apply_to_window(genbank_entry.seq, step, calc_dinucleotide_counts, step),
                         'Di-nucleotide count', style='heat', 
                         color=colors.red, altcolor=colors.orange)

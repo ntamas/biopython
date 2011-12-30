@@ -1,3 +1,11 @@
+# Copyright 2000-2003 Jeff Chang.
+# Copyright 2001-2008 Brad Chapman.
+# Copyright 2005-2010 by Peter Cock.
+# Copyright 2006-2009 Michiel de Hoon.
+# All rights reserved.
+# This code is part of the Biopython distribution and governed by its
+# license.  Please see the LICENSE file that should have been included
+# as part of this package.
 """Represent a Sequence Feature holding info about a part of a sequence.
 
 This is heavily modeled after the Biocorba SeqFeature objects, and
@@ -67,9 +75,10 @@ class SeqFeature(object):
 
     CDS    join(1..10,30..40,50..60)
 
-    The the top level feature would be a CDS from 1 to 60, and the sub
-    features would be of 'CDS_join' type and would be from 1 to 10, 30 to
-    40 and 50 to 60, respectively.
+    Then the top level feature would be of type 'CDS' from 1 to 60 (actually 0
+    to 60 in Python counting) with location_operator='join', and the three sub-
+    features would also be of type 'CDS', and would be from 1 to 10, 30 to
+    40 and 50 to 60, respectively (although actually using Python counting).
 
     To get the nucleotide sequence for this CDS, you would need to take the
     parent sequence and do seq[0:10]+seq[29:40]+seq[49:60] (Python counting).
@@ -84,7 +93,7 @@ class SeqFeature(object):
         """Initialize a SeqFeature on a Sequence.
 
         location can either be a FeatureLocation (with strand argument also
-        given if required), or a Python slice (with strand given as the step).
+        given if required), or None.
 
         e.g. With no strand, on the forward strand, and on the reverse strand:
 
@@ -107,7 +116,7 @@ class SeqFeature(object):
         if strand not in [-1, 0, 1, None] :
             raise ValueError("Strand should be +1, -1, 0 or None, not %s" \
                              % repr(strand))
-        if location and not isinstance(location, FeatureLocation):
+        if location is not None and not isinstance(location, FeatureLocation):
             raise TypeError("FeatureLocation (or None) required for the location")
         self.location = location
 
@@ -147,19 +156,19 @@ class SeqFeature(object):
         """
         out = "type: %s\n" % self.type
         out += "location: %s\n" % self.location
-        out += "ref: %s:%s\n" % (self.ref, self.ref_db)
+        if self.id and self.id != "<unknown id>":
+            out += "id: %s\n" % self.id
+        if self.ref or self.ref_db:
+            out += "ref: %s:%s\n" % (self.ref, self.ref_db)
         out += "strand: %s\n" % self.strand
         out += "qualifiers: \n"
-        qualifier_keys = self.qualifiers.keys()
-        qualifier_keys.sort()
-        for qual_key in qualifier_keys:
+        for qual_key in sorted(self.qualifiers):
             out += "    Key: %s, Value: %s\n" % (qual_key,
                                                self.qualifiers[qual_key])
         if len(self.sub_features) != 0:
             out += "Sub-Features\n"
             for sub_feature in self.sub_features:
                 out +="%s\n" % sub_feature
-
         return out
 
     def _shift(self, offset):
@@ -231,7 +240,140 @@ class SeqFeature(object):
                 assert isinstance(f_seq, str)
                 f_seq = reverse_complement(f_seq)
         return f_seq
-        
+    
+    def __nonzero__(self):
+        """Returns True regardless of the length of the feature.
+
+        This behaviour is for backwards compatibility, since until the
+        __len__ method was added, a SeqFeature always evaluated as True.
+
+        Note that in comparison, Seq objects, strings, lists, etc, will all
+        evaluate to False if they have length zero.
+
+        WARNING: The SeqFeature may in future evaluate to False when its
+        length is zero (in order to better match normal python behaviour)!
+        """
+        return True
+
+    def __len__(self):
+        """Returns the length of the region described by a feature.
+
+        >>> from Bio.Seq import Seq
+        >>> from Bio.Alphabet import generic_protein
+        >>> from Bio.SeqFeature import SeqFeature, FeatureLocation
+        >>> seq = Seq("MKQHKAMIVALIVICITAVVAAL", generic_protein)
+        >>> f = SeqFeature(FeatureLocation(8,15), type="domain")
+        >>> len(f)
+        7
+        >>> f.extract(seq)
+        Seq('VALIVIC', ProteinAlphabet())
+        >>> len(f.extract(seq))
+        7
+
+        For simple features without subfeatures this is the same as the region
+        spanned (end position minus start position). However, for a feature
+        defined by combining several subfeatures (e.g. a CDS as the join of
+        several exons) the gaps are not counted (e.g. introns). This ensures
+        that len(f) == len(f.extract(parent_seq)), and also makes sure things
+        work properly with features wrapping the origin etc.
+        """
+        if self.sub_features:
+            return sum(len(f) for f in self.sub_features)
+        else:
+            return len(self.location)
+
+    def __iter__(self):
+        """Iterate over the parent positions within the feature.
+
+        The iteration order is strand aware, and can be thought of as moving
+        along the feature using the parent sequence coordinates:
+
+        >>> from Bio.SeqFeature import SeqFeature, FeatureLocation
+        >>> f = SeqFeature(FeatureLocation(5,10), type="domain", strand=-1)
+        >>> len(f)
+        5
+        >>> for i in f: print i
+        9
+        8
+        7
+        6
+        5
+        >>> list(f)
+        [9, 8, 7, 6, 5]
+        """
+        if self.sub_features:
+            if self.strand == -1:
+                for f in self.sub_features[::-1]:
+                    for i in f.location:
+                        yield i
+            else:
+                for f in self.sub_features:
+                    for i in f.location:
+                        yield i
+        elif self.strand == -1:
+            for i in range(self.location.nofuzzy_end-1,
+                           self.location.nofuzzy_start-1, -1):
+                yield i
+        else:
+            for i in range(self.location.nofuzzy_start,
+                           self.location.nofuzzy_end):
+                yield i
+
+    def __contains__(self, value):
+        """Check if an integer position is within the feature.
+
+        >>> from Bio.SeqFeature import SeqFeature, FeatureLocation
+        >>> f = SeqFeature(FeatureLocation(5,10), type="domain", strand=-1)
+        >>> len(f)
+        5
+        >>> [i for i in range(15) if i in f]
+        [5, 6, 7, 8, 9]
+
+        For example, to see which features include a SNP position, you could
+        use this:
+
+        >>> from Bio import SeqIO
+        >>> record = SeqIO.read("GenBank/NC_000932.gb", "gb")
+        >>> for f in record.features:
+        ...     if 1750 in f:
+        ...         print f.type, f.strand, f.location
+        source 1 [0:154478]
+        gene -1 [1716:4347]
+        tRNA -1 [1716:4347]
+
+        Note that for a feature defined as a join of several subfeatures (e.g.
+        the union of several exons) the gaps are not checked (e.g. introns).
+        In this example, the tRNA location is defined in the GenBank file as
+        complement(join(1717..1751,4311..4347)), so that position 1760 falls
+        in the gap:
+
+        >>> for f in record.features:
+        ...     if 1760 in f:
+        ...         print f.type, f.strand, f.location
+        source 1 [0:154478]
+        gene -1 [1716:4347]
+
+        Note that additional care may be required with fuzzy locations, for
+        example just before a BeforePosition:
+
+        >>> from Bio.SeqFeature import SeqFeature, FeatureLocation
+        >>> from Bio.SeqFeature import BeforePosition
+        >>> f = SeqFeature(FeatureLocation(BeforePosition(3),8), type="domain")
+        >>> len(f)
+        5
+        >>> [i for i in range(10) if i in f]
+        [3, 4, 5, 6, 7]
+        """
+        if not isinstance(value, int):
+            raise ValueError("Currently we only support checking for integer "
+                             "positions being within a SeqFeature.")
+        if self.sub_features:
+            for f in self.sub_features:
+                if value in f:
+                    return True
+            return False
+        else:
+            return value in self.location
 
 # --- References
 
@@ -351,6 +493,81 @@ class FeatureLocation(object):
         return "%s(%s,%s)" \
                % (self.__class__.__name__, repr(self.start), repr(self.end))
 
+    def __nonzero__(self):
+        """Returns True regardless of the length of the feature.
+
+        This behaviour is for backwards compatibility, since until the
+        __len__ method was added, a FeatureLocation always evaluated as True.
+
+        Note that in comparison, Seq objects, strings, lists, etc, will all
+        evaluate to False if they have length zero.
+
+        WARNING: The FeatureLocation may in future evaluate to False when its
+        length is zero (in order to better match normal python behaviour)!
+        """
+        return True
+
+    def __len__(self):
+        """Returns the length of the region described by the FeatureLocation.
+        
+        Note that extra care may be needed for fuzzy locations, e.g.
+
+        >>> from Bio.SeqFeature import FeatureLocation
+        >>> from Bio.SeqFeature import BeforePosition, AfterPosition
+        >>> loc = FeatureLocation(BeforePosition(5),AfterPosition(10))
+        >>> len(loc)
+        5
+        """
+        #TODO - Should we use nofuzzy_start and nofuzzy_end here?
+        return self._end.position + self._end.extension - self._start.position
+
+    def __contains__(self, value):
+        """Check if an integer position is within the FeatureLocation.
+
+        Note that extra care may be needed for fuzzy locations, e.g.
+
+        >>> from Bio.SeqFeature import FeatureLocation
+        >>> from Bio.SeqFeature import BeforePosition, AfterPosition
+        >>> loc = FeatureLocation(BeforePosition(5),AfterPosition(10))
+        >>> len(loc)
+        5
+        >>> [i for i in range(15) if i in loc]
+        [5, 6, 7, 8, 9]
+        """
+        if not isinstance(value, int):
+            raise ValueError("Currently we only support checking for integer "
+                             "positions being within a FeatureLocation.")
+        #TODO - Should we use nofuzzy_start and nofuzzy_end here?
+        if value < self._start.position \
+        or value >= self._end.position + self._end.extension:
+            return False
+        else:
+            return True
+
+    def __iter__(self):
+        """Iterate over the parent positions within the FeatureLocation.
+
+        >>> from Bio.SeqFeature import FeatureLocation
+        >>> from Bio.SeqFeature import BeforePosition, AfterPosition
+        >>> loc = FeatureLocation(BeforePosition(5),AfterPosition(10))
+        >>> len(loc)
+        5
+        >>> for i in loc: print i
+        5
+        6
+        7
+        8
+        9
+        >>> list(loc)
+        [5, 6, 7, 8, 9]
+        >>> [i for i in range(15) if i in loc]
+        [5, 6, 7, 8, 9]
+        """
+        #TODO - Should we use nofuzzy_start and nofuzzy_end here?
+        for i in range(self._start.position,
+                       self._end.position + self._end.extension):
+            yield i
+
     def _shift(self, offset):
         """Returns a copy of the location shifted by the offset (PRIVATE)."""
         return FeatureLocation(start = self._start._shift(offset),
@@ -362,15 +579,8 @@ class FeatureLocation(object):
     end = property(fget= lambda self : self._end,
                    doc="End location (possibly a fuzzy position, read only).")
 
-    def _get_nofuzzy_start(self):
-        #TODO - Do we still use the BetweenPosition class?
-        if ((self._start == self._end) and isinstance(self._start,
-             BetweenPosition)):
-            return self._start.position
-        else:
-            return min(self._start.position,
-                       self._start.position + self._start.extension)
-    nofuzzy_start = property(fget=_get_nofuzzy_start,
+    nofuzzy_start = property(
+        fget=lambda self: self._start.position,
         doc="""Start position (integer, approximated if fuzzy, read only).
 
         To get non-fuzzy attributes (ie. the position only) ask for
@@ -379,15 +589,8 @@ class FeatureLocation(object):
         (10.20)..(30.40) should return 10 for start, and 40 for end.
         """)
 
-    def _get_nofuzzy_end(self):
-        #TODO - Do we still use the BetweenPosition class?
-        if ((self._start == self._end) and isinstance(self._start,
-             BetweenPosition)):
-            return self._end.position
-        else:
-            return max(self._end.position,
-                       self._end.position + self._end.extension)
-    nofuzzy_end = property(fget=_get_nofuzzy_end,
+    nofuzzy_end = property(
+        fget=lambda self: self._end.position + self._end.extension,
         doc="""End position (integer, approximated if fuzzy, read only).
 
         To get non-fuzzy attributes (ie. the position only) ask for
@@ -401,6 +604,7 @@ class AbstractPosition(object):
     """
     def __init__(self, position, extension):
         self.position = position
+        assert extension >= 0, extension
         self.extension = extension
 
     def __repr__(self):
@@ -408,8 +612,13 @@ class AbstractPosition(object):
         return "%s(%s,%s)" % (self.__class__.__name__, \
                               repr(self.position), repr(self.extension))
 
-    def __cmp__(self, other):
-        """A simple comparison function for positions.
+    def __hash__(self):
+        """Simple position based hash."""
+        #Note __hash__ must be implemented on Python 3.x if overriding __eq__
+        return hash(self.position)
+
+    def __eq__(self, other):
+        """A simple equality for positions.
 
         This is very simple-minded and just compares the position attribute
         of the features; extensions are not considered at all. This could
@@ -417,8 +626,62 @@ class AbstractPosition(object):
         """
         assert isinstance(other, AbstractPosition), \
           "We can only do comparisons between Biopython Position objects."
+        return self.position == other.position
 
-        return cmp(self.position, other.position)
+    def __ne__(self, other):
+        """A simple non-equality for positions.
+
+        This is very simple-minded and just compares the position attribute
+        of the features; extensions are not considered at all. This could
+        potentially be expanded to try to take advantage of extensions.
+        """
+        assert isinstance(other, AbstractPosition), \
+          "We can only do comparisons between Biopython Position objects."
+        return self.position != other.position
+
+    def __le__(self, other):
+        """A simple less than or equal for positions.
+
+        This is very simple-minded and just compares the position attribute
+        of the features; extensions are not considered at all. This could
+        potentially be expanded to try to take advantage of extensions.
+        """
+        assert isinstance(other, AbstractPosition), \
+          "We can only do comparisons between Biopython Position objects."
+        return self.position <= other.position
+
+    def __lt__(self, other):
+        """A simple less than or equal for positions.
+
+        This is very simple-minded and just compares the position attribute
+        of the features; extensions are not considered at all. This could
+        potentially be expanded to try to take advantage of extensions.
+        """
+        assert isinstance(other, AbstractPosition), \
+          "We can only do comparisons between Biopython Position objects."
+        return self.position < other.position
+
+    def __ge__(self, other):
+        """A simple less than or equal for positions.
+
+        This is very simple-minded and just compares the position attribute
+        of the features; extensions are not considered at all. This could
+        potentially be expanded to try to take advantage of extensions.
+        """
+        assert isinstance(other, AbstractPosition), \
+          "We can only do comparisons between Biopython Position objects."
+        return self.position >= other.position
+
+    def __gt__(self, other):
+        """A simple less than or equal for positions.
+
+        This is very simple-minded and just compares the position attribute
+        of the features; extensions are not considered at all. This could
+        potentially be expanded to try to take advantage of extensions.
+        """
+        assert isinstance(other, AbstractPosition), \
+          "We can only do comparisons between Biopython Position objects."
+        return self.position > other.position
 
     def _shift(self, offset):
         #We want this to maintain the subclass when called from a subclass
@@ -448,6 +711,28 @@ class ExactPosition(AbstractPosition):
     def __str__(self):
         return str(self.position)
 
+class UncertainPosition(ExactPosition):
+    """Specify a specific position which is uncertain.
+    
+    This is used in UniProt, e.g. ?222 for uncertain position 222, or in the
+    XML format explicitly marked as uncertain. Does not apply to GenBank/EMBL.
+    """
+    pass
+
+class UnknownPosition(AbstractPosition):
+    """Specify a specific position which is unknown (has no position).
+
+    This is used in UniProt, e.g. ? or in the XML as unknown.
+    """
+    def __init__(self):
+        self.position = None
+        self.extension = None
+        pass
+
+    def __repr__(self):
+        """String representation of the UnknownPosition location for debugging."""
+        return "%s()" % self.__class__.__name__
+        
 class WithinPosition(AbstractPosition):
     """Specify the position of a boundary within some coordinates.
 
@@ -602,11 +887,30 @@ class PositionGap(object):
         return out
 
 def _test():
-    """Run the Bio.SeqFeature module's doctests."""
-    print "Runing doctests..."
+    """Run the Bio.SeqFeature module's doctests (PRIVATE).
+
+    This will try and locate the unit tests directory, and run the doctests
+    from there in order that the relative paths used in the examples work.
+    """
     import doctest
-    doctest.testmod()
-    print "Done"
+    import os
+    if os.path.isdir(os.path.join("..","Tests")):
+        print "Runing doctests..."
+        cur_dir = os.path.abspath(os.curdir)
+        os.chdir(os.path.join("..","Tests"))
+        doctest.testmod()
+        os.chdir(cur_dir)
+        del cur_dir
+        print "Done"
+    elif os.path.isdir(os.path.join("Tests")) :
+        print "Runing doctests..."
+        cur_dir = os.path.abspath(os.curdir)
+        os.chdir(os.path.join("Tests"))
+        doctest.testmod()
+        os.chdir(cur_dir)
+        del cur_dir
+        print "Done"
+
 
 if __name__ == "__main__":
     _test()

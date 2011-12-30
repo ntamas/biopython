@@ -8,15 +8,17 @@
 """
 Bio.DocSQL: easy access to DB API databases.
 
->>> import DocSQL, MySQLdb, os
+>>> import os
+>>> import MySQLdb
+>>> from Bio import DocSQL
 >>> db=MySQLdb.connect(passwd='', db='test')
 >>> class CreatePeople(DocSQL.Create):
-...     \"""
+...     '''
 ...     CREATE TEMPORARY TABLE people
 ...     (id INT UNSIGNED NOT NULL PRIMARY KEY AUTO_INCREMENT,
 ...     last_name TINYTEXT,
 ...     first_name TINYTEXT)
-...     \"""
+...     '''
 ...
 >>> CreatePeople(connection=db)
 CreatePeople(message=Success)
@@ -25,19 +27,19 @@ CreatePeople(message=Success)
 __version__ = "$Revision: 1.13 $"
 # $Source: /home/bartek/cvs2bzr/biopython_fastimport/cvs_repo/biopython/Bio/DocSQL.py,v $
 
-import exceptions
 import sys
 
-from Bio import MissingExternalDependencyError
+from Bio import MissingPythonDependencyError
 
 try:
     import MySQLdb
 except:
-    raise MissingExternalDependencyError("Install MySQLdb if you want to use Bio.DocSQL.")
+    raise MissingPythonDependencyError("Install MySQLdb if you want to use "
+                                       "Bio.DocSQL.")
 
 connection = None
 
-class NoInsertionError(exceptions.Exception):
+class NoInsertionError(Exception):
     pass
 
 def _check_is_public(name):

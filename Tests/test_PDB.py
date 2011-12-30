@@ -15,17 +15,16 @@ import warnings
 from StringIO import StringIO
 
 try:
-    from numpy.random import random
+    import numpy
 except ImportError:
-    from Bio import MissingExternalDependencyError
-    raise MissingExternalDependencyError(\
+    from Bio import MissingPythonDependencyError
+    raise MissingPythonDependencyError(
         "Install NumPy if you want to use Bio.PDB.")
 
 from Bio.Seq import Seq
 from Bio.Alphabet import generic_protein
 from Bio.PDB import PDBParser, PPBuilder, CaPPBuilder, PDBIO
 from Bio.PDB import HSExposureCA, HSExposureCB, ExposureCN
-from Bio.PDB.NeighborSearch import NeighborSearch
 from Bio.PDB.PDBExceptions import PDBConstructionException, PDBConstructionWarning
 
 
@@ -36,9 +35,6 @@ class A_ExceptionTest(unittest.TestCase):
     These tests must be executed because of the way Python's warnings module
     works -- a warning is only logged the first time it is encountered.
     """
-    def setUp(self):
-        warnings.resetwarnings()
-
     def test_1_warnings(self):
         """Check warnings: Parse a flawed PDB file in permissive mode.
 
@@ -51,7 +47,7 @@ class A_ExceptionTest(unittest.TestCase):
             orig_showwarning = warnings.showwarning
             all_warns = []
             def showwarning(*args, **kwargs):
-                all_warns.append(*args[0])
+                all_warns.append(args[0])
             warnings.showwarning = showwarning
             # Trigger warnings
             p = PDBParser(PERMISSIVE=True)
@@ -69,7 +65,7 @@ class A_ExceptionTest(unittest.TestCase):
                 "Residue (' ', 81, ' ') redefined at line 644.",
                 'Atom O defined twice in residue <Residue HOH het=W resseq=67 icode= > at line 820.'
                 ]):
-                self.assert_(msg in str(wrn))
+                self.assertTrue(msg in str(wrn))
         finally:
             warnings.showwarning = orig_showwarning
 
@@ -133,10 +129,10 @@ class HeaderTests(unittest.TestCase):
 
 class ParseTest(unittest.TestCase):
     def setUp(self):
-        warnings.resetwarnings()
         warnings.simplefilter('ignore', PDBConstructionWarning)
         p = PDBParser(PERMISSIVE=1)
         self.structure = p.get_structure("example", "PDB/a_structure.pdb")
+        warnings.filters.pop()
  
     def test_c_n(self):
         """Extract polypeptides using C-N."""
@@ -149,7 +145,7 @@ class ParseTest(unittest.TestCase):
         self.assertEqual(pp[-1].get_id()[1], 86)
         # Check the sequence
         s = pp.get_sequence()
-        self.assert_(isinstance(s, Seq))
+        self.assertTrue(isinstance(s, Seq))
         self.assertEqual(s.alphabet, generic_protein)
         self.assertEqual("RCGSQGGGSTCPGLRCCSIWGWCGDSEPYCGRTCENKCWSGER"
                          "SDHRCGAAVGNPPCGQDRCCSVHGWCGGGNDYCSGGNCQYRC",
@@ -166,7 +162,7 @@ class ParseTest(unittest.TestCase):
         self.assertEqual(pp[-1].get_id()[1], 86)
         # Check the sequence
         s = pp.get_sequence()
-        self.assert_(isinstance(s, Seq))
+        self.assertTrue(isinstance(s, Seq))
         self.assertEqual(s.alphabet, generic_protein)
         self.assertEqual("RCGSQGGGSTCPGLRCCSIWGWCGDSEPYCGRTCENKCWSGER"
                          "SDHRCGAAVGNPPCGQDRCCSVHGWCGGGNDYCSGGNCQYRC",
@@ -175,21 +171,21 @@ class ParseTest(unittest.TestCase):
     def test_structure(self):
         """Verify the structure of the parsed example PDB file."""
         # Structure contains 2 models
-        self.assertEquals(len(self.structure), 2)
+        self.assertEqual(len(self.structure), 2)
         # --- Checking model 0 ---
         m0 = self.structure[0]
         # Model 0 contains 1 chain
-        self.assertEquals(len(m0), 1)
+        self.assertEqual(len(m0), 1)
         # Chain 'A' contains 1 residue
-        self.assertEquals(len(m0['A']), 1)
+        self.assertEqual(len(m0['A']), 1)
         # Residue ('H_PCA', 1, ' ') contains 8 atoms.
         residue = m0['A'].get_list()[0]
-        self.assertEquals(residue.get_id(), ('H_PCA', 1, ' '))
-        self.assertEquals(len(residue), 8)
+        self.assertEqual(residue.get_id(), ('H_PCA', 1, ' '))
+        self.assertEqual(len(residue), 8)
         # --- Checking model 1 ---
         m1 = self.structure[1]
         # Model 1 contains 3 chains
-        self.assertEquals(len(m1), 3)
+        self.assertEqual(len(m1), 3)
         # Deconstruct this data structure to check each chain
         chain_data = [ # chain_id, chain_len, [(residue_id, residue_len), ...]
             ('A', 86, [ ((' ', 0, ' '), 1 ),
@@ -366,23 +362,23 @@ class ParseTest(unittest.TestCase):
         for c_idx, chn in enumerate(chain_data):
             # Check chain ID and length
             chain = m1.get_list()[c_idx]
-            self.assertEquals(chain.get_id(), chn[0])
-            self.assertEquals(len(chain), chn[1])
+            self.assertEqual(chain.get_id(), chn[0])
+            self.assertEqual(len(chain), chn[1])
             for r_idx, res in enumerate(chn[2]):
                 residue = chain.get_list()[r_idx]
                 # Check residue ID and atom count
-                self.assertEquals(residue.get_id(), res[0])
-                self.assertEquals(len(residue), res[1])
+                self.assertEqual(residue.get_id(), res[0])
+                self.assertEqual(len(residue), res[1])
                 disorder_lvl = residue.is_disordered()
                 if disorder_lvl == 1:
                     # Check the number of disordered atoms
                     disordered_count = sum(1 for atom in residue
                                            if atom.is_disordered())
                     if disordered_count:
-                        self.assertEquals(disordered_count, res[2])
+                        self.assertEqual(disordered_count, res[2])
                 elif disorder_lvl == 2:
                     # Point mutation -- check residue names
-                    self.assertEquals(residue.disordered_get_id_list(), res[2])
+                    self.assertEqual(residue.disordered_get_id_list(), res[2])
 
     def test_details(self):
         """Verify details of the parsed example PDB file."""
@@ -485,10 +481,61 @@ class ParseTest(unittest.TestCase):
 
 class ParseReal(unittest.TestCase):
     """Testing with real PDB files."""
+    
+    def test_c_n(self):
+        """Extract polypeptides from 1A80."""
+        parser = PDBParser(PERMISSIVE=False)
+        structure = parser.get_structure("example", "PDB/1A8O.pdb")
+        self.assertEqual(len(structure), 1)
+        for ppbuild in [PPBuilder(), CaPPBuilder()]:
+            #==========================================================
+            #First try allowing non-standard amino acids,
+            polypeptides = ppbuild.build_peptides(structure[0], False)
+            self.assertEqual(len(polypeptides), 1)
+            pp = polypeptides[0]
+            # Check the start and end positions
+            self.assertEqual(pp[0].get_id()[1], 151)
+            self.assertEqual(pp[-1].get_id()[1], 220)
+            # Check the sequence
+            s = pp.get_sequence()
+            self.assertTrue(isinstance(s, Seq))
+            self.assertEqual(s.alphabet, generic_protein)
+            #Here non-standard MSE are shown as M
+            self.assertEqual("MDIRQGPKEPFRDYVDRFYKTLRAEQASQEVKNWMTETLLVQ"
+                             "NANPDCKTILKALGPGATLEEMMTACQG", str(s))
+            #==========================================================
+            #Now try strict version with only standard amino acids
+            #Should ignore MSE 151 at start, and then break the chain
+            #at MSE 185, and MSE 214,215
+            polypeptides = ppbuild.build_peptides(structure[0], True)
+            self.assertEqual(len(polypeptides), 3)
+            #First fragment
+            pp = polypeptides[0]
+            self.assertEqual(pp[0].get_id()[1], 152)
+            self.assertEqual(pp[-1].get_id()[1], 184)
+            s = pp.get_sequence()
+            self.assertTrue(isinstance(s, Seq))
+            self.assertEqual(s.alphabet, generic_protein)
+            self.assertEqual("DIRQGPKEPFRDYVDRFYKTLRAEQASQEVKNW", str(s))
+            #Second fragment
+            pp = polypeptides[1]
+            self.assertEqual(pp[0].get_id()[1], 186)
+            self.assertEqual(pp[-1].get_id()[1], 213)
+            s = pp.get_sequence()
+            self.assertTrue(isinstance(s, Seq))
+            self.assertEqual(s.alphabet, generic_protein)
+            self.assertEqual("TETLLVQNANPDCKTILKALGPGATLEE", str(s))
+            #Third fragment
+            pp = polypeptides[2]
+            self.assertEqual(pp[0].get_id()[1], 216)
+            self.assertEqual(pp[-1].get_id()[1], 220)
+            s = pp.get_sequence()
+            self.assertTrue(isinstance(s, Seq))
+            self.assertEqual(s.alphabet, generic_protein)
+            self.assertEqual("TACQG", str(s))
 
     def test_strict(self):
         """Parse 1A8O.pdb file in strict mode."""
-        warnings.resetwarnings()
         parser = PDBParser(PERMISSIVE=False)
         structure = parser.get_structure("example", "PDB/1A8O.pdb")
         self.assertEqual(len(structure), 1)
@@ -587,8 +634,8 @@ class ParseReal(unittest.TestCase):
         def confirm_numbering(struct):
             self.assertEqual(len(struct), 20)
             for idx, model in enumerate(struct):
-                self.assert_(model.serial_num, idx + 1)
-                self.assert_(model.serial_num, model.id + 1)
+                self.assertTrue(model.serial_num, idx + 1)
+                self.assertTrue(model.serial_num, model.id + 1)
         parser = PDBParser()
         struct1 = parser.get_structure("1mot", "PDB/1MOT.pdb")
         confirm_numbering(struct1)
@@ -607,10 +654,10 @@ class ParseReal(unittest.TestCase):
 class Exposure(unittest.TestCase):
     "Testing Bio.PDB.HSExposure."
     def setUp(self):
-        warnings.resetwarnings()
         warnings.simplefilter('ignore', PDBConstructionWarning)
         pdb_filename = "PDB/a_structure.pdb"
         structure=PDBParser(PERMISSIVE=True).get_structure('X', pdb_filename)
+        warnings.filters.pop()
         self.model=structure[1]
         #Look at first chain only
         a_residues=list(self.model["A"].child_list)
@@ -685,27 +732,6 @@ class Exposure(unittest.TestCase):
         self.assertEqual(48, residues[-2].xtra["EXP_CN"])
         self.assertEqual(1, len(residues[-1].xtra))
         self.assertEqual(38, residues[-1].xtra["EXP_CN"])
-
-
-class NeighborTest(unittest.TestCase):
-    def setUp(self):
-        warnings.resetwarnings()
-
-    def test_neighbor_search(self):
-        """NeighborSearch: Find nearby randomly generated coordinates.
-         
-        Based on the self test in Bio.PDB.NeighborSearch.
-        """
-        class RandomAtom:
-            def __init__(self):
-                self.coord = 100 * random(3)
-            def get_coord(self):
-                return self.coord
-        for i in range(0, 20):
-            atoms = [RandomAtom() for j in range(100)]
-            ns = NeighborSearch(atoms)
-            hits = ns.search_all(5.0)
-            self.assert_(hits >= 0)
 
 # -------------------------------------------------------------
 
