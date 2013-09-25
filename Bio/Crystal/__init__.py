@@ -13,8 +13,10 @@ The NDB web interface is located at http://ndbserver.rutgers.edu/NDB/index.html
 
 import copy
 
+
 class CrystalError(Exception):
     pass
+
 
 def wrap_line(line):
     output = ''
@@ -22,13 +24,15 @@ def wrap_line(line):
         output = output + '%s\n' % line[ i: i + 80 ]
     return output
 
+
 def validate_key(key):
-    if type(key) != type(''):
+    if not isinstance(key, str):
         raise CrystalError('chain requires a string label')
     if len(key) != 1:
         raise CrystalError('chain label should contain one letter')
 
-class Hetero:
+
+class Hetero(object):
     """
     This class exists to support the PDB hetero codes.
 
@@ -37,7 +41,7 @@ class Hetero:
     """
     def __init__(self, data):
         # Enforce string storage
-        if type(data) != type(""):
+        if not isinstance(data, str):
             raise CrystalError('Hetero data must be an alphameric string')
         if data.isalnum() == 0:
             raise CrystalError('Hetero data must be an alphameric string')
@@ -61,17 +65,21 @@ class Hetero:
     def __str__(self):
         return "%s" % self.data
 
-    def __len__(self): return len(self.data)
+    def __len__(self):
+        return len(self.data)
 
-class Chain:
+
+class Chain(object):
+    """This class represents a sequence of Hetero elements."""
+
     def __init__(self, residues = ''):
         self.data = []
-        if type(residues) == type(''):
+        if isinstance(residues, str):
             residues = residues.replace('*', ' ')
             residues = residues.strip()
             elements = residues.split()
             self.data = map(Hetero, elements)
-        elif type(residues) == type([]):
+        elif isinstance(residues, list):
             for element in residues:
                 if not isinstance(element, Hetero):
                     raise CrystalError('Text must be a string')
@@ -93,13 +101,11 @@ class Chain:
 
     def __str__(self):
         output = ''
-        i = 0
         for element in self.data:
             output = output + '%s ' % element
         output = output.strip()
         output = wrap_line(output)
         return output
-
 
     def __eq__(self, other):
         if len(self.data) != len(other.data):
@@ -111,37 +117,38 @@ class Chain:
         """Returns true iff self is not equal to other."""
         return not self.__eq__(other)
 
-    def __len__(self): return len(self.data)
-    def __getitem__(self, i): return self.data[i]
+    def __len__(self):
+        return len(self.data)
 
-    def __setitem__(self, i, item):
-        try:
-            self.validate_element(item)
-        except TypeError:
-            item = Hetero(item.lower())
-        self.data[i] = item
-
-    def __delitem__(self, i):
-        del self.data[i]
-
-    def __getslice__(self, i, j):
-        i = max(i, 0); j = max(j, 0)
-        return self.__class__(self.data[i:j])
-
-    def __setslice__(self, i, j, other):
-        i = max(i, 0); j = max(j, 0)
-        if isinstance(other, Chain):
-            self.data[i:j] = other.data
-        elif isinstance(other, type(self.data)):
-            self.data[i:j] = other
-        elif type(other) == type(''):
-            self.data[ i:j ] = Chain(other).data
+    def __getitem__(self, index):
+        if isinstance(index, int):
+            return self.data[index]
+        elif isinstance(index, slice):
+            return self.__class__(self.data[index])
         else:
             raise TypeError
 
-    def __delslice__(self, i, j):
-        i = max(i, 0); j = max(j, 0)
-        del self.data[i:j]
+    def __setitem__(self, index, value):
+        if isinstance(index, int):
+            try:
+                self.validate_element(value)
+            except TypeError:
+                value = Hetero(value.lower())
+            self.data[index] = value
+        elif isinstance(index, slice):
+            if isinstance(value, Chain):
+                self.data[index] = value.data
+            elif isinstance(value, type(self.data)):
+                self.data[index] = value
+            elif isinstance(value, basestring):
+                self.data[index] = Chain(value).data
+            else:
+                raise TypeError
+        else:
+            raise TypeError
+
+    def __delitem__(self, index):
+        del self.data[index]
 
     def __contains__(self, item):
         try:
@@ -185,7 +192,7 @@ class Chain:
     def __add__(self, other):
         if isinstance(other, Chain):
             return self.__class__(self.data + other.data)
-        elif type(other) == type(''):
+        elif isinstance(other, str):
             return self.__class__(self.data + Chain(other).data)
         else:
             raise TypeError
@@ -193,7 +200,7 @@ class Chain:
     def __radd__(self, other):
         if isinstance(other, Chain):
             return self.__class__(other.data + self.data)
-        elif type(other) == type(''):
+        elif isinstance(other, str):
             return self.__class__(Chain(other).data + self.data)
         else:
             raise TypeError
@@ -201,28 +208,32 @@ class Chain:
     def __iadd__(self, other):
         if isinstance(other, Chain):
             self.data += other.data
-        elif type(other) == type(''):
+        elif isinstance(other, str):
             self.data += Chain(other).data
         else:
             raise TypeError
         return self
 
-class Crystal:
+
+class Crystal(object):
+    """This class represents a dictionary of labeled chains from the
+       same structure"""
+
     def __init__(self, data = {}):
         # Enforcestorage
-        if type(data) != type({}):
+        if not isinstance(data, dict):
             raise CrystalError('Crystal must be a dictionary')
         self.data = data
         self.fix()
 
     def fix(self):
         data = self.data
-        for key in data.keys():
-            element = data[ key ]
+        for key in data:
+            element = data[key]
             if isinstance(element, Chain):
                 pass
-            elif type(element) == type(''):
-                data[ key ] = Chain(element)
+            elif isinstance(element, str):
+                data[key] = Chain(element)
             else:
                 raise TypeError
 
@@ -231,7 +242,7 @@ class Crystal:
         keys = self.data.keys()
         keys.sort()
         for key in keys:
-            output = output +  '%s : %s\n' % (key, self.data[ key ])
+            output = output + '%s : %s\n' % (key, self.data[ key ])
         return output
 
     def __str__(self):
@@ -239,38 +250,57 @@ class Crystal:
         keys = self.data.keys()
         keys.sort()
         for key in keys:
-            output = output +  '%s : %s\n' % (key, self.data[ key ])
+            output = output + '%s : %s\n' % (key, self.data[ key ])
         return output
 
     def tostring(self):
         return self.data
 
-    def __len__(self): return len(self.data)
-    def __getitem__(self, key): return self.data[key]
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, key):
+        return self.data[key]
+
     def __setitem__(self, key, item):
         if isinstance(item, Chain):
             self.data[key] = item
-        elif type(item) == type(''):
+        elif isinstance(item, str):
             self.data[ key ] = Chain(item)
         else:
             raise TypeError
 
-    def __delitem__(self, key): del self.data[key]
-    def clear(self): self.data.clear()
+    def __delitem__(self, key):
+        del self.data[key]
+
+    def clear(self):
+        self.data.clear()
+
     def copy(self):
         return copy.copy(self)
-    def keys(self): return self.data.keys()
-    def items(self): return self.data.items()
-    def values(self): return self.data.values()
 
-    #TODO - Define the __in__ method?
+    def keys(self):
+        return self.data.keys()
 
-    def has_key(self, key): return key in self.data
+    def items(self):
+        return self.data.items()
+
+    def values(self):
+        return self.data.values()
+
+    def __contains__(self, value):
+        return value in self.data
+
+    def has_key(self, key):
+        return key in self.data
+
     def get(self, key, failobj=None):
         return self.data.get(key, failobj)
+
     def setdefault(self, key, failobj=None):
         if key not in self.data:
             self.data[key] = failobj
         return self.data[key]
+
     def popitem(self):
         return self.data.popitem()

@@ -1,7 +1,15 @@
+# Copyright 2005 by Iddo Friedberg.  All rights reserved.
+# Revisions copyright 2006-2013 by Peter Cock. All rights reserved.
+# Revisions copyright 2008 by Frank Kauff. All rights reserved.
+# Revisions copyright 2009 by Michiel de Hoon. All rights reserved.
+# This code is part of the Biopython distribution and governed by its
+# license.  Please see the LICENSE file that should have been included
+# as part of this package.
+
 import os.path
 import unittest
 import tempfile
-import cStringIO
+from Bio._py3k import StringIO
 import sys
 
 from Bio.Nexus import Nexus, Trees
@@ -10,11 +18,21 @@ from Bio.Nexus import Nexus, Trees
 class NexusTest1(unittest.TestCase):
     def setUp(self):
         self.testfile_dir = "Nexus"
-        self.handle = open(os.path.join(self.testfile_dir, 
+        self.handle = open(os.path.join(self.testfile_dir,
             "test_Nexus_input.nex"))
 
     def tearDown(self):
         self.handle.close()
+
+    def test_WriteToFileName(self):
+        """Test writing to a given filename."""
+        filename = "Nexus/test_temp.nex"
+        if os.path.isfile(filename):
+            os.remove(filename)
+        n = Nexus.Nexus(self.handle)
+        n.write_nexus_data(filename)
+        self.assertTrue(os.path.isfile(filename))
+        os.remove(filename)
 
     def test_NexusTest1(self):
         """Test Nexus module"""
@@ -91,8 +109,8 @@ class NexusTest1(unittest.TestCase):
                           't2 the name'],
                                     })
         self.assertEqual(len(n.charpartitions), 2)
-        self.assert_('codons' in n.charpartitions)
-        self.assert_('part' in n.charpartitions)
+        self.assertTrue('codons' in n.charpartitions)
+        self.assertTrue('part' in n.charpartitions)
         self.assertEqual(n.charpartitions['codons'],
             {'a': [0, 3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36, 39, 42, 45],
              'b': [1, 4, 7, 10, 13, 16, 19, 22, 25, 28, 31, 34, 37, 40, 43, 46],
@@ -104,7 +122,7 @@ class NexusTest1(unittest.TestCase):
              "two":   [8, 9, 10, 11, 12, 13, 14, 15],
             })
         self.assertEqual(n.taxpartitions.keys(), ['taxpart'])
-        self.assertEqual(n.taxpartitions['taxpart'], 
+        self.assertEqual(n.taxpartitions['taxpart'],
             {"badnames":  ["isn'that [a] strange name?",
                            'one should be punished, for (that)!',
                            't2 the name'],
@@ -113,7 +131,7 @@ class NexusTest1(unittest.TestCase):
 
         # now we check excluding characters, deleting taxa,
         # and exporting adjusted sets
-        f1=tempfile.NamedTemporaryFile()
+        f1=tempfile.NamedTemporaryFile("w+")
         n.write_nexus_data(f1,
                            delete=['t1','t7'],
                            exclude=n.invert(n.charsets['big']))
@@ -170,8 +188,8 @@ class NexusTest1(unittest.TestCase):
             'tbyname3': ['t2 the name'],
                                        })
         self.assertEqual(len(nf1.charpartitions), 2)
-        self.assert_('codons' in nf1.charpartitions)
-        self.assert_('part' in nf1.charpartitions)
+        self.assertTrue('codons' in nf1.charpartitions)
+        self.assertTrue('part' in nf1.charpartitions)
         self.assertEqual(nf1.charpartitions['codons'], {'a': [0, 3],
                                                         'b': [2],
                                                         'c': [1]})
@@ -185,7 +203,7 @@ class NexusTest1(unittest.TestCase):
              "goodnames": ['t5', 't6', 't8', 't9'],
             })
 
-        f2=tempfile.NamedTemporaryFile()
+        f2=tempfile.NamedTemporaryFile("w+")
         n.write_nexus_data(f2,
                            delete=['t2_the_name'],
                            exclude=range(3,40,4))
@@ -199,14 +217,14 @@ class NexusTest1(unittest.TestCase):
         self.assertEqual(nf2.interleave, False)
         self.assertEqual(nf2.missing, "?")
         self.assertEqual(nf2.gap, "-")
-        self.assertEqual(nf2.taxlabels, ["t1", 
-                                         "t2 the name", 
-                                         "isn'that [a] strange name?", 
-                                         "one should be punished, for (that)!", 
-                                         "t5", 
-                                         "t6", 
-                                         "t7", 
-                                         "t8", 
+        self.assertEqual(nf2.taxlabels, ["t1",
+                                         "t2 the name",
+                                         "isn'that [a] strange name?",
+                                         "one should be punished, for (that)!",
+                                         "t5",
+                                         "t6",
+                                         "t7",
+                                         "t8",
                                          "t9"])
         self.assertEqual(nf2.charlabels, {0: "a",
                                           1: "b",
@@ -261,8 +279,8 @@ class NexusTest1(unittest.TestCase):
              "tbyname3":  ['t1',
                            't2 the name']})
         self.assertEqual(len(nf2.charpartitions), 2)
-        self.assert_('codons' in nf2.charpartitions)
-        self.assert_('part' in nf2.charpartitions)
+        self.assertTrue('codons' in nf2.charpartitions)
+        self.assertTrue('part' in nf2.charpartitions)
         self.assertEqual(nf2.charpartitions['codons'],
             {"a": [0, 5, 7, 9, 14, 16, 18, 23, 25, 27, 32, 35],
              "b": [1, 3, 8, 10, 12, 17, 19, 21, 26, 28, 30, 33, 36],
@@ -293,7 +311,6 @@ usertype matrix_test stepmatrix=5
 ;
 """)
 
-
     def test_TreeTest1(self):
         """Test Tree module."""
         n=Nexus.Nexus(self.handle)
@@ -306,35 +323,38 @@ usertype matrix_test stepmatrix=5
         t3.split(parent_id=t3.search_taxon('t9'))
         stdout = sys.stdout
         try:
-            sys.stdout = cStringIO.StringIO()
+            sys.stdout = StringIO()
             t3.display()
-            sys.stdout.reset()
-            output = sys.stdout.read()
+            output = sys.stdout.getvalue()
         finally:
-            sys.stdout = stdout 
-        self.assertEqual(output, """\
+            sys.stdout = stdout
+        expected = """\
   #                            taxon            prev            succ    brlen blen (sum)  support              comment
-  1    'isn''that [a] strange name?'               2              []    100.0     119.84     10.0                    -
-  2                                -               4          [3, 1]      0.4      19.84      0.3                    -
-  3 'one should be punished, for (that)!'               2              []      0.5      20.34        -                    -
-  4                                -               6          [2, 5]      4.0      19.44      3.0                    -
-  5                    't2 the name'               4              []      0.3      19.74        -                    -
-  6                                -               9       [4, 7, 8]      2.0      15.44      1.0                    -
-  7                               t8               6              []      1.2      16.64        -                    -
-  8                               t9               6        [17, 18]      3.4      18.84        -                    -
-  9                                -              11         [6, 10]     0.44      13.44     33.0                    -
- 10                               t6               9              []      1.0      14.44        -                    -
- 11                                -              16         [9, 12]     13.0       13.0     12.0                    -
- 12                               t7              11              []     99.9      112.9        -                    -
- 13                                -              16        [14, 15]      0.0        0.0      0.0                    -
- 14                               t5              13              []     99.0       99.0        -                    -
+  1    'isn''that [a] strange name?'               2              []   100.00     119.84    10.00                    -
+  2                                -               4          [3, 1]     0.40      19.84     0.30                    -
+  3 'one should be punished, for (that)!'               2              []     0.50      20.34        -                    -
+  4                                -               6          [2, 5]     4.00      19.44     3.00                    -
+  5                    't2 the name'               4              []     0.30      19.74        -                    -
+  6                                -               9       [4, 7, 8]     2.00      15.44     1.00                    -
+  7                               t8               6              []     1.20      16.64        -                    -
+  8                               t9               6        [17, 18]     3.40      18.84        -                    -
+  9                                -              11         [6, 10]     0.44      13.44    33.00                    -
+ 10                               t6               9              []     1.00      14.44        -                    -
+ 11                                -              16         [9, 12]    13.00      13.00    12.00                    -
+ 12                               t7              11              []    99.90     112.90        -                    -
+ 13                                -              16        [14, 15]     0.00       0.00     0.00                    -
+ 14                               t5              13              []    99.00      99.00        -                    -
  15                               t1              13              []     0.98       0.98        -                    -
- 16                                -            None        [11, 13]      0.0        0.0        -                    -
- 17                              t90               8              []      1.0      19.84        -                    -
- 18                              t91               8              []      1.0      19.84        -                    -
+ 16                                -            None        [11, 13]     0.00       0.00        -                    -
+ 17                              t90               8              []     1.00      19.84        -                    -
+ 18                              t91               8              []     1.00      19.84        -                    -
 
 Root:  16
-""")
+"""
+        self.assertEqual(len(output.split("\n")), len(expected.split("\n")))
+        for l1, l2 in zip(output.split("\n"), expected.split("\n")):
+            self.assertEqual(l1, l2)
+        self.assertEqual(output, expected)
         self.assertEqual(t3.is_compatible(t2,threshold=0.3), [])
 
     def test_internal_node_labels(self):

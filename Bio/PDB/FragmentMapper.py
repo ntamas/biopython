@@ -3,17 +3,12 @@
 # license.  Please see the LICENSE file that should have been included
 # as part of this package.
 
-import os
-import numpy
+"""Classify protein backbone structure according to Kolodny et al's fragment
+libraries.
 
-from Bio.SVDSuperimposer import SVDSuperimposer
-from Bio.PDB import *
-
-__doc__="""
-Classify protein backbone structure according to Kolodny et al's fragment
-libraries. It can be regarded as a form of objective secondary structure
-classification. Only fragments of length 5 or 7 are supported (ie. there is a
-'central' residue).
+It can be regarded as a form of objective secondary structure classification.
+Only fragments of length 5 or 7 are supported (ie. there is a 'central'
+residue).
 
 Full reference:
 
@@ -30,11 +25,21 @@ You need these files to use this module.
 The following example uses the library with 10 fragments of length 5.
 The library files can be found in directory 'fragment_data'.
 
-    >>> model=structure[0]
-    >>> fm=FragmentMapper(lsize=10, flength=5, dir="fragment_data")
-    >>> fm.map(model)
-    >>> fragment=fm[residue]
+    >>> model = structure[0]
+    >>> fm = FragmentMapper(model, lsize=10, flength=5, dir="fragment_data")
+    >>> fragment = fm[residue]
 """
+
+from __future__ import print_function
+
+import numpy
+
+from Bio.SVDSuperimposer import SVDSuperimposer
+
+from Bio.PDB import Selection
+from Bio.PDB.PDBExceptions import PDBException
+from Bio.PDB.PDBParser import PDBParser
+from Bio.PDB.Polypeptide import PPBuilder
 
 
 # fragment file (lib_SIZE_z_LENGTH.txt)
@@ -45,8 +50,8 @@ _FRAGMENT_FILE="lib_%s_z_%s.txt"
 
 def _read_fragments(size, length, dir="."):
     """
-    Read a fragment spec file (available from 
-    U{http://csb.stanford.edu/rachel/fragments/} 
+    Read a fragment spec file (available from
+    U{http://csb.stanford.edu/rachel/fragments/}
     and return a list of Fragment objects.
 
     @param size: number of fragments in the library
@@ -83,7 +88,7 @@ def _read_fragments(size, length, dir="."):
     return flist
 
 
-class Fragment:
+class Fragment(object):
     """
     Represent a polypeptide C-alpha fragment.
     """
@@ -223,7 +228,7 @@ def _map_fragment_list(flist, reflist):
     return mapped
 
 
-class FragmentMapper:
+class FragmentMapper(object):
     """
     Map polypeptides in a model to lists of representative fragments.
     """
@@ -281,16 +286,30 @@ class FragmentMapper:
                         index=i-self.edge
                         assert(index>=0)
                         fd[res]=mflist[index]
-            except "CHAINBREAK":
-                # Funny polypeptide - skip
-                pass
+            except PDBException as why:
+                if why == 'CHAINBREAK':
+                    # Funny polypeptide - skip
+                    pass
+                else:
+                    raise PDBException(why)
         return fd
 
     def has_key(self, res):
-        """
+        """(Obsolete)
+
         @type res: L{Residue}
         """
-        return self.fd.has_key(res)
+        import warnings
+        from Bio import BiopythonDeprecationWarning
+        warnings.warn("has_key is deprecated; use 'res in object' instead", BiopythonDeprecationWarning)
+        return (res in self)
+
+    def __contains__(self, res):
+        """True if the given residue is in any of the mapped fragments.
+
+        @type res: L{Residue}
+        """
+        return (res in self.fd)
 
     def __getitem__(self, res):
         """
@@ -306,18 +325,12 @@ if __name__=="__main__":
 
     import sys
 
-    p=PDBParser()
-    s=p.get_structure("X", sys.argv[1])
-
-    m=s[0]
-    fm=FragmentMapper(m, 10, 5, "levitt_data")
-
+    p = PDBParser()
+    s = p.get_structure("X", sys.argv[1])
+    m = s[0]
+    fm = FragmentMapper(m, 10, 5, "levitt_data")
 
     for r in Selection.unfold_entities(m, "R"):
-
-        print r,
-        if fm.has_key(r):
-            print fm[r]
-        else:
-            print
-
+        print("%s:" % r)
+        if r in fm:
+            print(fm[r])

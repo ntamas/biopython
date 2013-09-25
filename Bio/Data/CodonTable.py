@@ -9,6 +9,8 @@ ftp://ftp.ncbi.nih.gov/entrez/misc/data/gc.prt
 Last updated for Version 3.9
 """
 
+from __future__ import print_function
+
 from Bio import Alphabet
 from Bio.Alphabet import IUPAC
 from Bio.Data import IUPACData
@@ -25,7 +27,7 @@ ambiguous_dna_by_id = {}
 ambiguous_rna_by_name = {}
 ambiguous_rna_by_id = {}
 ambiguous_generic_by_name = {} # ambiguous DNA or RNA
-ambiguous_generic_by_id = {} # ambiguous DNA or RNA 
+ambiguous_generic_by_id = {} # ambiguous DNA or RNA
 
 # standard IUPAC unambiguous codons
 standard_dna_table = None
@@ -35,17 +37,20 @@ standard_rna_table = None
 # appropriate distribution of codons, so do not cache the results of
 # back_table lookups!
 
+
 class TranslationError(Exception):
     pass
 
-class CodonTable:
+
+class CodonTable(object):
     nucleotide_alphabet = Alphabet.generic_nucleotide
     protein_alphabet = Alphabet.generic_protein
-    
+
     forward_table = {}    # only includes codons which actually code
     back_table = {}       # for back translations
     start_codons = []
     stop_codons = []
+
     # Not always called from derived classes!
     def __init__(self, nucleotide_alphabet = nucleotide_alphabet,
                  protein_alphabet = protein_alphabet,
@@ -63,8 +68,9 @@ class CodonTable:
 
         e.g.
         >>> import Bio.Data.CodonTable
-        >>> print Bio.Data.CodonTable.standard_dna_table
-        >>> print Bio.Data.CodonTable.generic_by_id[1]"""
+        >>> print(Bio.Data.CodonTable.standard_dna_table)
+        >>> print(Bio.Data.CodonTable.generic_by_id[1])
+        """
 
         if self.id:
             answer = "Table %i" % self.id
@@ -85,8 +91,8 @@ class CodonTable:
             letters = "UCAG"
 
         #Build the table...
-        answer=answer + "\n\n  |" + "|".join( \
-            ["  %s      " % c2 for c2 in letters] \
+        answer=answer + "\n\n  |" + "|".join(
+            ["  %s      " % c2 for c2 in letters]
             ) + "|"
         answer=answer + "\n--+" \
                + "+".join(["---------" for c2 in letters]) + "+--"
@@ -110,18 +116,18 @@ class CodonTable:
                         else:
                             line = line + " %s   |" % amino
                 line = line + " " + c3
-                answer = answer + "\n"+ line 
+                answer = answer + "\n"+ line
             answer=answer + "\n--+" \
                   + "+".join(["---------" for c2 in letters]) + "+--"
         return answer
-            
+
+
 def make_back_table(table, default_stop_codon):
     #  ONLY RETURNS A SINGLE CODON
     # Do the sort so changes in the hash implementation won't affect
     # the result when one amino acid is coded by more than one codon.
     back_table = {}
-    keys = table.keys() ; keys.sort()
-    for key in keys:
+    for key in sorted(table):
         back_table[table[key]] = key
     back_table[None] = default_stop_codon
     return back_table
@@ -130,7 +136,7 @@ def make_back_table(table, default_stop_codon):
 class NCBICodonTable(CodonTable):
     nucleotide_alphabet = Alphabet.generic_nucleotide
     protein_alphabet = IUPAC.protein
-    
+
     def __init__(self, id, names, table, start_codons, stop_codons):
         self.id = id
         self.names = names
@@ -142,6 +148,7 @@ class NCBICodonTable(CodonTable):
 
 class NCBICodonTableDNA(NCBICodonTable):
     nucleotide_alphabet = IUPAC.unambiguous_dna
+
 
 class NCBICodonTableRNA(NCBICodonTable):
     nucleotide_alphabet = IUPAC.unambiguous_rna
@@ -177,6 +184,7 @@ class AmbiguousCodonTable(CodonTable):
     def __getattr__(self, name):
         return getattr(self._codon_table, name)
 
+
 def list_possible_proteins(codon, forward_table, ambiguous_nucleotide_values):
         c1, c2, c3 = codon
         x1 = ambiguous_nucleotide_values[c1]
@@ -193,12 +201,13 @@ def list_possible_proteins(codon, forward_table, ambiguous_nucleotide_values):
                         # If tripping over a stop codon
                         stops.append(y1+y2+y3)
         if stops:
-            if possible.keys():
-                raise TranslationError("ambiguous codon '%s' codes " % codon \
+            if possible:
+                raise TranslationError("ambiguous codon '%s' codes " % codon
                                        + "for both proteins and stop codons")
             # This is a true stop codon - tell the caller about it
             raise KeyError(codon)
         return possible.keys()
+
 
 def list_ambiguous_codons(codons, ambiguous_nucleotide_values):
     """Extends a codon list to include all possible ambigous codons.
@@ -217,14 +226,14 @@ def list_ambiguous_codons(codons, ambiguous_nucleotide_values):
     #Note ambiguous_nucleotide_values['R'] = 'AG' (etc)
     #This will generate things like 'TRR' from ['TAG', 'TGA'], which
     #we don't want to include:
-    c1_list = sorted(letter for (letter, meanings) \
-               in ambiguous_nucleotide_values.iteritems() \
+    c1_list = sorted(letter for (letter, meanings)
+               in ambiguous_nucleotide_values.iteritems()
                if set([codon[0] for codon in codons]).issuperset(set(meanings)))
-    c2_list = sorted(letter for (letter, meanings) \
-               in ambiguous_nucleotide_values.iteritems() \
+    c2_list = sorted(letter for (letter, meanings)
+               in ambiguous_nucleotide_values.iteritems()
                if set([codon[1] for codon in codons]).issuperset(set(meanings)))
-    c3_list = sorted(letter for (letter, meanings) \
-               in ambiguous_nucleotide_values.iteritems() \
+    c3_list = sorted(letter for (letter, meanings)
+               in ambiguous_nucleotide_values.iteritems()
                if set([codon[2] for codon in codons]).issuperset(set(meanings)))
     #candidates is a list (not a set) to preserve the iteration order
     candidates = []
@@ -234,14 +243,14 @@ def list_ambiguous_codons(codons, ambiguous_nucleotide_values):
                 codon = c1+c2+c3
                 if codon not in candidates and codon not in codons:
                     candidates.append(codon)
-    answer = codons[:] #copy
+    answer = codons[:]  # copy
     #print "Have %i new candidates" % len(candidates)
     for ambig_codon in candidates:
         wanted = True
         #e.g. 'TRR' -> 'TAA', 'TAG', 'TGA', 'TGG'
-        for codon in [c1+c2+c3 \
-                      for c1 in ambiguous_nucleotide_values[ambig_codon[0]] \
-                      for c2 in ambiguous_nucleotide_values[ambig_codon[1]] \
+        for codon in [c1+c2+c3
+                      for c1 in ambiguous_nucleotide_values[ambig_codon[0]]
+                      for c2 in ambiguous_nucleotide_values[ambig_codon[1]]
                       for c3 in ambiguous_nucleotide_values[ambig_codon[2]]]:
             if codon not in codons:
                 #This ambiguous codon can code for a non-stop, exclude it!
@@ -252,11 +261,12 @@ def list_ambiguous_codons(codons, ambiguous_nucleotide_values):
             answer.append(ambig_codon)
     return answer
 
-assert list_ambiguous_codons(['TGA', 'TAA'],IUPACData.ambiguous_dna_values) == ['TGA', 'TAA', 'TRA']
-assert list_ambiguous_codons(['TAG', 'TGA'],IUPACData.ambiguous_dna_values) == ['TAG', 'TGA']
-assert list_ambiguous_codons(['TAG', 'TAA'],IUPACData.ambiguous_dna_values) == ['TAG', 'TAA', 'TAR']
-assert list_ambiguous_codons(['UAG', 'UAA'],IUPACData.ambiguous_rna_values) == ['UAG', 'UAA', 'UAR']
-assert list_ambiguous_codons(['TGA', 'TAA', 'TAG'],IUPACData.ambiguous_dna_values) == ['TGA', 'TAA', 'TAG', 'TAR', 'TRA']
+assert list_ambiguous_codons(['TGA', 'TAA'], IUPACData.ambiguous_dna_values) == ['TGA', 'TAA', 'TRA']
+assert list_ambiguous_codons(['TAG', 'TGA'], IUPACData.ambiguous_dna_values) == ['TAG', 'TGA']
+assert list_ambiguous_codons(['TAG', 'TAA'], IUPACData.ambiguous_dna_values) == ['TAG', 'TAA', 'TAR']
+assert list_ambiguous_codons(['UAG', 'UAA'], IUPACData.ambiguous_rna_values) == ['UAG', 'UAA', 'UAR']
+assert list_ambiguous_codons(['TGA', 'TAA', 'TAG'],
+                                 IUPACData.ambiguous_dna_values) == ['TGA', 'TAA', 'TAG', 'TAR', 'TRA']
 
 # Forward translation is "onto", that is, any given codon always maps
 # to the same protein, or it doesn't map at all.  Thus, I can build
@@ -273,7 +283,8 @@ assert list_ambiguous_codons(['TGA', 'TAA', 'TAG'],IUPACData.ambiguous_dna_value
 #  >>> t.forward_table["YTA"]
 #  'L'
 
-class AmbiguousForwardTable:
+
+class AmbiguousForwardTable(object):
     def __init__(self, forward_table, ambiguous_nucleotide, ambiguous_protein):
         self.forward_table = forward_table
 
@@ -281,15 +292,15 @@ class AmbiguousForwardTable:
         self.ambiguous_protein = ambiguous_protein
 
         inverted = {}
-        for name, val in ambiguous_protein.items():
+        for name, val in ambiguous_protein.iteritems():
             for c in val:
                 x = inverted.get(c, {})
                 x[name] = 1
                 inverted[c] = x
-        for name, val in inverted.items():
+        for name, val in inverted.iteritems():
             inverted[name] = val.keys()
         self._inverted = inverted
-        
+
         self._cache = {}
 
     def get(self, codon, failobj = None):
@@ -297,7 +308,7 @@ class AmbiguousForwardTable:
             return self.__getitem__(codon)
         except KeyError:
             return failobj
-        
+
     def __getitem__(self, codon):
         try:
             x = self._cache[codon]
@@ -344,7 +355,7 @@ class AmbiguousForwardTable:
 
         n = len(possible)
         possible = []
-        for amino, val in ambiguous_possible.items():
+        for amino, val in ambiguous_possible.iteritems():
             if val == n:
                 possible.append(amino)
 
@@ -356,13 +367,15 @@ class AmbiguousForwardTable:
         # All of these are valid, so choose one
         # To be unique, sort by smallet ambiguity then alphabetically
         # Can get this if "X" encodes for everything.
-        def _sort(x, y, table = self.ambiguous_protein):
-            a = cmp(len(table[x]), len(table[y]))
-            if a == 0:
-                return cmp(x, y)
-            return a
-        possible.sort(_sort)
-                          
+        #def _sort(x, y, table = self.ambiguous_protein):
+        #    a = cmp(len(table[x]), len(table[y]))
+        #    if a == 0:
+        #        return cmp(x, y)
+        #    return a
+
+        #Sort by key is 2.x and 3.x compatible
+        possible.sort(key=lambda x:(len(self.ambiguous_protein[x]), x))
+
         x = possible[0]
         self._cache[codon] = x
         return x
@@ -374,7 +387,7 @@ def register_ncbi_table(name, alt_name, id,
     #In most cases names are divided by "; ", however there is also
     #'Bacterial and Plant Plastid' (which used to be just 'Bacterial')
     names = [x.strip() for x in name.replace(" and ","; ").split("; ")]
-    
+
     dna = NCBICodonTableDNA(id, names + [alt_name], table, start_codons,
                             stop_codons)
 
@@ -383,11 +396,11 @@ def register_ncbi_table(name, alt_name, id,
                                     IUPACData.ambiguous_dna_values,
                                     IUPAC.extended_protein,
                                     IUPACData.extended_protein_values)
-    
+
     # replace all T's with U's for the RNA tables
     rna_table = {}
     generic_table = {}
-    for codon, val in table.items():
+    for codon, val in table.iteritems():
         generic_table[codon] = val
         codon = codon.replace("T", "U")
         generic_table[codon] = val
@@ -406,7 +419,7 @@ def register_ncbi_table(name, alt_name, id,
         codon = codon.replace("T", "U")
         generic_stop_codons.append(codon)
         rna_stop_codons.append(codon)
-    
+
     generic = NCBICodonTable(id, names + [alt_name], generic_table,
                              generic_start_codons, generic_stop_codons)
 
@@ -851,26 +864,24 @@ register_ncbi_table(name = 'Thraustochytrium Mitochondrial',
                     start_codons = [ 'ATT', 'ATG', 'GTG', ]
                     )
 
-
-
 #Basic sanity test,
-for key, val in generic_by_name.items():
+for key, val in generic_by_name.iteritems():
     assert key in ambiguous_generic_by_name[key].names
-for key, val in generic_by_id.items():
+for key, val in generic_by_id.iteritems():
     assert ambiguous_generic_by_id[key].id == key
 del key, val
 
-for n in ambiguous_generic_by_id.keys():
+for n in ambiguous_generic_by_id:
     assert ambiguous_rna_by_id[n].forward_table["GUU"] == "V"
     assert ambiguous_rna_by_id[n].forward_table["GUN"] == "V"
     if n != 23 :
         #For table 23, UUN = F, L or stop.
-        assert ambiguous_rna_by_id[n].forward_table["UUN"] == "X" #F or L
+        assert ambiguous_rna_by_id[n].forward_table["UUN"] == "X"  # F or L
     #R = A or G, so URR = UAA or UGA / TRA = TAA or TGA = stop codons
     if "UAA" in unambiguous_rna_by_id[n].stop_codons \
     and "UGA" in unambiguous_rna_by_id[n].stop_codons:
         try:
-            print ambiguous_dna_by_id[n].forward_table["TRA"]
+            print(ambiguous_dna_by_id[n].forward_table["TRA"])
             assert False, "Should be a stop only"
         except KeyError:
             pass

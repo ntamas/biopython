@@ -9,8 +9,6 @@ import unittest
 from Bio.ExPASy import Prodoc
 
 
-
-
 class TestProdocRead(unittest.TestCase):
 
     def test_read_pdoc00100(self):
@@ -834,16 +832,17 @@ Synechocystis PCC6803 reveal a unique distal heme pocket."
 Eur. J. Biochem. 267:4770-4780(2000).
 PubMed=10903511""")
 
+
 class TestProdocParse(unittest.TestCase):
 
     def test_parse_pdoc(self):
-        "Parsing an excerpt of prosite.doc" 
+        "Parsing an excerpt of prosite.doc"
         filename = os.path.join( 'Prosite', 'Doc', 'prosite.excerpt.doc')
         handle = open(filename)
         records = Prodoc.parse(handle)
 
         # Testing the first parsed record
-        record = records.next()
+        record = next(records)
         self.assertEqual(record.accession, "PDOC00000")
         self.assertEqual(len(record.prosite_refs), 0)
         self.assertEqual(record.text, """\
@@ -905,7 +904,7 @@ Acknowledgements:
 """)
 
         # Testing the second parsed record"
-        record = records.next()
+        record = next(records)
         self.assertEqual(record.accession, "PDOC00001")
         self.assertEqual(len(record.prosite_refs), 1)
         self.assertEqual(record.prosite_refs[0], ("PS00001", "ASN_GLYCOSYLATION"))
@@ -968,8 +967,8 @@ asparagine-X-cysteine sites."
 J. Biol. Chem. 265:11397-11404(1990).
 PubMed=1694179""")
 
-        # Testing the third parsed record" 
-        record = records.next()
+        # Testing the third parsed record"
+        record = next(records)
         self.assertEqual(record.accession, "PDOC00004")
         self.assertEqual(len(record.prosite_refs), 1)
         self.assertEqual(record.prosite_refs[0], ("PS00004", "CAMP_PHOSPHO_SITE"))
@@ -1011,7 +1010,7 @@ J. Biol. Chem. 261:2987-2993(1986).
 PubMed=3005275""")
 
         # Testing the fourth parsed record"
-        record = records.next()
+        record = next(records)
         self.assertEqual(record.accession, "PDOC60030")
         self.assertEqual(len(record.prosite_refs), 1)
         self.assertEqual(record.prosite_refs[0], ("PS60030", "BACTERIOCIN_IIA"))

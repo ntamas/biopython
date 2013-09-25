@@ -11,6 +11,17 @@ to roll any other number. The probability of switching from the fair to
 loaded dice is .05 and the probability of switching from loaded to fair is
 .1.
 """
+
+from __future__ import print_function
+
+import os
+if os.name == 'java':
+    from Bio import MissingExternalDependencyError
+    #This is a slight miss-use of MissingExternalDependencyError,
+    #but it will do in the short term to skip this unit test on Jython
+    raise MissingExternalDependencyError("This test can cause a fatal error "
+        "on Jython with some versions of Java")
+
 # standard modules
 import random
 
@@ -28,12 +39,15 @@ from Bio.HMM import Utilities
 # regression testing
 VERBOSE = 0
 
+
 # -- set up our alphabets
 class DiceRollAlphabet(Alphabet.Alphabet):
     letters = ['1', '2', '3', '4', '5', '6']
 
+
 class DiceTypeAlphabet(Alphabet.Alphabet):
     letters = ['F', 'L']
+
 
 # -- useful functions
 def _loaded_dice_roll(chance_num, cur_state):
@@ -68,6 +82,7 @@ def _loaded_dice_roll(chance_num, cur_state):
     else:
         raise ValueError("Unexpected cur_state %s" % cur_state)
 
+
 def generate_rolls(num_rolls):
     """Generate a bunch of rolls corresponding to the casino probabilities.
 
@@ -79,8 +94,8 @@ def generate_rolls(num_rolls):
     """
     # start off in the fair state
     cur_state = 'F'
-    roll_seq = MutableSeq('', DiceRollAlphabet)
-    state_seq = MutableSeq('', DiceTypeAlphabet)
+    roll_seq = MutableSeq('', DiceRollAlphabet())
+    state_seq = MutableSeq('', DiceTypeAlphabet())
 
     # generate the sequence
     for roll in range(num_rolls):
@@ -102,7 +117,7 @@ def generate_rolls(num_rolls):
                 cur_state = 'F'
 
     return roll_seq.toseq(), state_seq.toseq()
-    
+
 # -- build a MarkovModel
 mm_builder = MarkovModel.MarkovModelBuilder(DiceTypeAlphabet(),
                                             DiceRollAlphabet())
@@ -137,7 +152,7 @@ standard_mm = mm_builder.get_markov_model()
 rolls, states = generate_rolls(3000)
 
 # predicted_states, prob = my_mm.viterbi(rolls, DiceTypeAlphabet())
-# print "prob:", prob
+# print("prob: %f" % prob)
 # Utilities.pretty_print_prediction(rolls, states, predicted_states)
 
 
@@ -146,7 +161,7 @@ def stop_training(log_likelihood_change, num_iterations):
     """Tell the training model when to stop.
     """
     if VERBOSE:
-        print "ll change:", log_likelihood_change
+        print("ll change: %f" % log_likelihood_change)
     if log_likelihood_change < 0.01:
         return 1
     elif num_iterations >= 10:
@@ -155,38 +170,37 @@ def stop_training(log_likelihood_change, num_iterations):
         return 0
 
 # -- Standard Training with known states
-print "Training with the Standard Trainer..."
+print("Training with the Standard Trainer...")
 known_training_seq = Trainer.TrainingSequence(rolls, states)
 
 trainer = Trainer.KnownStateTrainer(standard_mm)
 trained_mm = trainer.train([known_training_seq])
 
 if VERBOSE:
-    print trained_mm.transition_prob
-    print trained_mm.emission_prob
+    print(trained_mm.transition_prob)
+    print(trained_mm.emission_prob)
 
 test_rolls, test_states = generate_rolls(300)
 
 predicted_states, prob = trained_mm.viterbi(test_rolls, DiceTypeAlphabet())
 if VERBOSE:
-    print "Prediction probability:", prob
+    print("Prediction probability: %f" % prob)
     Utilities.pretty_print_prediction(test_rolls, test_states, predicted_states)
 
 # -- Baum-Welch training without known state sequences
-print "Training with Baum-Welch..."
+print("Training with Baum-Welch...")
 training_seq = Trainer.TrainingSequence(rolls, Seq("", DiceTypeAlphabet()))
 
 trainer = Trainer.BaumWelchTrainer(baum_welch_mm)
 trained_mm = trainer.train([training_seq], stop_training)
 
 if VERBOSE:
-    print trained_mm.transition_prob
-    print trained_mm.emission_prob
+    print(trained_mm.transition_prob)
+    print(trained_mm.emission_prob)
 
 test_rolls, test_states = generate_rolls(300)
 
 predicted_states, prob = trained_mm.viterbi(test_rolls, DiceTypeAlphabet())
 if VERBOSE:
-    print "Prediction probability:", prob
+    print("Prediction probability: %f" % prob)
     Utilities.pretty_print_prediction(test_rolls, test_states, predicted_states)
-

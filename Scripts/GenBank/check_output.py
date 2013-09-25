@@ -9,6 +9,8 @@ Usage:
 python check_output.py <name of file to parse>
 """
 # standard modules
+from __future__ import print_function
+
 import sys
 import os
 import cStringIO
@@ -16,6 +18,7 @@ import gzip
 
 # biopython
 from Bio import GenBank
+
 
 def do_comparison(good_record, test_record):
     """Compare two records to see if they are the same.
@@ -44,13 +47,14 @@ def do_comparison(good_record, test_record):
         assert test_line == good_line, \
                "Expected does not match Test.\nExpect:`%s`\nTest  :`%s`\n" % \
                (good_line, test_line)
-    
-def write_format(file):
-    record_parser = GenBank.RecordParser(debug_level = 2)
 
-    print "Testing GenBank writing for %s..." % os.path.basename(file)
+
+def write_format(file):
+    record_parser = GenBank.RecordParser(debug_level=2)
+
+    print("Testing GenBank writing for %s..." % os.path.basename(file))
     # be able to handle gzipped files
-    if file.find(".gz") >= 0:
+    if '.gz' in file:
         cur_handle = gzip.open(file, "r")
         compare_handle = gzip.open(file, "r")
     else:
@@ -59,29 +63,29 @@ def write_format(file):
 
     iterator = GenBank.Iterator(cur_handle, record_parser)
     compare_iterator = GenBank.Iterator(compare_handle)
-        
+
     while 1:
         cur_record = iterator.next()
         compare_record = compare_iterator.next()
-            
+
         if cur_record is None or compare_record is None:
             break
 
-        # print "\tTesting for %s" % cur_record.version
+        # print("\tTesting for %s" % cur_record.version)
 
         output_record = str(cur_record) + "\n"
         try:
             do_comparison(compare_record, output_record)
-        except AssertionError, msg:
-            print "\tTesting for %s" % cur_record.version
-            print msg
+        except AssertionError as msg:
+            print("\tTesting for %s" % cur_record.version)
+            print(msg)
 
     cur_handle.close()
     compare_handle.close()
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print __doc__
+        print(__doc__)
         sys.exit()
 
-    write_format(sys.argv[1])  
+    write_format(sys.argv[1])

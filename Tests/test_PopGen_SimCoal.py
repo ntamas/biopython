@@ -16,24 +16,30 @@ found = False
 for path in os.environ['PATH'].split(os.pathsep):
     try:
         for filename in os.listdir(path):
-            if filename.startswith('simcoal2') \
+            if filename == "simcoal2" \
             or (filename.lower() == "simcoal2.exe"):
                 found = True
                 simcoal_dir = path
     except os.error:
-        pass #Path doesn't exist - correct to pass
+        pass  # Path doesn't exist - correct to pass
 if not found:
-    raise MissingExternalDependencyError(\
+    raise MissingExternalDependencyError(
         "Install SIMCOAL2 if you want to use Bio.PopGen.SimCoal.")
 
 
 class AppTest(unittest.TestCase):
     """Tests simcoal execution via biopython.
     """
+    def setUp(self):
+        self.tidy()
+
     def tearDown(self):
+        self.tidy()
+
+    def tidy(self):
         if not os.path.isdir(os.path.join('PopGen', 'simple')):
             #Unit test must have failed to invoke simcaol,
-            #and this it never created the directory.
+            #and thus it never created the directory.
             return
         for file in os.listdir(os.path.join('PopGen', 'simple')):
             os.remove(os.sep.join(['PopGen', 'simple', file]))

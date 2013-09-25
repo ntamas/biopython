@@ -11,6 +11,7 @@ import random
 # local modules
 from Abstract import AbstractSelection
 
+
 class TournamentSelection(AbstractSelection):
     """Implement tournament style selection.
     """
@@ -30,15 +31,8 @@ class TournamentSelection(AbstractSelection):
 
         if num_competitors < 2:
             raise ValueError("Must have at least 2 competitors!")
-        
+
         self._num_competitors = num_competitors
-
-    def _fitness_cmp(self, org_1, org_2):
-        """Comparison function for comparing two organisms.
-
-        This just allows us to easily sort organisms by fitness.
-        """
-        return cmp(org_1.fitness, org_2.fitness)
 
     def select(self, population):
         """Perform selection on the population using the Tournament model.
@@ -62,10 +56,10 @@ class TournamentSelection(AbstractSelection):
                     new_org = random.choice(population)
                     if new_org not in competitors:
                         competitors.append(new_org)
-                                    
+
                 # sort the competitors by fitness, this will put them
                 # from lowest to highest
-                competitors.sort(self._fitness_cmp)
+                competitors.sort(key = lambda org: org.fitness)
 
                 # get the best organism
                 new_orgs.append(competitors[-1])
@@ -79,4 +73,3 @@ class TournamentSelection(AbstractSelection):
             new_population.extend([new_org_1, new_org_2])
 
         return new_population
-                

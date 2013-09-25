@@ -5,13 +5,14 @@
 
 import re
 import warnings
+
 from Bio.PDB.PDBIO import PDBIO
 
 
 _hydrogen=re.compile("[123 ]*H.*")
 
 
-class ChainSelector:
+class ChainSelector(object):
     """
     Only accepts residues with right chainid
     and between start and end. Remove hydrogens, waters and ligands.
@@ -66,7 +67,6 @@ def extract(structure, chain_id, start, end, filename):
     io.save(filename, sel)
 
 
-
 if __name__=="__main__":
 
     from Bio.PDB.PDBParser import PDBParser
@@ -77,4 +77,3 @@ if __name__=="__main__":
     s=p.get_structure("scr", sys.argv[1])
 
     extract(s, " ", 1, 100, "out.pdb")
-    

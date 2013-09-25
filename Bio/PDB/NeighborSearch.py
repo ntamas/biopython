@@ -3,23 +3,26 @@
 # license.  Please see the LICENSE file that should have been included
 # as part of this package.
 
+"""Fast atom neighbor lookup using a KD tree (implemented in C++)."""
+
+from __future__ import print_function
+
 import numpy
 
-from Bio.KDTree import *
-from PDBExceptions import PDBException
-from Selection import unfold_entities, get_unique_parents, entity_levels, \
-     uniqueify
+from Bio.KDTree import KDTree
 
-__doc__="Fast atom neighbor lookup using a KD tree (implemented in C++)."
+from Bio.PDB.PDBExceptions import PDBException
+from Bio.PDB.Selection import unfold_entities, entity_levels, uniqueify
 
-class NeighborSearch:
+
+class NeighborSearch(object):
     """
     This class can be used for two related purposes:
 
-    1. To find all atoms/residues/chains/models/structures within radius 
-    of a given query position. 
+    1. To find all atoms/residues/chains/models/structures within radius
+    of a given query position.
 
-    2. To find all atoms/residues/chains/models/structures that are within 
+    2. To find all atoms/residues/chains/models/structures that are within
     a fixed radius of each other.
 
     NeighborSearch makes use of the Bio.KDTree C++ module, so it's fast.
@@ -28,23 +31,23 @@ class NeighborSearch:
         """
         o atom_list - list of atoms. This list is used in the queries.
         It can contain atoms from different structures.
-        o bucket_size - bucket size of KD tree. You can play around 
+        o bucket_size - bucket size of KD tree. You can play around
         with this to optimize speed if you feel like it.
         """
         self.atom_list=atom_list
         # get the coordinates
-        coord_list=map(lambda a: a.get_coord(), atom_list) 
+        coord_list = [a.get_coord() for a in atom_list]
         # to Nx3 array of type float
         self.coords=numpy.array(coord_list).astype("f")
         assert(bucket_size>1)
         assert(self.coords.shape[1]==3)
         self.kdt=KDTree(3, bucket_size)
         self.kdt.set_coords(self.coords)
-    
+
     # Private
 
     def _get_unique_parent_pairs(self, pair_list):
-        # translate a list of (entity, entity) tuples to 
+        # translate a list of (entity, entity) tuples to
         # a list of (parent entity, parent entity) tuples,
         # thereby removing duplicate (parent entity, parent entity)
         # pairs.
@@ -72,7 +75,7 @@ class NeighborSearch:
         is determined by level (A=atoms, R=residues, C=chains,
         M=models, S=structures).
 
-        o center - Numeric array 
+        o center - Numeric array
         o radius - float
         o level - char (A, R, C, M, S)
         """
@@ -89,12 +92,12 @@ class NeighborSearch:
             return n_atom_list
         else:
             return unfold_entities(n_atom_list, level)
-            
+
     def search_all(self, radius, level="A"):
         """All neighbor search.
 
         Search all entities that have atoms pairs within
-        radius. 
+        radius.
 
         o radius - float
         o level - char (A, R, C, M, S)
@@ -116,13 +119,13 @@ class NeighborSearch:
         for l in ["R", "C", "M", "S"]:
             next_level_pair_list=self._get_unique_parent_pairs(next_level_pair_list)
             if level==l:
-                return next_level_pair_list 
+                return next_level_pair_list
 
 if __name__=="__main__":
 
     from numpy.random import random
 
-    class Atom:
+    class Atom(object):
         def __init__(self):
             self.coord=(100*random(3))
 
@@ -132,13 +135,5 @@ if __name__=="__main__":
     for i in range(0, 20):
         #Make a list of 100 atoms
         al = [Atom() for j in range(100)]
-
-        ns=NeighborSearch(al)
-
-        print "Found ", len(ns.search_all(5.0))
-
-
-            
-
-                
-        
+        ns = NeighborSearch(al)
+        print("Found %i" % len(ns.search_all(5.0)))

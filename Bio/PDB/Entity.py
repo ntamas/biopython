@@ -1,19 +1,19 @@
 # Copyright (C) 2002, Thomas Hamelryck (thamelry@binf.ku.dk)
 # This code is part of the Biopython distribution and governed by its
 # license.  Please see the LICENSE file that should have been included
-# as part of this package.  
+# as part of this package.
 
 from copy import copy
 
-from PDBExceptions import PDBConstructionException, PDBException
+from Bio.PDB.PDBExceptions import PDBConstructionException
 
-__doc__="""
-Base class for Residue, Chain, Model and Structure classes. 
+"""Base class for Residue, Chain, Model and Structure classes.
+
 It is a simple container class, with list and dictionary like properties.
 """
 
 
-class Entity:
+class Entity(object):
     """
     Basic container object. Structure, Model, Chain and Residue
     are subclasses of Entity. It deals with storage and lookup.
@@ -24,10 +24,10 @@ class Entity:
         self.parent=None
         self.child_list=[]
         self.child_dict={}
-        # Dictionary that keeps addictional properties
+        # Dictionary that keeps additional properties
         self.xtra={}
-    
-    # Special methods   
+
+    # Special methods
 
     def __len__(self):
         "Return the number of children."
@@ -37,12 +37,20 @@ class Entity:
         "Return the child with given id."
         return self.child_dict[id]
 
+    def __delitem__(self, id):
+        "Remove a child."
+        return self.detach_child(id)
+
+    def __contains__(self, id):
+        "True if there is a child element with the given id."
+        return (id in self.child_dict)
+
     def __iter__(self):
         "Iterate over children."
         for child in self.child_list:
             yield child
 
-    # Public methods    
+    # Public methods
 
     def get_level(self):
         """Return level in hierarchy.
@@ -65,7 +73,7 @@ class Entity:
 
     def detach_child(self, id):
         "Remove a child."
-        child=self.child_dict[id] 
+        child=self.child_dict[id]
         child.detach_parent()
         del self.child_dict[id]
         self.child_list.remove(child)
@@ -74,12 +82,22 @@ class Entity:
         "Add a child to the Entity."
         entity_id=entity.get_id()
         if self.has_id(entity_id):
-            raise PDBConstructionException( \
+            raise PDBConstructionException(
                 "%s defined twice" % str(entity_id))
         entity.set_parent(self)
         self.child_list.append(entity)
         self.child_dict[entity_id]=entity
-    
+
+    def insert(self, pos, entity):
+        "Add a child to the Entity at a specified position."
+        entity_id=entity.get_id()
+        if self.has_id(entity_id):
+            raise PDBConstructionException(
+                "%s defined twice" % str(entity_id))
+        entity.set_parent(self)
+        self.child_list[pos:pos] = [entity]
+        self.child_dict[entity_id]=entity
+
     def get_iterator(self):
         "Return iterator over children."
         for child in self.child_list:
@@ -90,8 +108,8 @@ class Entity:
         return copy(self.child_list)
 
     def has_id(self, id):
-        "Return 1 if a child with given id exists, otherwise 0."
-        return self.child_dict.has_key(id)
+        """True if a child with given id exists."""
+        return (id in self.child_dict)
 
     def get_parent(self):
         "Return the parent Entity object."
@@ -117,13 +135,13 @@ class Entity:
         Chain with id "A"
         Residue with id (" ", 10, "A")
 
-        The Residue id indicates that the residue is not a hetero-residue 
-        (or a water) beacuse it has a blank hetero field, that its sequence 
+        The Residue id indicates that the residue is not a hetero-residue
+        (or a water) beacuse it has a blank hetero field, that its sequence
         identifier is 10 and its insertion code "A".
         """
-        if self.full_id==None:
+        if self.full_id is None:
             entity_id=self.get_id()
-            l=[entity_id]   
+            l=[entity_id]
             parent=self.get_parent()
             while not (parent is None):
                 entity_id=parent.get_id()
@@ -133,14 +151,44 @@ class Entity:
             self.full_id=tuple(l)
         return self.full_id
 
+    def transform(self, rot, tran):
+        """
+        Apply rotation and translation to the atomic coordinates.
+
+        Example:
+                >>> rotation=rotmat(pi, Vector(1,0,0))
+                >>> translation=array((0,0,1), 'f')
+                >>> entity.transform(rotation, translation)
+
+        @param rot: A right multiplying rotation matrix
+        @type rot: 3x3 Numeric array
+
+        @param tran: the translation vector
+        @type tran: size 3 Numeric array
+        """
+        for o in self.get_list():
+            o.transform(rot, tran)
+
+    def copy(self):
+        shallow = copy(self)
+
+        shallow.child_list = []
+        shallow.child_dict = {}
+        shallow.xtra = copy(self.xtra)
+
+        shallow.detach_parent()
+
+        for child in self.child_list:
+            shallow.add(child.copy())
+        return shallow
 
 
-class DisorderedEntityWrapper:
+class DisorderedEntityWrapper(object):
     """
     This class is a simple wrapper class that groups a number of equivalent
-    Entities and forwards all method calls to one of them (the currently selected 
+    Entities and forwards all method calls to one of them (the currently selected
     object). DisorderedResidue and DisorderedAtom are subclasses of this class.
-    
+
     E.g.: A DisorderedAtom object contains a number of Atom objects,
     where each Atom object represents a specific position of a disordered
     atom in the structure.
@@ -149,7 +197,7 @@ class DisorderedEntityWrapper:
         self.id=id
         self.child_dict={}
         self.selected_child=None
-        self.parent=None    
+        self.parent=None
 
     # Special methods
 
@@ -161,19 +209,41 @@ class DisorderedEntityWrapper:
             raise AttributeError
         return getattr(self.selected_child, method)
 
+    def __getitem__(self, id):
+        "Return the child with the given id."
+        return self.selected_child[id]
+
+    # XXX Why doesn't this forward to selected_child?
+    # (NB: setitem was here before getitem, iter, len, sub)
     def __setitem__(self, id, child):
         "Add a child, associated with a certain id."
         self.child_dict[id]=child
 
-    # Public methods    
+    def __contains__(self, id):
+        "True if the child has the given id."
+        return (id in self.selected_child)
+
+    def __iter__(self):
+        "Return the number of children."
+        return iter(self.selected_child)
+
+    def __len__(self):
+        "Return the number of children."
+        return len(self.selected_child)
+
+    def __sub__(self, other):
+        """Subtraction with another object."""
+        return self.selected_child - other
+
+    # Public methods
 
     def get_id(self):
         "Return the id."
         return self.id
 
     def disordered_has_id(self, id):
-        "Return 1 if there is an object present associated with this id."
-        return self.child_dict.has_key(id)
+        """True if there is an object present associated with this id."""
+        return (id in self.child_dict)
 
     def detach_parent(self):
         "Detach the parent"
@@ -197,7 +267,7 @@ class DisorderedEntityWrapper:
         Uncaught method calls are forwarded to the selected child object.
         """
         self.selected_child=self.child_dict[id]
-    
+
     def disordered_add(self, child):
         "This is implemented by DisorderedAtom and DisorderedResidue."
         raise NotImplementedError
@@ -214,18 +284,16 @@ class DisorderedEntityWrapper:
         # sort id list alphabetically
         l.sort()
         return l
-        
+
     def disordered_get(self, id=None):
         """Get the child object associated with id.
 
         If id is None, the currently selected child is returned.
         """
-        if id==None:
+        if id is None:
             return self.selected_child
         return self.child_dict[id]
 
     def disordered_get_list(self):
         "Return list of children."
         return self.child_dict.values()
-
-        

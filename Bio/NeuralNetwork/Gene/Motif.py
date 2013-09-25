@@ -8,16 +8,17 @@ then be used for creating the neural networks, with occurances of motifs
 going into the network instead of raw sequence data.
 """
 # biopython
-from Bio import utils
+from Bio.Alphabet import _verify_alphabet
 from Bio.Seq import Seq
 
 # local modules
 from Pattern import PatternRepository
 
-class MotifFinder:
+
+class MotifFinder(object):
     """Find motifs in a set of Sequence Records.
     """
-    def __init__(self, alphabet_strict = 1):
+    def __init__(self, alphabet_strict=1):
         """Initialize a finder to get motifs.
 
         Arguments:
@@ -71,13 +72,13 @@ class MotifFinder:
 
             # now start finding motifs in the sequence
             for start in range(len(seq_record.seq) - (motif_size - 1)):
-                motif = seq_record.seq[start:start + motif_size].data
+                motif = str(seq_record.seq[start:start + motif_size])
 
                 # if we are being alphabet strict, make sure the motif
                 # falls within the specified alphabet
                 if alphabet is not None:
                     motif_seq = Seq(motif, alphabet)
-                    if utils.verify_alphabet(motif_seq):
+                    if _verify_alphabet(motif_seq):
                         all_motifs = self._add_motif(all_motifs, motif)
 
                 # if we are not being strict, just add the motif
@@ -109,8 +110,8 @@ class MotifFinder:
         motif_diffs = {}
 
         # first deal with all of the keys from the first motif
-        for cur_key in first_motifs.keys():
-            if second_motifs.has_key(cur_key):
+        for cur_key in first_motifs:
+            if cur_key in second_motifs:
                 motif_diffs[cur_key] = first_motifs[cur_key] - \
                                        second_motifs[cur_key]
             else:
@@ -118,10 +119,10 @@ class MotifFinder:
 
         # now see if there are any keys from the second motif
         # that we haven't got yet.
-        missing_motifs = second_motifs.keys()[:]
+        missing_motifs = list(second_motifs)
 
         # remove all of the motifs we've already added
-        for added_motif in motif_diffs.keys():
+        for added_motif in motif_diffs:
             if added_motif in missing_motifs:
                 missing_motifs.remove(added_motif)
 
@@ -130,20 +131,21 @@ class MotifFinder:
             motif_diffs[cur_key] = 0 - second_motifs[cur_key]
 
         return PatternRepository(motif_diffs)
-                
+
     def _add_motif(self, motif_dict, motif_to_add):
         """Add a motif to the given dictionary.
         """
         # incrememt the count of the motif if it is already present
-        if motif_dict.has_key(motif_to_add):
+        if motif_to_add in motif_dict:
             motif_dict[motif_to_add] += 1
         # otherwise add it to the dictionary
         else:
             motif_dict[motif_to_add] = 1
 
         return motif_dict
-    
-class MotifCoder:
+
+
+class MotifCoder(object):
     """Convert motifs and a sequence into neural network representations.
 
     This is designed to convert a sequence into a representation that
@@ -176,7 +178,7 @@ class MotifCoder:
 
         This converts a sequence into a representation based on the motifs.
         The representation is returned as a list of the relative amount of
-        each motif (number of times a motif occured divided by the total
+        each motif (number of times a motif occurred divided by the total
         number of motifs in the sequence). The values in the list correspond
         to the input order of the motifs specified in the initializer.
         """
@@ -184,12 +186,12 @@ class MotifCoder:
         seq_motifs = {}
         for motif in self._motifs:
             seq_motifs[motif] = 0
-        
+
         # count all of the motifs we are looking for in the sequence
         for start in range(len(sequence) - (self._motif_size - 1)):
-            motif = sequence[start:start + self._motif_size].data
+            motif = str(sequence[start:start + self._motif_size])
 
-            if seq_motifs.has_key(motif):
+            if motif in seq_motifs:
                 seq_motifs[motif] += 1
 
         # normalize the motifs to go between zero and one
@@ -197,7 +199,7 @@ class MotifCoder:
         max_count = max(seq_motifs.values())
 
         # as long as we have some motifs present, normalize them
-        # otherwise we'll just return 0 for everything 
+        # otherwise we'll just return 0 for everything
         if max_count > 0:
             for motif in seq_motifs.keys():
                 seq_motifs[motif] = (float(seq_motifs[motif] - min_count)
@@ -209,4 +211,3 @@ class MotifCoder:
             motif_amounts.append(seq_motifs[motif])
 
         return motif_amounts
-        

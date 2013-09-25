@@ -26,13 +26,13 @@ static PyObject * cnexus_scanfile(PyObject *self, PyObject *args)
     quotelevel=0;
     speciallevel=0;
     commlevel=0;
-    
+
     if (!PyArg_ParseTuple(args, "s", &input))
         return NULL;
     if (!(scanned=malloc(strlen(input)+1)))
         PyErr_NoMemory();
     scanned_start=scanned;
-    for(t=*input;(t=*input);input++) 
+    for(t=*input;(t=*input);input++)
     {
         /* end of standard quote */
         if (!(commlevel || speciallevel) && t==quotelevel)
@@ -44,7 +44,7 @@ static PyObject * cnexus_scanfile(PyObject *self, PyObject *args)
         else if (!quotelevel  && t=='[')
         {
             /* check for special comments */
-            /*if ((*(input+1)=='!' || *(input+1)=='&' || *(input+1)=='%' || 
+            /*if ((*(input+1)=='!' || *(input+1)=='&' || *(input+1)=='%' ||
                     *(input+1)=='/' || *(input+1)=='\\' || *(input+1)=='@')
                     && !(commlevel || speciallevel))
                 speciallevel=1;
@@ -84,8 +84,8 @@ static PyObject * cnexus_scanfile(PyObject *self, PyObject *args)
         /* printf("t %c, commlevel %d, speciallevel %d, quotelevel '%c', scanned %d\n",
          * t,commlevel,speciallevel,quotelevel,scanned);
          */
-    }               
-    
+    }
+
     if (commlevel>0)
     {
         /* error: unmatched [ */
@@ -107,8 +107,31 @@ static PyMethodDef cNexusMethods[]=
     {NULL,NULL,0,NULL}
 };
 
+#if PY_MAJOR_VERSION >= 3
+
+static struct PyModuleDef moduledef = {
+        PyModuleDef_HEAD_INIT,
+        "cnexus",
+        NULL,
+        -1,
+        cNexusMethods,
+        NULL,
+        NULL,
+        NULL,
+        NULL
+};
+
+PyObject *
+PyInit_cnexus(void)
+{
+    return PyModule_Create(&moduledef);
+}
+
+
+#else
+
 PyMODINIT_FUNC initcnexus(void)
 {
     (void) Py_InitModule("cnexus",cNexusMethods);
 }
-
+#endif

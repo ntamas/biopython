@@ -10,15 +10,15 @@
 """ Handle the SCOP DOMain file.
 
 The DOM file has been officially deprecated. For more information see
-the SCOP"release notes.":http://scop.berkeley.edu/release-notes-1.55.html 
-The DOM files for older releases can be found 
+the SCOP"release notes.":http://scop.berkeley.edu/release-notes-1.55.html
+The DOM files for older releases can be found
 "elsewhere at SCOP.":http://scop.mrc-lmb.cam.ac.uk/scop/parse/
 """
 
-
 from Residues import Residues
 
-class Record:
+
+class Record(object):
     """Holds information for one SCOP domain.
 
     sid -- The SCOP ID of the entry, e.g. d1anu1
@@ -36,7 +36,7 @@ class Record:
 
     def _process(self, line):
         """Parses DOM records.
-    
+
         Records consist of 4 tab deliminated fields;
         sid, pdbid, residues, hierarchy
         """
@@ -55,7 +55,6 @@ class Record:
         self.residues = Residues(res)
         self.residues.pdbid =pdbid
 
-
     def __str__(self):
         s = []
         s.append(self.sid)
@@ -69,58 +68,10 @@ def parse(handle):
     in the file.
 
     Arguments:
-        
+
         handle -- file-like object.
-    """ 
+    """
     for line in handle:
         if line.startswith('#'):
             continue
         yield Record(line)
-
-    
-class Iterator:
-    """Iterates over a DOM file.
-    """
-    def __init__(self, handle, parser=None):
-        """Create an object that iterates over a DES file.
-
-        handle -- file-like object.
-
-        parser -- an optional Parser object to change the results into
-                  another form.  If set to None, then the raw contents
-                  of the file will be returned.
-                  
-        """
-        import warnings
-        warnings.warn("Bio.SCOP.Dom.Iterator is deprecated. Please use Bio.SCOP.Dom.parse() instead.", DeprecationWarning)
-        from types import FileType, InstanceType
-        if type(handle) is not FileType and type(handle) is not InstanceType:
-            raise ValueError("I expected a file handle or file-like object")
-        self._handle = handle
-        self._parser = parser
-
-    def next(self):
-        line = self._handle.readline()
-        if not line:
-            return None
-        if line.startswith('#'):
-            return self.next()
-        if self._parser is not None:
-            return self._parser.parse(line)
-        return line
-
-class Parser:
-    def parse(self, entry):
-        """Returns a Dom.Record """
-        import warnings
-        warnings.warn("""Bio.SCOP.Dom.Parser is deprecated.
-        Instead of
-
-        parser = Dom.Parser()
-        record = parser.parse(entry)
-
-        please use
-
-        record = Dom.Record(entry)
-        """, DeprecationWarning)
-        return Record(entry)

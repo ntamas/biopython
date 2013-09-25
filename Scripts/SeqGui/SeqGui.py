@@ -1,8 +1,10 @@
+from __future__ import print_function
+
 from Bio.Seq import translate, transcribe, back_transcribe
 import wx
 
 ID_APPLY = 101
-ID_CLEAR  = 102
+ID_CLEAR = 102
 ID_EXIT = 103
 ID_CLOSE = 104
 ID_ABOUT = 105
@@ -144,12 +146,12 @@ class SeqPanel(wx.Panel):
     def OnApply(self, event):
         codon_table_lb = self.parent.params_panel.codon_table_lb
         selection = codon_table_lb.GetStringSelection()
-        print selection
+        print(selection)
         codon_table = selection[:]
         transform_lb = self.parent.params_panel.transform_lb
         selection = transform_lb.GetStringSelection()
         transform = selection[:]
-        print transform
+        print(transform)
         if(transform == 'Translate'):
             self.translate(codon_table)
         elif(transform == 'Transcribe'):
@@ -162,21 +164,21 @@ class SeqPanel(wx.Panel):
         self.dest_text.Clear()
 
     def translate(self, codon_table):
-        seq = "".join(self.src_text.GetValue().split()) #remove whitespace
-        print seq
+        seq = "".join(self.src_text.GetValue().split())  # remove whitespace
+        print(seq)
         self.dest_text.Clear()
         self.dest_text.SetValue(translate(seq, table=codon_table,
                                           to_stop=True))
-        
+
     def transcribe(self):
-        seq = "".join(self.src_text.GetValue().split()) #remove whitespace
-        print seq
+        seq = "".join(self.src_text.GetValue().split())  # remove whitespace
+        print(seq)
         self.dest_text.Clear()
         self.dest_text.SetValue(transcribe(seq))
-                                
+
     def back_transcribe(self):
-        seq = "".join(self.src_text.GetValue().split()) #remove whitespace
-        print seq
+        seq = "".join(self.src_text.GetValue().split())  # remove whitespace
+        print(seq)
         self.dest_text.Clear()
         self.dest_text.SetValue(back_transcribe(seq))
 
@@ -195,7 +197,7 @@ class SeqFrame(wx.Frame):
         menu.Append(ID_EXIT, "E&xit", "Terminate the program")
 
         menuBar = wx.MenuBar()
-        menuBar.Append(menu, "&File");
+        menuBar.Append(menu, "&File")
         self.SetMenuBar(menuBar)
 
         params_panel = ParamsPanel(self, -1)

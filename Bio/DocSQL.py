@@ -5,45 +5,48 @@
 # license.  Please see the LICENSE file that should have been included
 # as part of this package.
 
-"""
-Bio.DocSQL: easy access to DB API databases.
+"""Bio.DocSQL: easy access to DB API databases.
 
->>> import DocSQL, MySQLdb, os
+>>> import os
+>>> import MySQLdb
+>>> from Bio import DocSQL
 >>> db=MySQLdb.connect(passwd='', db='test')
 >>> class CreatePeople(DocSQL.Create):
-...     \"""
+...     '''
 ...     CREATE TEMPORARY TABLE people
 ...     (id INT UNSIGNED NOT NULL PRIMARY KEY AUTO_INCREMENT,
 ...     last_name TINYTEXT,
 ...     first_name TINYTEXT)
-...     \"""
+...     '''
 ...
 >>> CreatePeople(connection=db)
 CreatePeople(message=Success)
 """
 
-__version__ = "$Revision: 1.13 $"
-# $Source: /home/bartek/cvs2bzr/biopython_fastimport/cvs_repo/biopython/Bio/DocSQL.py,v $
+from __future__ import print_function
 
-import exceptions
 import sys
 
-from Bio import MissingExternalDependencyError
+from Bio import MissingPythonDependencyError
 
 try:
     import MySQLdb
 except:
-    raise MissingExternalDependencyError("Install MySQLdb if you want to use Bio.DocSQL.")
+    raise MissingPythonDependencyError("Install MySQLdb if you want to use "
+                                       "Bio.DocSQL.")
 
 connection = None
 
-class NoInsertionError(exceptions.Exception):
+
+class NoInsertionError(Exception):
     pass
+
 
 def _check_is_public(name):
     if name[:6] == "_names":
         raise AttributeError
-    
+
+
 class QueryRow(list):
     def __init__(self, cursor):
         try:
@@ -54,7 +57,7 @@ class QueryRow(list):
 
         object.__setattr__(self, "_names", [x[0] for x in cursor.description]) # FIXME: legacy
         object.__setattr__(self, "_names_hash", {})
-        
+
         for i, name in enumerate(self._names):
             self._names_hash[name] = i
 
@@ -63,7 +66,7 @@ class QueryRow(list):
         try:
             return self[self._names_hash[name]]
         except (KeyError, AttributeError):
-            raise AttributeError("'%s' object has no attribute '%s'" \
+            raise AttributeError("'%s' object has no attribute '%s'"
                                  % (self.__class__.__name__, name))
 
     def __setattr__(self, name, value):
@@ -71,13 +74,14 @@ class QueryRow(list):
             self._names_hash
         except AttributeError:
             return object.__setattr__(self, name, value)
-            
+
         _check_is_public(name)
         try:
             index = self._names_hash[name]
             self[index] = value
         except KeyError:
             return object.__setattr__(self, name, value)
+
 
 class Query(object):
     """
@@ -115,12 +119,14 @@ class Query(object):
 
     def dump(self):
         for item in self:
-            print item
+            print(item)
+
 
 class QueryGeneric(Query):
     def __init__(self, statement, *args, **keywds):
         Query.__init__(self, *args, **keywds)
         self.statement = statement,
+
 
 class IterationCursor(object):
     def __init__(self, query, connection=connection):
@@ -129,15 +135,17 @@ class IterationCursor(object):
         self.cursor = connection.cursor()
         self.row_class = query.row_class
         if query.diagnostics:
-            print >>sys.stderr, query.statement
-            print >>sys.stderr, query.params
+            sys.stderr.write("Query statement: %s\n" % query.statement)
+            sys.stderr.write("Query params: %s\n" % query.params)
         self.cursor.execute(query.statement, query.params)
 
     def next(self):
         return self.row_class(self.cursor)
 
+
 class QuerySingle(Query, QueryRow):
     ignore_warnings = 0
+
     def __init__(self, *args, **keywds):
         message = self.MSG_FAILURE
         Query.__init__(self, *args, **keywds)
@@ -152,6 +160,7 @@ class QuerySingle(Query, QueryRow):
     def cursor(self):
         return self.single_cursor
 
+
 class QueryAll(list, Query):
     def __init__(self, *args, **keywds):
         Query.__init__(self, *args, **keywds)
@@ -160,9 +169,11 @@ class QueryAll(list, Query):
     def process_row(self, row):
         return row
 
+
 class QueryAllFirstItem(QueryAll):
     def process_row(self, row):
         return row[0]
+
 
 class Create(QuerySingle):
     def __init__(self, *args, **keywds):
@@ -171,24 +182,26 @@ class Create(QuerySingle):
         except StopIteration:
             self.message = self.MSG_SUCCESS
 
+
 class Update(Create):
     pass
 
+
 class Insert(Create):
     MSG_INTEGRITY_ERROR = "Couldn't insert: %s. "
-    
+
     def __init__(self, *args, **keywds):
         try:
             Create.__init__(self, *args, **keywds)
-        except MySQLdb.IntegrityError, error_data:
+        except MySQLdb.IntegrityError as error_data:
             self.error_message += self.MSG_INTEGRITY_ERROR % error_data[1]
             try:
                 self.total_count
             except AttributeError:
                 self.total_count = 0
-            
+
             raise MySQLdb.IntegrityError(self.error_message)
-            
+
         self.id = self.cursor().insert_id()
         try:
             self.total_count += self.cursor().rowcount
@@ -198,8 +211,9 @@ class Insert(Create):
         if self.cursor().rowcount == 0:
             raise NoInsertionError
 
+
 def _test(*args, **keywds):
-    import doctest, sys
+    import doctest
     doctest.testmod(sys.modules[__name__], *args, **keywds)
 
 if __name__ == "__main__":

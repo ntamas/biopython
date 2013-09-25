@@ -6,9 +6,6 @@
 # license.  Please see the LICENSE file that should have been included
 # as part of this package.
 #
-
-import os
-
 ###############################################################################
 #                   Configuration of the console.
 #
@@ -23,12 +20,12 @@ import os
 #                  people are unlikely to ask for restriction map of sequences
 #                  bigger than 100.000 bp. This is needed to determine the
 #                  space to be reserved for sites location.
-#                   
+#
 #                  MaxSize = 5  =>   9.999 bp
 #                  MaxSize = 6  =>  99.999 bp
 #                  MaxSize = 7  => 999.999 bp
 #   example:
-#               
+#
 #   <------------ ConsoleWidth --------------->
 #   <- NameWidth ->
 #   EcoRI         :   1, 45, 50, 300, 400, 650,
@@ -36,10 +33,10 @@ import os
 #                     <-->
 #                       Indent
 #
-ConsoleWidth        =     80                   
+ConsoleWidth        =     80
 NameWidth           =     10
 Indent              =     4
-MaxSize             =     6 
+MaxSize             =     6
 ###############################################################################
 #                   Proxies
 #
@@ -52,7 +49,7 @@ MaxSize             =     6
 #   ftp_proxy       =   'http://www.somewhere.something:one_number'
 #                   -> www.somewhere.something is the address of the proxy.
 #                      one_number is the port number.
-#   
+#
 ftp_proxy           =   ''
 ###############################################################################
 #                   Rebase ftp location
@@ -82,5 +79,3 @@ ftp_emb_r           =   ftp_Rebase+'pub/rebase/emboss_r.###'
 Rebase_name         =   'anonymous'
 Rebase_password     =   ''
 #Rebase_password     =   'your_address@somewhere.something'
-
-

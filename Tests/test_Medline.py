@@ -3,16 +3,17 @@
 # license.  Please see the LICENSE file that should have been included
 # as part of this package.
 
-import sys
 import unittest
 
 from Bio import Medline
+
 
 class TestMedline(unittest.TestCase):
 
     def test_read(self):
         handle = open("Medline/pubmed_result1.txt")
         record = Medline.read(handle)
+        handle.close()
         self.assertEqual(record["PMID"], "12230038")
         self.assertEqual(record["OWN"], "NLM")
         self.assertEqual(record["STAT"], "MEDLINE")
@@ -46,7 +47,7 @@ class TestMedline(unittest.TestCase):
     def test_parse(self):
         handle = open("Medline/pubmed_result2.txt")
         records = Medline.parse(handle)
-        record = records.next()
+        record = next(records)
         self.assertEqual(record["PMID"], "16403221")
         self.assertEqual(record["OWN"], "NLM")
         self.assertEqual(record["STAT"], "MEDLINE")
@@ -78,7 +79,7 @@ class TestMedline(unittest.TestCase):
         self.assertEqual(record["AID"], ["1471-2105-7-10 [pii]", "10.1186/1471-2105-7-10 [doi]"])
         self.assertEqual(record["PST"], "epublish")
         self.assertEqual(record["SO"], "BMC Bioinformatics. 2006 Jan 10;7:10.")
-        record = records.next()
+        record = next(records)
         self.assertEqual(record["PMID"], "16377612")
         self.assertEqual(record["OWN"], "NLM")
         self.assertEqual(record["STAT"], "MEDLINE")
@@ -111,7 +112,7 @@ class TestMedline(unittest.TestCase):
         self.assertEqual(record["AID"], ["btk021 [pii]", "10.1093/bioinformatics/btk021 [doi]"])
         self.assertEqual(record["PST"], "ppublish")
         self.assertEqual(record["SO"], "Bioinformatics. 2006 Mar 1;22(5):616-7. Epub 2005 Dec 23.")
-        record = records.next()
+        record = next(records)
         self.assertEqual(record["PMID"], "14871861")
         self.assertEqual(record["OWN"], "NLM")
         self.assertEqual(record["STAT"], "MEDLINE")
@@ -144,7 +145,7 @@ class TestMedline(unittest.TestCase):
         self.assertEqual(record["AID"], ["10.1093/bioinformatics/bth078 [doi]", "bth078 [pii]"])
         self.assertEqual(record["PST"], "ppublish")
         self.assertEqual(record["SO"], "Bioinformatics. 2004 Jun 12;20(9):1453-4. Epub 2004 Feb 10.")
-        record = records.next()
+        record = next(records)
         self.assertEqual(record["PMID"], "14630660")
         self.assertEqual(record["OWN"], "NLM")
         self.assertEqual(record["STAT"], "MEDLINE")
@@ -175,10 +176,10 @@ class TestMedline(unittest.TestCase):
         self.assertEqual(record["MHDA"], "2004/07/23 05:00")
         self.assertEqual(record["PST"], "ppublish")
         self.assertEqual(record["SO"], "Bioinformatics. 2003 Nov 22;19(17):2308-10.")
-        self.assertRaises(StopIteration, records.next)
+        self.assertRaises(StopIteration, next, records)
+        handle.close()
 
 
 if __name__ == "__main__":
     runner = unittest.TextTestRunner(verbosity = 2)
     unittest.main(testRunner=runner)
-

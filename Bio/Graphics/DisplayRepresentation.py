@@ -21,7 +21,8 @@ RAINBOW_COLORS = {(1, 1)  : colors.violet,
                   (6, 6)  : colors.orange,
                   (7, 20) : colors.red}
 
-class ChromosomeCounts:
+
+class ChromosomeCounts(object):
     """Represent a chromosome with count information.
 
     This is used to display information about counts along a chromosome.
@@ -53,7 +54,7 @@ class ChromosomeCounts:
             self._count_info[name] = 0
             self._label_info[name] = None
             self._scale_info[name] = 1
-        
+
         self._color_scheme = color_scheme
 
     def add_count(self, segment_name, count = 1):
@@ -155,7 +156,7 @@ class ChromosomeCounts:
             if self._count_info[seg_name] > 0:
                 color = self._color_from_count(self._count_info[seg_name])
                 cur_segment.fill_color = color
-            
+
             if self._label_info[seg_name] is not None:
                 cur_segment.label = self._label_info[seg_name]
 
@@ -172,13 +173,10 @@ class ChromosomeCounts:
     def _color_from_count(self, count):
         """Translate the given count into a color using the color scheme.
         """
-        for count_start, count_end in self._color_scheme.keys():
+        for count_start, count_end in self._color_scheme:
             if count >= count_start and count <= count_end:
                 return self._color_scheme[(count_start, count_end)]
 
         # if we got here we didn't find a color for the count
         raise ValueError("Count value %s was not found in the color scheme."
                          % count)
-        
-        
-        

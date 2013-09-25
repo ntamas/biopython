@@ -3,12 +3,12 @@
 # license.  Please see the LICENSE file that should have been included
 # as part of this package.
 
-__doc__="""
-Classes that deal with macromolecular crystal structures. (eg.
-PDB and mmCIF parsers, a Structure class, a module to keep 
-a local copy of the PDB up-to-date, selective IO of PDB files,
-etc.). Author: Thomas Hamelryck.  Additional code by Kristian 
-Rother.
+"""Classes that deal with macromolecular crystal structures.
+
+Includes: PDB and mmCIF parsers, a Structure class, a module to keep a local
+copy of the PDB up-to-date, selective IO of PDB files, etc.
+
+Author: Thomas Hamelryck.  Additional code by Kristian Rother.
 """
 
 # Get a Structure object from a PDB file
@@ -18,11 +18,11 @@ try:
     # Get a Structure object from an mmCIF file
     from MMCIFParser import MMCIFParser
 except:
-    # Not compiled I guess 
+    # Not compiled I guess
     pass
 
 # Download from the PDB
-from PDBList import PDBList 
+from PDBList import PDBList
 
 # Parse PDB header directly
 from parse_pdb_header import parse_pdb_header
@@ -30,7 +30,7 @@ from parse_pdb_header import parse_pdb_header
 # Find connected polypeptides in a Structure
 from Polypeptide import PPBuilder, CaPPBuilder, is_aa, standard_aa_names
 # This is also useful :-)
-from Bio.SCOP.Raf import to_one_letter_code
+from Bio.Data.SCOPData import protein_letters_3to1
 
 # IO of PDB files (including flexible selective output)
 from PDBIO import PDBIO, Select
@@ -43,17 +43,17 @@ import Selection
 from Superimposer import Superimposer
 
 # 3D vector class
-from Vector import Vector, calc_angle, calc_dihedral, refmat, rotmat, rotaxis,\
-        vector_to_axis, m2rotaxis, rotaxis2m
+from Vector import Vector, calc_angle, calc_dihedral, refmat, rotmat, rotaxis
+from Vector import vector_to_axis, m2rotaxis, rotaxis2m
 
 # Alignment module
 from StructureAlignment import StructureAlignment
 
-# DSSP handle 
+# DSSP handle
 # (secondary structure and solvent accessible area calculation)
 from DSSP import DSSP, make_dssp_dict
 
-# Residue depth: 
+# Residue depth:
 # distance of residue atoms from solvent accessible surface
 from ResidueDepth import ResidueDepth, get_surface
 

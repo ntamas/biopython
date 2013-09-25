@@ -1,4 +1,6 @@
 # Copyright 2001 by Gavin E. Crooks.  All rights reserved.
+# Modifications Copyright 2010 Jeffrey Finkelstein. All rights reserved.
+#
 # This code is part of the Biopython distribution and governed by its
 # license.  Please see the LICENSE file that should have been included
 # as part of this package.
@@ -9,19 +11,17 @@ The file format is described in the scop
 "release notes.":http://scop.mrc-lmb.cam.ac.uk/scop/release-notes.html
 The latest CLA file can be found
 "elsewhere at SCOP.":http://scop.mrc-lmb.cam.ac.uk/scop/parse/
-  
+
 "Release 1.73": http://scop.mrc-lmb.cam.ac.uk/scop/parse/dir.cla.scop.txt_1.73
 (July 2008)
 
 """
 
+import Residues
 
 
-from Residues import * 
-
-
-class Record:
-    """Holds information for one SCOP domain
+class Record(object):
+    """Holds information for one SCOP domain.
 
     sid         --  SCOP identifier. e.g. d1danl2
 
@@ -31,34 +31,35 @@ class Record:
 
     sunid       --  SCOP unique identifier for this domain
 
-    hierarchy   --  A sequence of tuples (nodetype, sunid) describing the
-                    location of this domain in the SCOP hierarchy.
-                    See the Scop module for a description of nodetypes.
+    hierarchy   --  A dictionary, keys are nodetype, values are sunid,
+                    describing the location of this domain in the SCOP
+                    hierarchy. See the Scop module for a description of
+                    nodetypes. This used to be a list of (key,value) tuples
+                    in older versions of Biopython (see Bug 3109).
     """
     def __init__(self, line=None):
         self.sid = ''
-        self.residues = None 
+        self.residues = None
         self.sccs = ''
         self.sunid =''
-        self.hierarchy = []
+        self.hierarchy = {}
         if line:
             self._process(line)
-        
+
     def _process(self, line):
         line = line.rstrip()         # no trailing whitespace
         columns = line.split('\t')   # separate the tab-delineated cols
         if len(columns) != 6:
             raise ValueError("I don't understand the format of %s" % line)
-        
+
         self.sid, pdbid, residues, self.sccs, self.sunid, hierarchy = columns
-        self.residues = Residues(residues)
+        self.residues = Residues.Residues(residues)
         self.residues.pdbid = pdbid
         self.sunid = int(self.sunid)
-        
+
         for ht in hierarchy.split(","):
             key, value = ht.split('=')
-            value = int(value)
-            self.hierarchy.append([key, value])
+            self.hierarchy[key] = int(value)
 
     def __str__(self):
         s = []
@@ -67,11 +68,9 @@ class Record:
         s.append(self.sccs)
         s.append(self.sunid)
 
-        h=[]
-        for ht in self.hierarchy:
-             h.append("=".join(map(str,ht))) 
-        s.append(",".join(h))
-       
+        s.append(','.join('='.join((key, str(value))) for key, value
+                          in self.hierarchy.iteritems()))
+
         return "\t".join(map(str,s)) + "\n"
 
 
@@ -95,32 +94,33 @@ class Index(dict):
     def __init__(self, filename):
         """
         Arguments:
-        
+
           filename  -- The file to index
         """
         dict.__init__(self)
         self.filename = filename
-        f = open(self.filename)
+        f = open(self.filename, "rU")
         try:
             position = 0
             while True:
                 line = f.readline()
-                if not line: break
+                if not line:
+                    break
                 if line.startswith('#'):
                     continue
                 record = Record(line)
                 key = record.sid
-                if key != None:
+                if key is not None:
                     self[key] = position
                 position = f.tell()
         finally:
             f.close()
 
     def __getitem__(self, key):
-        """ Return an item from the indexed file. """
+        """Return an item from the indexed file."""
         position = dict.__getitem__(self,key)
 
-        f = open(self.filename)
+        f = open(self.filename, "rU")
         try:
             f.seek(position)
             line = f.readline()

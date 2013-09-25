@@ -5,7 +5,7 @@
  * Human Genome Center, Institute of Medical Science, University of Tokyo,
  * 4-6-1 Shirokanedai, Minato-ku, Tokyo 108-8639, Japan.
  * Contact: mdehoon 'AT' gsc.riken.jp
- * 
+ *
  * Permission to use, copy, modify, and distribute this software and its
  * documentation with or without modifications and for any purpose and
  * without fee is hereby granted, provided that any copyright notices
@@ -14,7 +14,7 @@
  * names of the contributors or copyright holders not be used in
  * advertising or publicity pertaining to distribution of the software
  * without specific prior permission.
- * 
+ *
  * THE CONTRIBUTORS AND COPYRIGHT HOLDERS OF THIS SOFTWARE DISCLAIM ALL
  * WARRANTIES WITH REGARD TO THIS SOFTWARE, INCLUDING ALL IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS, IN NO EVENT SHALL THE
@@ -23,7 +23,7 @@
  * OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
  * OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE
  * OR PERFORMANCE OF THIS SOFTWARE.
- * 
+ *
  */
 
 #include <time.h>
@@ -323,7 +323,7 @@ the shortest distance.
 
 /* ********************************************************************* */
 
-void svd(int m, int n, double** u, double w[], double** v, int* ierr)
+static int svd(int m, int n, double** u, double w[], double** vt)
 /*
  *   This subroutine is a translation of the Algol procedure svd,
  *   Num. Math. 14, 403-420(1970) by Golub and Reinsch.
@@ -332,9 +332,9 @@ void svd(int m, int n, double** u, double w[], double** v, int* ierr)
  *   This subroutine determines the singular value decomposition
  *        t
  *   A=usv  of a real m by n rectangular matrix, where m is greater
- *   then or equal to n.  Householder bidiagonalization and a variant
+ *   than or equal to n.  Householder bidiagonalization and a variant
  *   of the QR algorithm are used.
- *  
+ *
  *
  *   On input.
  *
@@ -346,25 +346,29 @@ void svd(int m, int n, double** u, double w[], double** v, int* ierr)
  *
  *   On output.
  *
- *      w contains the n (non-negative) singular values of a (the
+ *      the routine returns an integer ierr equal to
+ *        0          to indicate a normal return,
+ *        k          if the k-th singular value has not been
+ *                   determined after 30 iterations,
+ *        -1         if memory allocation fails.
+ *
+ *
+ *     w  contains the n (non-negative) singular values of a (the
  *        diagonal elements of s).  they are unordered.  if an
  *        error exit is made, the singular values should be correct
  *        for indices ierr+1,ierr+2,...,n.
  *
- *      u contains the matrix u (orthogonal column vectors) of the
+ *
+ *     u  contains the matrix u (orthogonal column vectors) of the
  *        decomposition.
  *        if an error exit is made, the columns of u corresponding
  *        to indices of correct singular values should be correct.
  *
- *      v contains the matrix v (orthogonal) of the decomposition.
+ *                             t
+ *     vt contains the matrix v (orthogonal) of the decomposition.
  *        if an error exit is made, the columns of v corresponding
  *        to indices of correct singular values should be correct.
  *
- *      ierr is set to
- *        zero       for normal return,
- *        k          if the k-th singular value has not been
- *                   determined after 30 iterations,
- *        -1         if memory allocation fails.
  *
  *   Questions and comments should be directed to B. S. Garbow,
  *   Applied Mathematics division, Argonne National Laboratory
@@ -376,229 +380,551 @@ void svd(int m, int n, double** u, double w[], double** v, int* ierr)
  *   This routine is less general than the original svd routine, as
  *   it focuses on the singular value decomposition as needed for
  *   clustering. In particular,
- *     - We require m >= n
  *     - We calculate both u and v in all cases
  *     - We pass the input array A via u; this array is subsequently
  *       overwritten.
  *     - We allocate for the array rv1, used as a working space,
  *       internally in this routine, instead of passing it as an
- *       argument. If the allocation fails, svd sets *ierr to -1
- *       and returns.
+ *       argument. If the allocation fails, svd returns -1.
  *   2003.06.05
  */
 { int i, j, k, i1, k1, l1, its;
   double c,f,h,s,x,y,z;
   int l = 0;
+  int ierr = 0;
   double g = 0.0;
   double scale = 0.0;
   double anorm = 0.0;
   double* rv1 = malloc(n*sizeof(double));
-  if (!rv1)
-  { *ierr = -1;
-    return;
-  }
-  *ierr = 0;
-  /* Householder reduction to bidiagonal form */
-  for (i = 0; i < n; i++)
-  { l = i + 1;
-    rv1[i] = scale * g;
-    g = 0.0;
-    s = 0.0;
-    scale = 0.0;
-    for (k = i; k < m; k++) scale += fabs(u[k][i]);
-    if (scale != 0.0)
-    { for (k = i; k < m; k++)
-      { u[k][i] /= scale;
-        s += u[k][i]*u[k][i];
-      }
-      f = u[i][i];
-      g = (f >= 0) ? -sqrt(s) : sqrt(s);
-      h = f * g - s;
-      u[i][i] = f - g;
-      if (i < n-1)
-      { for (j = l; j < n; j++)
-        { s = 0.0;
-          for (k = i; k < m; k++) s += u[k][i] * u[k][j];
-          f = s / h;
-          for (k = i; k < m; k++) u[k][j] += f * u[k][i];
-        }
-      }
-      for (k = i; k < m; k++) u[k][i] *= scale;
-    }
-    w[i] = scale * g;
-    g = 0.0;
-    s = 0.0;
-    scale = 0.0;
-    if (i<n-1)
-    { for (k = l; k < n; k++) scale += fabs(u[i][k]);
+  if (!rv1) return -1;
+  if (m >= n)
+  { /* Householder reduction to bidiagonal form */
+    for (i = 0; i < n; i++)
+    { l = i + 1;
+      rv1[i] = scale * g;
+      g = 0.0;
+      s = 0.0;
+      scale = 0.0;
+      for (k = i; k < m; k++) scale += fabs(u[k][i]);
       if (scale != 0.0)
-      { for (k = l; k < n; k++)
-        { u[i][k] /= scale;
-          s += u[i][k] * u[i][k];
+      { for (k = i; k < m; k++)
+        { u[k][i] /= scale;
+          s += u[k][i]*u[k][i];
         }
-        f = u[i][l];
+        f = u[i][i];
         g = (f >= 0) ? -sqrt(s) : sqrt(s);
         h = f * g - s;
-        u[i][l] = f - g;
-        for (k = l; k < n; k++) rv1[k] = u[i][k] / h;
-        for (j = l; j < m; j++)
-        { s = 0.0;
-          for (k = l; k < n; k++) s += u[j][k] * u[i][k];
-          for (k = l; k < n; k++) u[j][k] += s * rv1[k];
+        u[i][i] = f - g;
+        if (i < n-1)
+        { for (j = l; j < n; j++)
+          { s = 0.0;
+            for (k = i; k < m; k++) s += u[k][i] * u[k][j];
+            f = s / h;
+            for (k = i; k < m; k++) u[k][j] += f * u[k][i];
+          }
         }
-        for (k = l; k < n; k++)  u[i][k] *= scale;
+        for (k = i; k < m; k++) u[k][i] *= scale;
       }
-    }
-    anorm = max(anorm,fabs(w[i])+fabs(rv1[i]));
-  }
-  /* accumulation of right-hand transformations */
-  for (i = n-1; i>=0; i--)
-  { if (i < n-1)
-    { if (g != 0.0)
-      { for (j = l; j < n; j++) v[j][i] = (u[i][j] / u[i][l]) / g;
-        /* double division avoids possible underflow */
-        for (j = l; j < n; j++)
-        { s = 0.0;
-          for (k = l; k < n; k++) s += u[i][k] * v[k][j];
-          for (k = l; k < n; k++) v[k][j] += s * v[k][i];
+      w[i] = scale * g;
+      g = 0.0;
+      s = 0.0;
+      scale = 0.0;
+      if (i<n-1)
+      { for (k = l; k < n; k++) scale += fabs(u[i][k]);
+        if (scale != 0.0)
+        { for (k = l; k < n; k++)
+          { u[i][k] /= scale;
+            s += u[i][k] * u[i][k];
+          }
+          f = u[i][l];
+          g = (f >= 0) ? -sqrt(s) : sqrt(s);
+          h = f * g - s;
+          u[i][l] = f - g;
+          for (k = l; k < n; k++) rv1[k] = u[i][k] / h;
+          for (j = l; j < m; j++)
+          { s = 0.0;
+            for (k = l; k < n; k++) s += u[j][k] * u[i][k];
+            for (k = l; k < n; k++) u[j][k] += s * rv1[k];
+          }
+          for (k = l; k < n; k++)  u[i][k] *= scale;
         }
       }
+      anorm = max(anorm,fabs(w[i])+fabs(rv1[i]));
     }
-    for (j = l; j < n; j++)
-    { v[i][j] = 0.0;
-      v[j][i] = 0.0;
-    }
-    v[i][i] = 1.0;
-    g = rv1[i];
-    l = i;
-  }
-  /* accumulation of left-hand transformations */
-  for (i = n-1; i >= 0; i--)
-  { l = i + 1;
-    g = w[i];
-    if (i!=n-1)
-      for (j = l; j < n; j++) u[i][j] = 0.0;
-    if (g!=0.0)
-    { if (i!=n-1)
-      { for (j = l; j < n; j++)
-        { s = 0.0;
-          for (k = l; k < m; k++) s += u[k][i] * u[k][j];
+    /* accumulation of right-hand transformations */
+    for (i = n-1; i>=0; i--)
+    { if (i < n-1)
+      { if (g != 0.0)
+        { for (j = l; j < n; j++) vt[i][j] = (u[i][j] / u[i][l]) / g;
           /* double division avoids possible underflow */
-          f = (s / u[i][i]) / g;
-          for (k = i; k < m; k++) u[k][j] += f * u[k][i];
+          for (j = l; j < n; j++)
+          { s = 0.0;
+            for (k = l; k < n; k++) s += u[i][k] * vt[j][k];
+            for (k = l; k < n; k++) vt[j][k] += s * vt[i][k];
+          }
         }
       }
-      for (j = i; j < m; j++) u[j][i] /= g;
+      for (j = l; j < n; j++)
+      { vt[j][i] = 0.0;
+        vt[i][j] = 0.0;
+      }
+      vt[i][i] = 1.0;
+      g = rv1[i];
+      l = i;
     }
-    else
-      for (j = i; j < m; j++) u[j][i] = 0.0;
-    u[i][i] += 1.0;
-  }
-  /* diagonalization of the bidiagonal form */
-  for (k = n-1; k >= 0; k--)
-  { k1 = k-1;
-    its = 0;
-    while(1)
-    /* test for splitting */
-    { for (l = k; l >= 0; l--)
-      { l1 = l-1;
-        if (fabs(rv1[l]) + anorm == anorm) break;
-        /* rv1[0] is always zero, so there is no exit
-         * through the bottom of the loop */
-        if (fabs(w[l1]) + anorm == anorm)
-        /* cancellation of rv1[l] if l greater than 0 */
-        { c = 0.0;
-          s = 1.0;
-          for (i = l; i <= k; i++)
-          { f = s * rv1[i];
-            rv1[i] *= c;
-            if (fabs(f) + anorm == anorm) break;
-            g = w[i];
-            h = sqrt(f*f+g*g);
-            w[i] = h;
-            c = g / h;
-            s = -f / h;
-            for (j = 0; j < m; j++)
-            { y = u[j][l1];
-              z = u[j][i];
-              u[j][l1] = y * c + z * s;
-              u[j][i] = -y * s + z * c;
+    /* accumulation of left-hand transformations */
+    for (i = n-1; i >= 0; i--)
+    { l = i + 1;
+      g = w[i];
+      if (i!=n-1)
+        for (j = l; j < n; j++) u[i][j] = 0.0;
+      if (g!=0.0)
+      { if (i!=n-1)
+        { for (j = l; j < n; j++)
+          { s = 0.0;
+            for (k = l; k < m; k++) s += u[k][i] * u[k][j];
+            /* double division avoids possible underflow */
+            f = (s / u[i][i]) / g;
+            for (k = i; k < m; k++) u[k][j] += f * u[k][i];
+          }
+        }
+        for (j = i; j < m; j++) u[j][i] /= g;
+      }
+      else
+        for (j = i; j < m; j++) u[j][i] = 0.0;
+      u[i][i] += 1.0;
+    }
+    /* diagonalization of the bidiagonal form */
+    for (k = n-1; k >= 0; k--)
+    { k1 = k-1;
+      its = 0;
+      while(1)
+      /* test for splitting */
+      { for (l = k; l >= 0; l--)
+        { l1 = l-1;
+          if (fabs(rv1[l]) + anorm == anorm) break;
+          /* rv1[0] is always zero, so there is no exit
+           * through the bottom of the loop */
+          if (fabs(w[l1]) + anorm == anorm)
+          /* cancellation of rv1[l] if l greater than 0 */
+          { c = 0.0;
+            s = 1.0;
+            for (i = l; i <= k; i++)
+            { f = s * rv1[i];
+              rv1[i] *= c;
+              if (fabs(f) + anorm == anorm) break;
+              g = w[i];
+              h = sqrt(f*f+g*g);
+              w[i] = h;
+              c = g / h;
+              s = -f / h;
+              for (j = 0; j < m; j++)
+              { y = u[j][l1];
+                z = u[j][i];
+                u[j][l1] = y * c + z * s;
+                u[j][i] = -y * s + z * c;
+              }
             }
+            break;
+          }
+        }
+        /* test for convergence */
+        z = w[k];
+        if (l==k) /* convergence */
+        { if (z < 0.0)
+          /*  w[k] is made non-negative */
+          { w[k] = -z;
+            for (j = 0; j < n; j++) vt[k][j] = -vt[k][j];
           }
           break;
         }
-      }
-      /* test for convergence */
-      z = w[k];
-      if (l==k) /* convergence */
-      { if (z < 0.0)
-        /*  w[k] is made non-negative */
-        { w[k] = -z;
-          for (j = 0; j < n; j++) v[j][k] = -v[j][k];
+        else if (its==30)
+        { ierr = k;
+          break;
         }
-        break;
+        else
+        /* shift from bottom 2 by 2 minor */
+        { its++;
+          x = w[l];
+          y = w[k1];
+          g = rv1[k1];
+          h = rv1[k];
+          f = ((y - z) * (y + z) + (g - h) * (g + h)) / (2.0 * h * y);
+          g = sqrt(f*f+1.0);
+          f = ((x - z) * (x + z) + h * (y / (f + (f >= 0 ? g : -g)) - h)) / x;
+          /* next qr transformation */
+          c = 1.0;
+          s = 1.0;
+          for (i1 = l; i1 <= k1; i1++)
+          { i = i1 + 1;
+            g = rv1[i];
+            y = w[i];
+            h = s * g;
+            g = c * g;
+            z = sqrt(f*f+h*h);
+            rv1[i1] = z;
+            c = f / z;
+            s = h / z;
+            f = x * c + g * s;
+            g = -x * s + g * c;
+            h = y * s;
+            y = y * c;
+            for (j = 0; j < n; j++)
+            { x = vt[i1][j];
+              z = vt[i][j];
+              vt[i1][j] = x * c + z * s;
+              vt[i][j] = -x * s + z * c;
+            }
+            z = sqrt(f*f+h*h);
+            w[i1] = z;
+            /* rotation can be arbitrary if z is zero */
+            if (z!=0.0)
+            { c = f / z;
+              s = h / z;
+            }
+            f = c * g + s * y;
+            x = -s * g + c * y;
+            for (j = 0; j < m; j++)
+            { y = u[j][i1];
+              z = u[j][i];
+              u[j][i1] = y * c + z * s;
+              u[j][i] = -y * s + z * c;
+            }
+          }
+          rv1[l] = 0.0;
+          rv1[k] = f;
+          w[k] = x;
+        }
       }
-      else if (its==30)
-      { *ierr = k;
-        break;
+    }
+  }
+  else /* m < n */
+  { /* Householder reduction to bidiagonal form */
+    for (i = 0; i < m; i++)
+    { l = i + 1;
+      rv1[i] = scale * g;
+      g = 0.0;
+      s = 0.0;
+      scale = 0.0;
+      for (k = i; k < n; k++) scale += fabs(u[i][k]);
+      if (scale != 0.0)
+      { for (k = i; k < n; k++)
+        { u[i][k] /= scale;
+          s += u[i][k]*u[i][k];
+        }
+        f = u[i][i];
+        g = (f >= 0) ? -sqrt(s) : sqrt(s);
+        h = f * g - s;
+        u[i][i] = f - g;
+        if (i < m-1)
+        { for (j = l; j < m; j++)
+          { s = 0.0;
+            for (k = i; k < n; k++) s += u[i][k] * u[j][k];
+            f = s / h;
+            for (k = i; k < n; k++) u[j][k] += f * u[i][k];
+          }
+        }
+        for (k = i; k < n; k++) u[i][k] *= scale;
+      }
+      w[i] = scale * g;
+      g = 0.0;
+      s = 0.0;
+      scale = 0.0;
+      if (i<m-1)
+      { for (k = l; k < m; k++) scale += fabs(u[k][i]);
+        if (scale != 0.0)
+        { for (k = l; k < m; k++)
+          { u[k][i] /= scale;
+            s += u[k][i] * u[k][i];
+          }
+          f = u[l][i];
+          g = (f >= 0) ? -sqrt(s) : sqrt(s);
+          h = f * g - s;
+          u[l][i] = f - g;
+          for (k = l; k < m; k++) rv1[k] = u[k][i] / h;
+          for (j = l; j < n; j++)
+          { s = 0.0;
+            for (k = l; k < m; k++) s += u[k][j] * u[k][i];
+            for (k = l; k < m; k++) u[k][j] += s * rv1[k];
+          }
+          for (k = l; k < m; k++)  u[k][i] *= scale;
+        }
+      }
+      anorm = max(anorm,fabs(w[i])+fabs(rv1[i]));
+    }
+    /* accumulation of right-hand transformations */
+    for (i = m-1; i>=0; i--)
+    { if (i < m-1)
+      { if (g != 0.0)
+        { for (j = l; j < m; j++) vt[j][i] = (u[j][i] / u[l][i]) / g;
+          /* double division avoids possible underflow */
+          for (j = l; j < m; j++)
+          { s = 0.0;
+            for (k = l; k < m; k++) s += u[k][i] * vt[k][j];
+            for (k = l; k < m; k++) vt[k][j] += s * vt[k][i];
+          }
+        }
+      }
+      for (j = l; j < m; j++)
+      { vt[i][j] = 0.0;
+        vt[j][i] = 0.0;
+      }
+      vt[i][i] = 1.0;
+      g = rv1[i];
+      l = i;
+    }
+    /* accumulation of left-hand transformations */
+    for (i = m-1; i >= 0; i--)
+    { l = i + 1;
+      g = w[i];
+      if (i!=m-1)
+        for (j = l; j < m; j++) u[j][i] = 0.0;
+      if (g!=0.0)
+      { if (i!=m-1)
+        { for (j = l; j < m; j++)
+          { s = 0.0;
+            for (k = l; k < n; k++) s += u[i][k] * u[j][k];
+            /* double division avoids possible underflow */
+            f = (s / u[i][i]) / g;
+            for (k = i; k < n; k++) u[j][k] += f * u[i][k];
+          }
+        }
+        for (j = i; j < n; j++) u[i][j] /= g;
       }
       else
-      /* shift from bottom 2 by 2 minor */
-      { its++;
-        x = w[l];
-        y = w[k1];
-        g = rv1[k1];
-        h = rv1[k];
-        f = ((y - z) * (y + z) + (g - h) * (g + h)) / (2.0 * h * y);
-        g = sqrt(f*f+1.0);
-        f = ((x - z) * (x + z) + h * (y / (f + (f >= 0 ? g : -g)) - h)) / x;
-        /* next qr transformation */
-        c = 1.0;
-        s = 1.0;
-        for (i1 = l; i1 <= k1; i1++)
-        { i = i1 + 1;
-          g = rv1[i];
-          y = w[i];
-          h = s * g;
-          g = c * g;
-          z = sqrt(f*f+h*h);
-          rv1[i1] = z;
-          c = f / z;
-          s = h / z;
-          f = x * c + g * s;
-          g = -x * s + g * c;
-          h = y * s;
-          y = y * c;
-          for (j = 0; j < n; j++)
-          { x = v[j][i1];
-            z = v[j][i];
-            v[j][i1] = x * c + z * s;
-            v[j][i] = -x * s + z * c;
-          }
-          z = sqrt(f*f+h*h);
-          w[i1] = z;
-          /* rotation can be arbitrary if z is zero */
-          if (z!=0.0)
-          { c = f / z;
-            s = h / z;
-          }
-          f = c * g + s * y;
-          x = -s * g + c * y;
-          for (j = 0; j < m; j++)
-          { y = u[j][i1];
-            z = u[j][i];
-            u[j][i1] = y * c + z * s;
-            u[j][i] = -y * s + z * c;
+        for (j = i; j < n; j++) u[i][j] = 0.0;
+      u[i][i] += 1.0;
+    }
+    /* diagonalization of the bidiagonal form */
+    for (k = m-1; k >= 0; k--)
+    { k1 = k-1;
+      its = 0;
+      while(1)
+      /* test for splitting */
+      { for (l = k; l >= 0; l--)
+        { l1 = l-1;
+          if (fabs(rv1[l]) + anorm == anorm) break;
+          /* rv1[0] is always zero, so there is no exit
+           * through the bottom of the loop */
+          if (fabs(w[l1]) + anorm == anorm)
+          /* cancellation of rv1[l] if l greater than 0 */
+          { c = 0.0;
+            s = 1.0;
+            for (i = l; i <= k; i++)
+            { f = s * rv1[i];
+              rv1[i] *= c;
+              if (fabs(f) + anorm == anorm) break;
+              g = w[i];
+              h = sqrt(f*f+g*g);
+              w[i] = h;
+              c = g / h;
+              s = -f / h;
+              for (j = 0; j < n; j++)
+              { y = u[l1][j];
+                z = u[i][j];
+                u[l1][j] = y * c + z * s;
+                u[i][j] = -y * s + z * c;
+              }
+            }
+            break;
           }
         }
-        rv1[l] = 0.0;
-        rv1[k] = f;
-        w[k] = x;
+        /* test for convergence */
+        z = w[k];
+        if (l==k) /* convergence */
+        { if (z < 0.0)
+          /*  w[k] is made non-negative */
+          { w[k] = -z;
+            for (j = 0; j < m; j++) vt[j][k] = -vt[j][k];
+          }
+          break;
+        }
+        else if (its==30)
+        { ierr = k;
+          break;
+        }
+        else
+        /* shift from bottom 2 by 2 minor */
+        { its++;
+          x = w[l];
+          y = w[k1];
+          g = rv1[k1];
+          h = rv1[k];
+          f = ((y - z) * (y + z) + (g - h) * (g + h)) / (2.0 * h * y);
+          g = sqrt(f*f+1.0);
+          f = ((x - z) * (x + z) + h * (y / (f + (f >= 0 ? g : -g)) - h)) / x;
+          /* next qr transformation */
+          c = 1.0;
+          s = 1.0;
+          for (i1 = l; i1 <= k1; i1++)
+          { i = i1 + 1;
+            g = rv1[i];
+            y = w[i];
+            h = s * g;
+            g = c * g;
+            z = sqrt(f*f+h*h);
+            rv1[i1] = z;
+            c = f / z;
+            s = h / z;
+            f = x * c + g * s;
+            g = -x * s + g * c;
+            h = y * s;
+            y = y * c;
+            for (j = 0; j < m; j++)
+            { x = vt[j][i1];
+              z = vt[j][i];
+              vt[j][i1] = x * c + z * s;
+              vt[j][i] = -x * s + z * c;
+            }
+            z = sqrt(f*f+h*h);
+            w[i1] = z;
+            /* rotation can be arbitrary if z is zero */
+            if (z!=0.0)
+            { c = f / z;
+              s = h / z;
+            }
+            f = c * g + s * y;
+            x = -s * g + c * y;
+            for (j = 0; j < n; j++)
+            { y = u[i1][j];
+              z = u[i][j];
+              u[i1][j] = y * c + z * s;
+              u[i][j] = -y * s + z * c;
+            }
+          }
+          rv1[l] = 0.0;
+          rv1[k] = f;
+          w[k] = x;
+        }
       }
     }
   }
   free(rv1);
-  return;
+  return ierr;
+}
+
+/* ********************************************************************* */
+
+int pca(int nrows, int ncolumns, double** u, double** v, double* w)
+/*
+Purpose
+=======
+
+This subroutine uses the singular value decomposition to perform principal
+components analysis of a real nrows by ncolumns rectangular matrix.
+
+Arguments
+=========
+
+nrows     (input) int
+The number of rows in the matrix u.
+
+ncolumns  (input) int
+The number of columns in the matrix v.
+
+u          (input) double[nrows][ncolumns]
+On input, the array containing the data to which the principal component
+analysis should be applied. The function assumes that the mean has already been
+subtracted of each column, and hence that the mean of each column is zero.
+On output, see below.
+
+v          (input) double[n][n], where n = min(nrows, ncolumns)
+Not used on input.
+
+w          (input) double[n], where n = min(nrows, ncolumns)
+Not used on input.
+
+
+Return value
+============
+
+On output:
+
+If nrows >= ncolumns, then
+
+u contains the coordinates with respect to the principal components;
+v contains the principal component vectors.
+
+The dot product u . v reproduces the data that were passed in u.
+
+
+If nrows < ncolumns, then
+
+u contains the principal component vectors;
+v contains the coordinates with respect to the principal components.
+
+The dot product v . u reproduces the data that were passed in u.
+
+The eigenvalues of the covariance matrix are returned in w.
+
+The arrays u, v, and w are sorted according to eigenvalue, with the largest
+eigenvalues appearing first.
+
+The function returns 0 if successful, -1 if memory allocation fails, and a
+positive integer if the singular value decomposition fails to converge.
+*/
+{
+    int i;
+    int j;
+    int error;
+    int* index = malloc(ncolumns*sizeof(int));
+    double* temp = malloc(ncolumns*sizeof(double));
+    if (!index || !temp)
+    {   if (index) free(index);
+        if (temp) free(temp);
+        return -1;
+    }
+    error = svd(nrows, ncolumns, u, w, v);
+    if (error==0)
+    {
+        if (nrows >= ncolumns)
+        {   for (j = 0; j < ncolumns; j++)
+            {   const double s = w[j];
+                for (i = 0; i < nrows; i++) u[i][j] *= s;
+            }
+            sort(ncolumns, w, index);
+            for (i = 0; i < ncolumns/2; i++)
+            {   j = index[i];
+                index[i] = index[ncolumns-1-i];
+                index[ncolumns-1-i] = j;
+            }
+            for (i = 0; i < nrows; i++)
+            {   for (j = 0; j < ncolumns; j++) temp[j] = u[i][index[j]];
+                for (j = 0; j < ncolumns; j++) u[i][j] = temp[j];
+            }
+            for (i = 0; i < ncolumns; i++)
+            {   for (j = 0; j < ncolumns; j++) temp[j] = v[index[j]][i];
+                for (j = 0; j < ncolumns; j++) v[j][i] = temp[j];
+            }
+            for (i = 0; i < ncolumns; i++) temp[i] = w[index[i]];
+            for (i = 0; i < ncolumns; i++) w[i] = temp[i];
+        }
+        else /* nrows < ncolumns */
+        {   for (j = 0; j < nrows; j++)
+            {   const double s = w[j];
+                for (i = 0; i < nrows; i++) v[i][j] *= s;
+            }
+            sort(nrows, w, index);
+            for (i = 0; i < nrows/2; i++)
+            {   j = index[i];
+                index[i] = index[nrows-1-i];
+                index[nrows-1-i] = j;
+            }
+            for (j = 0; j < ncolumns; j++)
+            {   for (i = 0; i < nrows; i++) temp[i] = u[index[i]][j];
+                for (i = 0; i < nrows; i++) u[i][j] = temp[i];
+            }
+            for (j = 0; j < nrows; j++)
+            {   for (i = 0; i < nrows; i++) temp[i] = v[j][index[i]];
+                for (i = 0; i < nrows; i++) v[j][i] = temp[i];
+            }
+            for (i = 0; i < nrows; i++) temp[i] = w[index[i]];
+            for (i = 0; i < nrows; i++) w[i] = temp[i];
+        }
+    }
+    free(index);
+    free(temp);
+    return error;
 }
 
 /* ********************************************************************* */
@@ -606,7 +932,7 @@ void svd(int m, int n, double** u, double w[], double** v, int* ierr)
 static
 double euclid (int n, double** data1, double** data2, int** mask1, int** mask2,
   const double weight[], int index1, int index2, int transpose)
- 
+
 /*
 Purpose
 =======
@@ -1382,7 +1708,7 @@ Otherwise, the distance between two columns in the matrix is calculated.
 
 /* *********************************************************************  */
 
-static double(*setmetric(char dist)) 
+static double(*setmetric(char dist))
   (int, double**, double**, int**, int**, const double[], int, int, int)
 { switch(dist)
   { case 'e': return &euclid;
@@ -1877,7 +2203,7 @@ calculating the medians.
     }
   }
 }
- 
+
 /* ********************************************************************* */
 
 int getclustercentroids(int nclusters, int nrows, int ncolumns,
@@ -1944,7 +2270,7 @@ Return value
 
 The function returns an integer to indicate success or failure. If a
 memory error occurs, or if method is not 'm' or 'a', getclustercentroids
-returns 0. If successful, getclustercentroids returns 1;
+returns 0. If successful, getclustercentroids returns 1.
 ========================================================================
 */
 { switch(method)
@@ -2101,7 +2427,7 @@ kmeans(int nclusters, int nrows, int ncolumns, double** data, int** mask,
         break; /* Identical solution found; break out of this loop */
     }
 
-    if (npass<=1) 
+    if (npass<=1)
     { *error = total;
       break;
     }
@@ -2206,7 +2532,7 @@ kmedians(int nclusters, int nrows, int ncolumns, double** data, int** mask,
         break; /* Identical solution found; break out of this loop */
     }
 
-    if (npass<=1) 
+    if (npass<=1)
     { *error = total;
       break;
     }
@@ -2277,7 +2603,7 @@ of the matrix are clustered.
 
 npass      (input) int
 The number of times clustering is performed. Clustering is performed npass
-times, each time starting from a different (random) initial assignment of 
+times, each time starting from a different (random) initial assignment of
 genes to clusters. The clustering solution with the lowest within-cluster sum
 of distances is chosen.
 If npass==0, then the clustering algorithm will be run once, where the initial
@@ -2371,7 +2697,7 @@ number of clusters is larger than the number of elements being clustered,
       return;
     }
   }
-  
+
   if (method=='m')
   { double* cache = malloc(nelements*sizeof(double));
     if(cache)
@@ -2779,7 +3105,7 @@ weights array, the function returns NULL.
 
 /* ******************************************************************** */
 
-void cuttree (int nelements, Node* tree, int nclusters, int clusterid[]) 
+void cuttree (int nelements, Node* tree, int nclusters, int clusterid[])
 
 /*
 Purpose
@@ -2834,7 +3160,7 @@ error occured, all elements in clusterid are set to -1.
   }
   for (i = 0; i < n; i++) nodeid[i] = -1;
   for (i = n-1; i >= 0; i--)
-  { if(nodeid[i]<0) 
+  { if(nodeid[i]<0)
     { j = icluster;
       nodeid[i] = j;
       icluster++;
@@ -2943,7 +3269,7 @@ If a memory error occurs, pclcluster returns NULL.
   if(!makedatamask(nelements, ndata, &newdata, &newmask))
   { free(result);
     free(distid);
-    return NULL; 
+    return NULL;
   }
 
   for (i = 0; i < nelements; i++) distid[i] = i;
@@ -2987,7 +3313,7 @@ If a memory error occurs, pclcluster returns NULL.
     free(mask[is]);
     data[is] = data[nnodes-inode];
     mask[is] = mask[nnodes-inode];
-  
+
     /* Fix the distances */
     distid[is] = distid[nnodes-inode];
     for (i = 0; i < is; i++)
@@ -3008,7 +3334,7 @@ If a memory error occurs, pclcluster returns NULL.
   free(data);
   free(mask);
   free(distid);
- 
+
   return result;
 }
 
@@ -3503,7 +3829,7 @@ If a memory error occurs, treecluster returns NULL.
     for (i = 1; i < nelements; i++) free(distmatrix[i]);
     free (distmatrix);
   }
- 
+
   return result;
 }
 
@@ -3909,7 +4235,7 @@ somcluster.
 double clusterdistance (int nrows, int ncolumns, double** data,
   int** mask, double weight[], int n1, int n2, int index1[], int index2[],
   char dist, char method, int transpose)
-              
+
 /*
 Purpose
 =======

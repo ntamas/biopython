@@ -3,8 +3,7 @@
 # license.  Please see the LICENSE file that should have been included
 # as part of this package.
 
-"""
-This module provides code to work with Medline.
+"""Code to work with Medline from the NCBI.
 
 Classes:
 Record           A dictionary holding Medline data.
@@ -13,6 +12,9 @@ Functions:
 read             Reads one Medline record
 parse            Allows you to iterate over a bunch of Medline records
 """
+
+
+from __future__ import print_function
 
 class Record(dict):
     """A dictionary holding information from a Medline record.
@@ -93,62 +95,6 @@ class Record(dict):
     SPIN      Summary for patients in
     ORI       Original report in
     """
-    def __init__(self):
-        # The __init__ function can be removed when we remove the old parser
-        self.id = ''
-        self.pubmed_id = ''
-
-        self.mesh_headings = []
-        self.mesh_tree_numbers = []
-        self.mesh_subheadings = []
-
-        self.abstract = ''
-        self.comments = []
-        self.abstract_author = ''
-        self.english_abstract = ''
-
-        self.source = ''
-        self.publication_types = []
-        self.number_of_references = ''
-
-        self.authors = []
-        self.no_author = ''
-        self.address = ''
-
-        self.journal_title_code = ''
-        self.title_abbreviation = ''
-        self.issn = ''
-        self.journal_subsets = []
-        self.country = ''
-        self.languages = []
-
-        self.title = ''
-        self.transliterated_title = ''
-        self.call_number = ''
-        self.issue_part_supplement = ''
-        self.volume_issue = ''
-        self.publication_date = ''
-        self.year = ''
-        self.pagination = ''
-
-        self.special_list = ''
-
-        self.substance_name = ''
-        self.gene_symbols = []
-        self.secondary_source_ids = []
-        self.identifications = []
-        self.registry_numbers = []
-
-        self.personal_name_as_subjects = []
-
-        self.record_originators = []
-        self.entry_date = ''
-        self.entry_month = ''
-        self.class_update_date = ''
-        self.last_revision_date = ''
-        self.major_revision_date = ''
-
-        self.undefined = []
 
 
 def parse(handle):
@@ -163,9 +109,10 @@ def parse(handle):
         handle = open("mymedlinefile")
         records = Medline.parse(handle)
         for record in record:
-            print record['TI']
+            print(record['TI'])
 
     """
+    #TODO - Turn that into a working doctest
     # These keys point to string values
     textkeys = ("ID", "PMID", "SO", "RF", "NI", "JC", "TA", "IS", "CY", "TT",
                 "CA", "IP", "VI", "DP", "YR", "PG", "LID", "DA", "LR", "OWN",
@@ -182,7 +129,7 @@ def parse(handle):
     record = Record()
     finished = False
     while not finished:
-        if line[:6]=="      ": # continuation line
+        if line[:6] == "      ":  # continuation line
             record[key].append(line[6:])
         elif line:
             key = line[:4].rstrip()
@@ -205,8 +152,9 @@ def parse(handle):
             yield record
         record = Record()
 
+
 def read(handle):
-    """Read a single Medline records from the handle.
+    """Read a single Medline record from the handle.
 
     The handle is either is a Medline file, a file-like object, or a list
     of lines describing a Medline record.
@@ -216,8 +164,9 @@ def read(handle):
         from Bio import Medline
         handle = open("mymedlinefile")
         record = Medline.read(handle)
-        print record['TI']
+        print(record['TI'])
 
     """
+    #TODO - Turn that into a working doctest
     records = parse(handle)
     return records.next()

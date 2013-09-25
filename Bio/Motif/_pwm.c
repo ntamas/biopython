@@ -39,16 +39,16 @@ calculate(const char sequence[], int s, PyObject* matrix, npy_intp m)
             {
                 case 'A':
                 case 'a':
-                    score += *((double*)PyArray_GETPTR2(matrix, 0, j)); break;
+                    score += *((double*)PyArray_GETPTR2(matrix, j, 0)); break;
                 case 'C':
                 case 'c':
-                    score += *((double*)PyArray_GETPTR2(matrix, 1, j)); break;
+                    score += *((double*)PyArray_GETPTR2(matrix, j, 1)); break;
                 case 'G':
                 case 'g':
-                    score += *((double*)PyArray_GETPTR2(matrix, 2, j)); break;
+                    score += *((double*)PyArray_GETPTR2(matrix, j, 2)); break;
                 case 'T':
                 case 't':
-                    score += *((double*)PyArray_GETPTR2(matrix, 3, j)); break;
+                    score += *((double*)PyArray_GETPTR2(matrix, j, 3)); break;
                 default:
                     ok = 0;
             }
@@ -94,15 +94,15 @@ py_calculate(PyObject* self, PyObject* args, PyObject* keywords)
             "position-weight matrix has incorrect rank (%d expected 2)",
             PyArray_NDIM(matrix));
     }
-    else if(PyArray_DIM(matrix, 0) != 4)
+    else if(PyArray_DIM(matrix, 1) != 4)
     {
         result = PyErr_Format(PyExc_ValueError,
-            "position-weight matrix should have four rows (%" NPY_INTP_FMT
-            " rows found)", PyArray_DIM(matrix, 0));
+            "position-weight matrix should have four columns (%" NPY_INTP_FMT
+            " columns found)", PyArray_DIM(matrix, 1));
     }
     else
     {
-        m = PyArray_DIM(matrix, 1);
+        m = PyArray_DIM(matrix, 0);
         result = calculate(sequence, s, matrix, m);
     }
     Py_DECREF(matrix);
@@ -111,23 +111,51 @@ py_calculate(PyObject* self, PyObject* args, PyObject* keywords)
 
 
 static struct PyMethodDef methods[] = {
-   {"calculate", (PyCFunction)py_calculate, METH_KEYWORDS, calculate__doc__},
+   {"calculate", (PyCFunction)py_calculate, METH_VARARGS | METH_KEYWORDS, calculate__doc__},
    {NULL,          NULL, 0, NULL} /* sentinel */
 };
 
 
+#if PY_MAJOR_VERSION >= 3
+
+static struct PyModuleDef moduledef = {
+        PyModuleDef_HEAD_INIT,
+        "_pwm",
+        "Fast calculations involving position-weight matrices",
+        -1,
+        methods,
+        NULL,
+        NULL,
+        NULL,
+        NULL
+};
+
+PyObject*
+PyInit__pwm(void)
+
+#else
+
 void init_pwm(void)
+#endif
 {
   PyObject *m;
 
   import_array();
 
+#if PY_MAJOR_VERSION >= 3
+  m = PyModule_Create(&moduledef);
+  if (m==NULL) return NULL;
+#else
   m = Py_InitModule4("_pwm",
                      methods,
                      "Fast calculations involving position-weight matrices",
                      NULL,
                      PYTHON_API_VERSION);
   if (m==NULL) return;
+#endif
 
   if (PyErr_Occurred()) Py_FatalError("can't initialize module _pwm");
+#if PY_MAJOR_VERSION >= 3
+    return m;
+#endif
 }

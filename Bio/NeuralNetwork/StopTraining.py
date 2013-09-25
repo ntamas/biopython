@@ -12,7 +12,10 @@ in this module should be instaniated, and then the stop_training function
 of the classes passed to the network.
 """
 
-class ValidationIncreaseStop:
+
+from __future__ import print_function
+
+class ValidationIncreaseStop(object):
     """Class to stop training on a network when the validation error increases.
 
     Normally, during training of a network, the error will always decrease
@@ -23,8 +26,8 @@ class ValidationIncreaseStop:
     set. This stopping criterion function will stop when the validation
     error increases.
     """
-    def __init__(self, max_iterations = None, min_iterations = 0,
-                 verbose = 0):
+    def __init__(self, max_iterations=None, min_iterations=0,
+                 verbose=0):
         """Initialize the stopping criterion class.
 
         Arguments:
@@ -50,20 +53,20 @@ class ValidationIncreaseStop:
         """
         if num_iterations % 10 == 0:
             if self.verbose:
-                print "%s; Training Error:%s; Validation Error:%s"\
-                      % (num_iterations, training_error, validation_error)
+                print("%s; Training Error:%s; Validation Error:%s"\
+                      % (num_iterations, training_error, validation_error))
 
         if num_iterations > self.min_iterations:
             if self.last_error is not None:
                 if validation_error > self.last_error:
                     if self.verbose:
-                        print "Validation Error increasing -- Stop"
+                        print("Validation Error increasing -- Stop")
                     return 1
 
         if self.max_iterations is not None:
             if num_iterations > self.max_iterations:
                 if self.verbose:
-                    print "Reached maximum number of iterations -- Stop"
+                    print("Reached maximum number of iterations -- Stop")
                 return 1
 
         self.last_error = validation_error

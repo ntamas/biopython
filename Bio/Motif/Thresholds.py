@@ -7,7 +7,7 @@
 """
 import math,random
 
-class ScoreDistribution:
+class ScoreDistribution(object):
     """ Class representing approximate score distribution for a given motif.
 
     Utilizes a dynamic programming approch to calculate the distribution of
@@ -36,8 +36,8 @@ class ScoreDistribution:
     def modify(self,scores,mo_probs,bg_probs):
         mo_new=[0.0]*self.n_points
         bg_new=[0.0]*self.n_points
-        for k in scores.keys():
-            d=self._index_diff(scores[k])
+        for k, v in scores.iteritems():
+            d=self._index_diff(v)
             for i in range(self.n_points):
                 mo_new[self._add(i,d)]+=self.mo_density[i]*mo_probs[k]
                 bg_new[self._add(i,d)]+=self.bg_density[i]*bg_probs[k]

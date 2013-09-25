@@ -3,11 +3,11 @@
 # license.  Please see the LICENSE file that should have been included
 # as part of this package.
 
-"""
-This module provides code to work with the keywlist.txt file from
-SwissProt.
-http://www.expasy.ch/sprot/sprot-top.html
+"""Code to parse the keywlist.txt file from SwissProt/UniProt
 
+See:
+http://www.expasy.ch/sprot/sprot-top.html
+ftp://ftp.expasy.org/databases/uniprot/current_release/knowledgebase/complete/docs/keywlist.txt
 
 Classes:
 Record            Stores the information about one keyword or one category
@@ -18,6 +18,8 @@ parse             Parses the keywlist.txt file and returns an iterator to
                   the records it contains.
 """
 
+
+from __future__ import print_function
 
 class Record(dict):
     """
@@ -43,30 +45,39 @@ class Record(dict):
         dict.__init__(self)
         for keyword in ("DE", "SY", "GO", "HI", "WW"):
             self[keyword] = []
-    
+
+
 def parse(handle):
-    # First, skip the header
+    record = Record()
+    # First, skip the header - look for start of a record
     for line in handle:
-        if line.startswith("______________________________________"):
+        if line.startswith("ID   "):
+            # Looks like there was no header
+            record["ID"] = line[5:].strip()
+            break
+        if line.startswith("IC   "):
+            # Looks like there was no header
+            record["IC"] = line[5:].strip()
             break
     # Now parse the records
-    record = Record()
     for line in handle:
         if line.startswith("-------------------------------------"):
             # We have reached the footer
             break
         key = line[:2]
-        if key=="//":
+        if key == "//":
             record["DE"] = " ".join(record["DE"])
             record["SY"] = " ".join(record["SY"])
             yield record
             record = Record()
-        else:
+        elif line[2:5] == "   ":
             value = line[5:].strip()
             if key in ("ID", "IC", "AC", "CA"):
                 record[key] = value
             elif key in ("DE", "SY", "GO", "HI", "WW"):
                 record[key].append(value)
+            else:
+                print("Ignoring: %s" % line.strip())
     # Read the footer and throw it away
     for line in handle:
         pass

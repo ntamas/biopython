@@ -1,49 +1,62 @@
 # Copyright 2000-2004 Brad Chapman.
 # Copyright 2001 Iddo Friedberg.
-# Copyright 2007-2009 by Peter Cock.
+# Copyright 2007-2010 by Peter Cock.
 # All rights reserved.
 # This code is part of the Biopython distribution and governed by its
 # license.  Please see the LICENSE file that should have been included
 # as part of this package.
-"""
+"""Classes for generic sequence alignment.
+
 Contains classes to deal with generic sequence alignment stuff not
 specific to a particular program or format.
 
-classes:
-o Alignment
+Classes:
+ - Alignment
 """
+from __future__ import print_function
+
+__docformat__ = "epytext en"  # Don't just use plain text in epydoc API pages!
 
 # biopython
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio import Alphabet
 
-class Alignment:
-    """Represent a set of alignments.
+
+class Alignment(object):
+    """Represent a set of alignments (DEPRECATED).
 
     This is a base class to represent alignments, which can be subclassed
     to deal with an alignment in a specific format.
+
+    With the introduction of the MultipleSeqAlignment class in Bio.Align,
+    this base class is deprecated and is likely to be removed in future
+    releases of Biopython.
     """
     def __init__(self, alphabet):
         """Initialize a new Alignment object.
 
         Arguments:
-        o alphabet - The alphabet to use for the sequence objects that are
-        created. This alphabet must be a gapped type.
+         - alphabet - The alphabet to use for the sequence objects that are
+                      created. This alphabet must be a gapped type.
 
         e.g.
+
         >>> from Bio.Alphabet import IUPAC, Gapped
         >>> align = Alignment(Gapped(IUPAC.unambiguous_dna, "-"))
         >>> align.add_sequence("Alpha", "ACTGCTAGCTAG")
         >>> align.add_sequence("Beta",  "ACT-CTAGCTAG")
         >>> align.add_sequence("Gamma", "ACTGCTAGATAG")
-        >>> print align
+        >>> print(align)
         Gapped(IUPACUnambiguousDNA(), '-') alignment with 3 rows and 12 columns
         ACTGCTAGCTAG Alpha
         ACT-CTAGCTAG Beta
         ACTGCTAGATAG Gamma
         """
-        if not (isinstance(alphabet, Alphabet.Alphabet) \
+        import warnings
+        import Bio
+        warnings.warn("With the introduction of the MultipleSeqAlignment class in Bio.Align, this base class is deprecated and is likely to be removed in a future release of Biopython.", Bio.BiopythonDeprecationWarning)
+        if not (isinstance(alphabet, Alphabet.Alphabet)
         or isinstance(alphabet, Alphabet.AlphabetEncoder)):
             raise ValueError("Invalid alphabet argument")
         self._alphabet = alphabet
@@ -74,7 +87,7 @@ class Alignment:
         >>> align.add_sequence("Alpha", "ACTGCTAGCTAG")
         >>> align.add_sequence("Beta",  "ACT-CTAGCTAG")
         >>> align.add_sequence("Gamma", "ACTGCTAGATAG")
-        >>> print align
+        >>> print(align)
         Gapped(IUPACUnambiguousDNA(), '-') alignment with 3 rows and 12 columns
         ACTGCTAGCTAG Alpha
         ACT-CTAGCTAG Beta
@@ -83,7 +96,7 @@ class Alignment:
         See also the alignment's format method.
         """
         rows = len(self._records)
-        lines = ["%s alignment with %i rows and %i columns" \
+        lines = ["%s alignment with %i rows and %i columns"
                  % (str(self._alphabet), rows, self.get_alignment_length())]
         if rows <= 20:
             lines.extend([self._str_line(rec) for rec in self._records])
@@ -125,12 +138,13 @@ class Alignment:
         string.
 
         e.g.
+
         >>> from Bio.Alphabet import IUPAC, Gapped
         >>> align = Alignment(Gapped(IUPAC.unambiguous_dna, "-"))
         >>> align.add_sequence("Alpha", "ACTGCTAGCTAG")
         >>> align.add_sequence("Beta",  "ACT-CTAGCTAG")
         >>> align.add_sequence("Gamma", "ACTGCTAGATAG")
-        >>> print align.format("fasta")
+        >>> print(align.format("fasta"))
         >Alpha
         ACTGCTAGCTAG
         >Beta
@@ -138,7 +152,7 @@ class Alignment:
         >Gamma
         ACTGCTAGATAG
         <BLANKLINE>
-        >>> print align.format("phylip")
+        >>> print(align.format("phylip"))
          3 12
         Alpha      ACTGCTAGCT AG
         Beta       ACT-CTAGCT AG
@@ -151,7 +165,6 @@ class Alignment:
         #See also the SeqRecord class and its format() method using Bio.SeqIO
         return self.__format__(format)
 
-
     def __format__(self, format_spec):
         """Returns the alignment as a string in the specified file format.
 
@@ -160,38 +173,46 @@ class Alignment:
         string supported by Bio.AlignIO as an output file format.
         See also the alignment's format() method."""
         if format_spec:
-            from StringIO import StringIO
+            from Bio._py3k import StringIO
             from Bio import AlignIO
             handle = StringIO()
             AlignIO.write([self], handle, format_spec)
             return handle.getvalue()
         else:
             #Follow python convention and default to using __str__
-            return str(self)    
+            return str(self)
 
     def get_all_seqs(self):
-        """Return all of the sequences involved in the alignment.
+        """Return all of the sequences involved in the alignment (DEPRECATED).
 
         The return value is a list of SeqRecord objects.
 
-        This method is semi-obsolete, as the Alignment object itself offers
+        This method is deprecated, as the Alignment object itself now offers
         much of the functionality of a list of SeqRecord objects (e.g.
-        iteration or slicing to create a sub-alignment).
+        iteration or slicing to create a sub-alignment). Instead use the
+        Python builtin function list, i.e. my_list = list(my_align)
         """
+        import warnings
+        import Bio
+        warnings.warn("This method is deprecated, since the alignment object"
+                      "now acts more like a list. Instead of calling "
+                      "align.get_all_seqs() you can use list(align)",
+                      Bio.BiopythonDeprecationWarning)
         return self._records
 
     def __iter__(self):
         """Iterate over alignment rows as SeqRecord objects.
 
         e.g.
+
         >>> from Bio.Alphabet import IUPAC, Gapped
         >>> align = Alignment(Gapped(IUPAC.unambiguous_dna, "-"))
         >>> align.add_sequence("Alpha", "ACTGCTAGCTAG")
         >>> align.add_sequence("Beta",  "ACT-CTAGCTAG")
         >>> align.add_sequence("Gamma", "ACTGCTAGATAG")
         >>> for record in align:
-        ...    print record.id
-        ...    print record.seq
+        ...    print(record.id)
+        ...    print(record.seq)
         Alpha
         ACTGCTAGCTAG
         Beta
@@ -199,27 +220,24 @@ class Alignment:
         Gamma
         ACTGCTAGATAG
         """
-        return iter(self._records) 
+        return iter(self._records)
 
     def get_seq_by_num(self, number):
-        """Retrieve a sequence by row number (OBSOLETE).
+        """Retrieve a sequence by row number (DEPRECATED).
 
         Returns:
-        o A Seq object for the requested sequence.
+         - A Seq object for the requested sequence.
 
         Raises:
-        o IndexError - If the specified number is out of range.
+         - IndexError - If the specified number is out of range.
 
         NOTE: This is a legacy method.  In new code where you need to access
         the rows of the alignment (i.e. the sequences) consider iterating
-        over them or accessing them as SeqRecord objects.  e.g.
-
-        for record in alignment:
-            print record.id
-            print record.seq
-        first_record = alignment[0]
-        last_record = alignment[-1]
+        over them or accessing them as SeqRecord objects.
         """
+        import warnings
+        import Bio
+        warnings.warn("This is a legacy method and is likely to be removed in a future release of Biopython. In new code where you need to access the rows of the alignment (i.e. the sequences) consider iterating over them or accessing them as SeqRecord objects.", Bio.BiopythonDeprecationWarning)
         return self._records[number].seq
 
     def __len__(self):
@@ -233,7 +251,7 @@ class Alignment:
         list of SeqRecord objects.
         """
         return len(self._records)
-    
+
     def get_alignment_length(self):
         """Return the maximum length of the alignment.
 
@@ -254,7 +272,7 @@ class Alignment:
 
         >>> len(align)
         3
-        
+
         """
         max_length = 0
 
@@ -273,19 +291,19 @@ class Alignment:
         sequences.
 
         Arguments:
-        o descriptor - The descriptive id of the sequence being added.
+         - descriptor - The descriptive id of the sequence being added.
                        This will be used as the resulting SeqRecord's
                        .id property (and, for historical compatibility,
                        also the .description property)
-        o sequence - A string with sequence info.
-        o start - You can explicitly set the start point of the sequence.
-        This is useful (at least) for BLAST alignments, which can just
-        be partial alignments of sequences.
-        o end - Specify the end of the sequence, which is important
-        for the same reason as the start.
-        o weight - The weight to place on the sequence in the alignment.
-        By default, all sequences have the same weight. (0.0 => no weight,
-        1.0 => highest weight)
+         - sequence - A string with sequence info.
+         - start - You can explicitly set the start point of the sequence.
+                   This is useful (at least) for BLAST alignments, which can
+                   just be partial alignments of sequences.
+         - end - Specify the end of the sequence, which is important
+                 for the same reason as the start.
+         - weight - The weight to place on the sequence in the alignment.
+                    By default, all sequences have the same weight. (0.0 =>
+                    no weight, 1.0 => highest weight)
         """
         new_seq = Seq(sequence, self._alphabet)
 
@@ -314,11 +332,12 @@ class Alignment:
         new_record.annotations['weight'] = weight
 
         self._records.append(new_record)
-        
+
     def get_column(self,col):
         """Returns a string containing a given column.
 
         e.g.
+
         >>> from Bio.Alphabet import IUPAC, Gapped
         >>> align = Alignment(Gapped(IUPAC.unambiguous_dna, "-"))
         >>> align.add_sequence("Alpha", "ACTGCTAGCTAG")
@@ -348,22 +367,22 @@ class Alignment:
         >>> align.add_sequence("Gamma",  "ACTGCTAGATAG")
         >>> align.add_sequence("Delta",  "ACTGCTTGCTAG")
         >>> align.add_sequence("Epsilon","ACTGCTTGATAG")
-        
+
         You can access a row of the alignment as a SeqRecord using an integer
         index (think of the alignment as a list of SeqRecord objects here):
 
         >>> first_record = align[0]
-        >>> print first_record.id, first_record.seq
+        >>> print("%s %s" % (first_record.id, first_record.seq))
         Alpha ACTGCTAGCTAG
         >>> last_record = align[-1]
-        >>> print last_record.id, last_record.seq
+        >>> print("%s %s" % (last_record.id, last_record.seq))
         Epsilon ACTGCTTGATAG
 
         You can also access use python's slice notation to create a sub-alignment
         containing only some of the SeqRecord objects:
 
         >>> sub_alignment = align[2:5]
-        >>> print sub_alignment
+        >>> print(sub_alignment)
         Gapped(IUPACUnambiguousDNA(), '-') alignment with 3 rows and 12 columns
         ACTGCTAGATAG Gamma
         ACTGCTTGCTAG Delta
@@ -373,7 +392,7 @@ class Alignment:
         can be used to select every second sequence:
 
         >>> sub_alignment = align[::2]
-        >>> print sub_alignment
+        >>> print(sub_alignment)
         Gapped(IUPACUnambiguousDNA(), '-') alignment with 3 rows and 12 columns
         ACTGCTAGCTAG Alpha
         ACTGCTAGATAG Gamma
@@ -382,7 +401,7 @@ class Alignment:
         Or to get a copy of the alignment with the rows in reverse order:
 
         >>> rev_alignment = align[::-1]
-        >>> print rev_alignment
+        >>> print(rev_alignment)
         Gapped(IUPACUnambiguousDNA(), '-') alignment with 5 rows and 12 columns
         ACTGCTTGATAG Epsilon
         ACTGCTTGCTAG Delta
@@ -406,17 +425,18 @@ class Alignment:
             sub_align._records = self._records[index]
             return sub_align
         elif len(index)==2:
-            raise TypeError("Row and Column indexing is not currently supported,"\
+            raise TypeError("Row and Column indexing is not currently supported,"
                             +"but may be in future.")
         else:
             raise TypeError("Invalid index type.")
 
+
 def _test():
-    """Run the Bio.Seq module's doctests."""
-    print "Running doctests..."
+    """Run the Bio.Align.Generic module's doctests."""
+    print("Running doctests...")
     import doctest
     doctest.testmod()
-    print "Done"
+    print("Done")
 
 if __name__ == "__main__":
     _test()

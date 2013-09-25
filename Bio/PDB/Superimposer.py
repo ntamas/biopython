@@ -3,14 +3,17 @@
 # license.  Please see the LICENSE file that should have been included
 # as part of this package.
 
+"""Superimpose two structures."""
+
+from __future__ import print_function
+
 import numpy
 
 from Bio.SVDSuperimposer import SVDSuperimposer
 from Bio.PDB.PDBExceptions import PDBException
 
-__doc__="Superimpose two structures."
 
-class Superimposer:
+class Superimposer(object):
     """
     Rotate/translate one set of atoms on top of another,
     thereby minimizing the RMSD.
@@ -21,11 +24,11 @@ class Superimposer:
 
     def set_atoms(self, fixed, moving):
         """
-        Put (translate/rotate) the atoms in fixed on the atoms in 
+        Put (translate/rotate) the atoms in fixed on the atoms in
         moving, in such a way that the RMSD is minimized.
 
         @param fixed: list of (fixed) atoms
-        @param moving: list of (moving) atoms 
+        @param moving: list of (moving) atoms
         @type fixed,moving: [L{Atom}, L{Atom},...]
         """
         if not (len(fixed)==len(moving)):
@@ -58,7 +61,7 @@ class Superimposer:
 if __name__=="__main__":
     import sys
 
-    from Bio.PDB import *
+    from Bio.PDB import PDBParser, Selection
 
     p=PDBParser()
     s1=p.get_structure("FIXED", sys.argv[1])
@@ -72,17 +75,12 @@ if __name__=="__main__":
 
     for atom in moving:
         atom.transform(rot, tran)
-    
+
     sup=Superimposer()
 
     sup.set_atoms(fixed, moving)
 
-    print sup.rotran
-    print sup.rms
+    print(sup.rotran)
+    print(sup.rms)
 
     sup.apply(moving)
-
-
-
-
-

@@ -6,7 +6,8 @@
 # Patched by Brad Chapman.
 # Chris Wroe added modifications for work in myGrid
 
-"""
+"""Code to invoke the NCBI BLAST server over the internet.
+
 This module provides code to work with the WWW version of BLAST
 provided by the NCBI.
 http://blast.ncbi.nlm.nih.gov/
@@ -15,11 +16,10 @@ Functions:
 qblast        Do a BLAST search using the QBLAST API.
 """
 
-try:
-    import cStringIO as StringIO
-except ImportError:
-    import StringIO
+from __future__ import print_function
 
+from Bio._py3k import StringIO
+from Bio._py3k import _as_string, _as_bytes
 
 
 def qblast(program, database, sequence,
@@ -35,7 +35,7 @@ def qblast(program, database, sequence,
            alignments=500,alignment_view=None,descriptions=500,
            entrez_links_new_window=None,expect_low=None,expect_high=None,
            format_entrez_query=None,format_object=None,format_type='XML',
-           ncbi_gi=None,results_file=None,show_overview=None
+           ncbi_gi=None,results_file=None,show_overview=None, megablast=None,
            ):
     """Do a BLAST search using the QBLAST server at NCBI.
 
@@ -53,19 +53,25 @@ def qblast(program, database, sequence,
     format_type    "HTML", "Text", "ASN.1", or "XML".  Def. "XML".
     entrez_query   Entrez query to limit Blast search
     hitlist_size   Number of hits to return. Default 50
+    megablast      TRUE/FALSE whether to use MEga BLAST algorithm (blastn only)
+    service        plain, psi, phi, rpsblast, megablast (lower case)
 
     This function does no checking of the validity of the parameters
     and passes the values to the server as is.  More help is available at:
-    http://www.ncbi.nlm.nih.gov/BLAST/blast_overview.html
+    http://www.ncbi.nlm.nih.gov/BLAST/Doc/urlapi.html
 
     """
-    import urllib, urllib2
+    import urllib
+    import urllib2
     import time
 
     assert program in ['blastn', 'blastp', 'blastx', 'tblastn', 'tblastx']
 
     # Format the "Put" command, which sends search requests to qblast.
     # Parameters taken from http://www.ncbi.nlm.nih.gov/BLAST/Doc/node5.html on 9 July 2007
+    # Additional parameters are taken from http://www.ncbi.nlm.nih.gov/BLAST/Doc/node9.html on 8 Oct 2010
+    # To perform a PSI-BLAST or PHI-BLAST search the service ("Put" and "Get" commands) must be specified
+    # (e.g. psi_blast = NCBIWWW.qblast("blastp", "refseq_protein", input_sequence, service="psi"))
     parameters = [
         ('AUTO_FORMAT',auto_format),
         ('COMPOSITION_BASED_STATISTICS',composition_based_statistics),
@@ -81,6 +87,7 @@ def qblast(program, database, sequence,
         ('I_THRESH',i_thresh),
         ('LAYOUT',layout),
         ('LCASE_MASK',lcase_mask),
+        ('MEGABLAST',megablast),
         ('MATRIX_NAME',matrix_name),
         ('NUCL_PENALTY',nucl_penalty),
         ('NUCL_REWARD',nucl_reward),
@@ -88,11 +95,13 @@ def qblast(program, database, sequence,
         ('PERC_IDENT',perc_ident),
         ('PHI_PATTERN',phi_pattern),
         ('PROGRAM',program),
+        #('PSSM',pssm), - It is possible to use PSI-BLAST via this API?
         ('QUERY',sequence),
         ('QUERY_FILE',query_file),
         ('QUERY_BELIEVE_DEFLINE',query_believe_defline),
         ('QUERY_FROM',query_from),
         ('QUERY_TO',query_to),
+        #('RESULTS_FILE',...), - Can we use this parameter?
         ('SEARCHSP_EFF',searchsp_eff),
         ('SERVICE',service),
         ('THRESHOLD',threshold),
@@ -101,7 +110,7 @@ def qblast(program, database, sequence,
         ('CMD', 'Put'),
         ]
     query = [x for x in parameters if x[1] is not None]
-    message = urllib.urlencode(query)
+    message = _as_bytes(urllib.urlencode(query))
 
     # Send off the initial query to qblast.
     # Note the NCBI do not currently impose a rate limit here, other
@@ -113,7 +122,7 @@ def qblast(program, database, sequence,
     handle = urllib2.urlopen(request)
 
     # Format the "Get" command, which gets the formatted results from qblast
-    # Parameters taken from http://www.ncbi.nlm.nih.gov/BLAST/Doc/node6.html on 9 July 2007    
+    # Parameters taken from http://www.ncbi.nlm.nih.gov/BLAST/Doc/node6.html on 9 July 2007
     rid, rtoe = _parse_qblast_ref_page(handle)
     parameters = [
         ('ALIGNMENTS',alignments),
@@ -133,7 +142,7 @@ def qblast(program, database, sequence,
         ('CMD', 'Get'),
         ]
     query = [x for x in parameters if x[1] is not None]
-    message = urllib.urlencode(query)
+    message = _as_bytes(urllib.urlencode(query))
 
     # Poll NCBI until the results are ready.  Use a 3 second wait
     delay = 3.0
@@ -151,13 +160,14 @@ def qblast(program, database, sequence,
                                   message,
                                   {"User-Agent":"BiopythonClient"})
         handle = urllib2.urlopen(request)
-        results = handle.read()
+        results = _as_string(handle.read())
+
         # Can see an "\n\n" page while results are in progress,
         # if so just wait a bit longer...
         if results=="\n\n":
             continue
         # XML results don't have the Status tag when finished
-        if results.find("Status=") < 0:
+        if "Status=" not in results:
             break
         i = results.index("Status=")
         j = results.index("\n", i)
@@ -165,7 +175,8 @@ def qblast(program, database, sequence,
         if status.upper() == "READY":
             break
 
-    return StringIO.StringIO(results)
+    return StringIO(results)
+
 
 def _parse_qblast_ref_page(handle):
     """Extract a tuple of RID, RTOE from the 'please wait' page (PRIVATE).
@@ -173,7 +184,7 @@ def _parse_qblast_ref_page(handle):
     The NCBI FAQ pages use TOE for 'Time of Execution', so RTOE is proably
     'Request Time of Execution' and RID would be 'Request Identifier'.
     """
-    s = handle.read()
+    s = _as_string(handle.read())
     i = s.find("RID =")
     if i == -1:
         rid = None
@@ -192,16 +203,34 @@ def _parse_qblast_ref_page(handle):
         #Can we reliably extract the error message from the HTML page?
         #e.g.  "Message ID#24 Error: Failed to read the Blast query:
         #       Nucleotide FASTA provided for protein sequence"
-        #This occurs inside a <div class="error msInf"> entry so try this:
+        #or    "Message ID#32 Error: Query contains no data: Query
+        #       contains no sequence data"
+        #
+        #This used to occur inside a <div class="error msInf"> entry:
         i = s.find('<div class="error msInf">')
         if i != -1:
             msg = s[i+len('<div class="error msInf">'):].strip()
             msg = msg.split("</div>",1)[0].split("\n",1)[0].strip()
             if msg:
                 raise ValueError("Error message from NCBI: %s" % msg)
+        #In spring 2010 the markup was like this:
+        i = s.find('<p class="error">')
+        if i != -1:
+            msg = s[i+len('<p class="error">'):].strip()
+            msg = msg.split("</p>",1)[0].split("\n",1)[0].strip()
+            if msg:
+                raise ValueError("Error message from NCBI: %s" % msg)
+        #Generic search based on the way the error messages start:
+        i = s.find('Message ID#')
+        if i != -1:
+            #Break the message at the first HTML tag
+            msg = s[i:].split("<",1)[0].split("\n",1)[0].strip()
+            raise ValueError("Error message from NCBI: %s" % msg)
         #We didn't recognise the error layout :(
-        raise ValueError("No RID and no RTOE found in the 'please wait' page."
-                         " (there was probably a problem with your request)")
+        #print s
+        raise ValueError("No RID and no RTOE found in the 'please wait' page, "
+                         "there was probably an error in your request but we "
+                         "could not extract a helpful error message.")
     elif not rid:
         #Can this happen?
         raise ValueError("No RID found in the 'please wait' page."
@@ -214,5 +243,5 @@ def _parse_qblast_ref_page(handle):
     try:
         return rid, int(rtoe)
     except ValueError:
-        raise ValueError("A non-integer RTOE found in " \
+        raise ValueError("A non-integer RTOE found in "
                          +"the 'please wait' page, %s" % repr(rtoe))

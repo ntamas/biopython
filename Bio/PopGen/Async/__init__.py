@@ -13,7 +13,7 @@ import os
 import thread
 
 
-class Async:
+class Async(object):
     '''Abstract Asynchronous execution class.
 
        This is the top abstract class.
@@ -36,7 +36,7 @@ class Async:
 
     def run_program(self, program, parameters, input_files):
         '''Runs a program.
-        
+
            Real _run_program to be implemented by concrete classes.
 
            parameters:
@@ -59,6 +59,14 @@ class Async:
             self._run_program(id, self.hooks[program], parameters, input_files)
             return id
 
+    def _run_program(self, id, program, parameters, input_files):
+        """Actually run the program, handled by a subclass (PRIVATE).
+
+        This method should be replaced by any derived class to do
+        something useful. It will be called by the run_program method.
+        """
+        raise NotImplementedError("This object should be subclassed")
+
     def get_result(self, id):
         ''' Returns the results for a certain Id, the info for that Id is
             forgotten.
@@ -75,14 +83,15 @@ class Async:
         '''
         self.access_ds.acquire()
         if id in self.done:
-            returnCode, fileObject = done[id]
-            del done[id]
+            returnCode, fileObject = self.done[id]
+            del self.done[id]
             self.access_ds.release()
         else:
             self.access_ds.release()
             return None
 
-class FileRetriever:
+
+class FileRetriever(object):
     '''An Abstract Support class to retrieve files.
     '''
 
@@ -96,6 +105,7 @@ class FileRetriever:
 
     def get_file(self, name):
         raise NotImplementedError('Abstract method')
+
 
 class DirectoryRetriever(FileRetriever):
     '''Retrieves a directory content.

@@ -4,6 +4,9 @@ This just collects general functions which you might like to use in
 dealing with HMMs.
 """
 
+
+from __future__ import print_function
+
 def pretty_print_prediction(emissions, real_state, predicted_state,
                             emission_title = "Emissions",
                             real_title = "Real State",
@@ -12,7 +15,7 @@ def pretty_print_prediction(emissions, real_state, predicted_state,
     """Print out a state sequence prediction in a nice manner.
 
     Arguments:
-    
+
     o emissions -- The sequence of emissions of the sequence you are
     dealing with.
 
@@ -37,22 +40,16 @@ def pretty_print_prediction(emissions, real_state, predicted_state,
             extension = seq_length
         else:
             extension = len(emissions) - cur_position
-        
-        print "%s%s" % (emission_title,
-                        emissions.data[cur_position:cur_position + seq_length])
-        print "%s%s" % (real_title,
-                        real_state.data[cur_position:
-                                        cur_position + seq_length])
-        print "%s%s\n" % (predicted_title,
-                          predicted_state.data[cur_position:
-                                               cur_position + seq_length])
+
+        print("%s%s" % (emission_title,
+                        emissions[cur_position:cur_position + seq_length]))
+        print("%s%s" % (real_title,
+                        real_state[cur_position:cur_position + seq_length]))
+        print("%s%s\n" % (predicted_title,
+                          predicted_state[cur_position:
+                                          cur_position + seq_length]))
 
         if (len(emissions) < (cur_position + seq_length)):
             break
 
         cur_position += seq_length
-
-    
-        
-        
-    

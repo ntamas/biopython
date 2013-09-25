@@ -10,9 +10,11 @@ import unittest
 
 try:
     import numpy
+    from numpy import asarray
+    del asarray
 except ImportError:
-    from Bio import MissingExternalDependencyError
-    raise MissingExternalDependencyError(\
+    from Bio import MissingPythonDependencyError
+    raise MissingPythonDependencyError(
         "Install NumPy if you want to use Bio.kNN.")
 
 from Bio import kNN
@@ -53,6 +55,7 @@ ys = [1,
       0,
       0]
 
+
 class TestKNN(unittest.TestCase):
 
     def test_calculate_model(self):
@@ -61,8 +64,8 @@ class TestKNN(unittest.TestCase):
         self.assertEqual(model.classes, set([0,1]))
         n = len(xs)
         for i in range(n):
-            self.assertAlmostEqual(model.xs[i,0], xs[i][0], 4)
-            self.assertAlmostEqual(model.xs[i,1], xs[i][1], 4)
+            self.assertAlmostEqual(model.xs[i,0], xs[i][0], places=4)
+            self.assertAlmostEqual(model.xs[i,1], xs[i][1], places=4)
             self.assertEqual(model.ys[i], ys[i])
         self.assertEqual(model.k, k)
 
@@ -78,14 +81,14 @@ class TestKNN(unittest.TestCase):
         k = 3
         model = kNN.train(xs, ys, k)
         weights = kNN.calculate(model, [6,-173.143442352])
-        self.assertAlmostEqual(weights[0], 0.0, 6)
-        self.assertAlmostEqual(weights[1], 3.0, 6)
+        self.assertAlmostEqual(weights[0], 0.0, places=6)
+        self.assertAlmostEqual(weights[1], 3.0, places=6)
         weights = kNN.calculate(model, [309, -271.005880394])
-        self.assertAlmostEqual(weights[0], 3.0, 6)
-        self.assertAlmostEqual(weights[1], 0.0, 6)
+        self.assertAlmostEqual(weights[0], 3.0, places=6)
+        self.assertAlmostEqual(weights[1], 0.0, places=6)
         weights = kNN.calculate(model, [117, -267.13999999999999])
-        self.assertAlmostEqual(weights[0], 2.0, 6)
-        self.assertAlmostEqual(weights[1], 1.0, 6)
+        self.assertAlmostEqual(weights[0], 2.0, places=6)
+        self.assertAlmostEqual(weights[1], 1.0, places=6)
 
     def test_model_accuracy(self):
         correct = 0

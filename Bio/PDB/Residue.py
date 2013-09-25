@@ -1,14 +1,14 @@
 # Copyright (C) 2002, Thomas Hamelryck (thamelry@binf.ku.dk)
 # This code is part of the Biopython distribution and governed by its
 # license.  Please see the LICENSE file that should have been included
-# as part of this package.  
+# as part of this package.
 
 # My Stuff
-from PDBExceptions import PDBConstructionException
-from Entity import Entity, DisorderedEntityWrapper
+from Bio.PDB.PDBExceptions import PDBConstructionException
+from Bio.PDB.Entity import Entity, DisorderedEntityWrapper
 
 
-__doc__="Residue class, used by Structure objects."
+"""Residue class, used by Structure objects."""
 
 
 _atom_name_dict={}
@@ -42,7 +42,7 @@ class Residue(Entity):
     def _sort(self, a1, a2):
         """Sort the Atom objects.
 
-        Atoms are sorted alphabetically according to their name, 
+        Atoms are sorted alphabetically according to their name,
         but N, CA, C, O always come first.
 
         Arguments:
@@ -52,11 +52,11 @@ class Residue(Entity):
         name2=a2.get_name()
         if name1==name2:
             return(cmp(a1.get_altloc(), a2.get_altloc()))
-        if _atom_name_dict.has_key(name1):
+        if name1 in _atom_name_dict:
             index1=_atom_name_dict[name1]
         else:
             index1=None
-        if _atom_name_dict.has_key(name2):
+        if name2 in _atom_name_dict:
             index2=_atom_name_dict[name2]
         else:
             index2=None
@@ -78,7 +78,7 @@ class Residue(Entity):
         """
         atom_id=atom.get_id()
         if self.has_id(atom_id):
-            raise PDBConstructionException( \
+            raise PDBConstructionException(
                 "Atom %s defined twice in residue %s" % (atom_id, self))
         Entity.add(self, atom)
 
@@ -107,7 +107,7 @@ class Residue(Entity):
                 undisordered_atom_list=(undisordered_atom_list+ atom.disordered_get_list())
             else:
                 undisordered_atom_list.append(atom)
-        return undisordered_atom_list       
+        return undisordered_atom_list
 
     def get_segid(self):
         return self.segid
@@ -134,18 +134,18 @@ class DisorderedResidue(DisorderedEntityWrapper):
             # Atoms in disordered residues should have non-blank
             # altlocs, and are thus represented by DisorderedAtom objects.
             resname=residue.get_resname()
-            het, resseq, icode=residue.get_id() 
+            het, resseq, icode=residue.get_id()
             # add atom anyway, if PDBParser ignores exception the atom will be part of the residue
             residue.add(atom)
-            raise PDBConstructionException( \
-                "Blank altlocs in duplicate residue %s (%s, %i, %s)" \
+            raise PDBConstructionException(
+                "Blank altlocs in duplicate residue %s (%s, %i, %s)"
                 % (resname, het, resseq, icode) )
         residue.add(atom)
 
     def sort(self):
         "Sort the atoms in the child Residue objects."
         for residue in self.disordered_get_list():
-            residue.sort() 
+            residue.sort()
 
     def disordered_add(self, residue):
         """Add a residue object and use its resname as key.
@@ -160,8 +160,3 @@ class DisorderedResidue(DisorderedEntityWrapper):
         assert(not self.disordered_has_id(resname))
         self[resname]=residue
         self.disordered_select(resname)
-
-
-    
-
-    

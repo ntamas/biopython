@@ -6,17 +6,15 @@ in case the calculation was done.
 
 """
 
-from logging import debug
-from sys import exit
 import os
 import tarfile
-import tempfile
 from Controller import SimCoalController
 
-class SimCoalCache:
+
+class SimCoalCache(object):
     def __init__(self, data_dir, simcoal_dir):
         """Initializes the cache.
-        
+
         data_dir - Where the cache can be found
         simcoal_dir - where the binaries are
 
@@ -29,12 +27,11 @@ class SimCoalCache:
         self.cacheDir = os.sep.join([data_dir, 'SimCoal', 'cache'])
         self.simcoalDir = simcoal_dir
 
-
     def run_simcoal(self, par_file, num_sims, ploydi = '1', parDir = None):
-        if parDir == None:
+        if parDir is None:
             parDir = os.sep.join([self.dataDir, 'SimCoal', 'runs'])
         par_file_root = par_file[:-4]
-        tar_name = os.sep.join([self.cacheDir, ploydi, par_file_root + 
+        tar_name = os.sep.join([self.cacheDir, ploydi, par_file_root +
             '.tar.bz2'])
         if os.access(tar_name, os.R_OK):
             tf = tarfile.open(tar_name)
@@ -49,7 +46,7 @@ class SimCoalCache:
             try:
                 tf.close()
             except NameError:
-                pass #not opened in the first place, OK.
+                pass  # not opened in the first place, OK.
         scc = SimCoalController(self.simcoalDir)
         scc.run_simcoal(par_file, num_sims, ploydi, parDir)
         tf = tarfile.open(tar_name, 'w:bz2')
@@ -75,16 +72,16 @@ class SimCoalCache:
 
            This mainly means untaring a file.
         '''
-        if parDir == None:
-            parDir = os.sep.join([Config.dataDir, 'SimCoal', 'runs'])
-        tar_name = os.sep.join([self.cacheDir, ploidy, sim_name + 
+        if parDir is None:
+            parDir = os.sep.join([self.dataDir, 'SimCoal', 'runs'])
+        tar_name = os.sep.join([self.cacheDir, ploidy, sim_name +
             '.tar.bz2'])
         tf = tarfile.open(tar_name)
         tf.extractall(parDir)
         tf.close()
 
 
-if __name__ == '__main__':
-  cache = Cache('/home/work/werk/consolidator/sc_cache',
-      '/home/work/software/simcoal')
-  cache.run_simcoal('.', 'island_snp-50_0.0025_10_0.083_100_60.par', 102)
+#if __name__ == '__main__':
+#  cache = Cache('/home/work/werk/consolidator/sc_cache',
+#      '/home/work/software/simcoal')
+#  cache.run_simcoal('.', 'island_snp-50_0.0025_10_0.083_100_60.par', 102)

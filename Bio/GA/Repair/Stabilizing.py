@@ -8,7 +8,8 @@ check.
 # standard library
 import random
 
-class AmbiguousRepair:
+
+class AmbiguousRepair(object):
     """Perform repair to reduce the number of Ambiguous genes in a genome.
 
     In cases where ambiguous genes are allowed in a genome (for example,
@@ -39,12 +40,12 @@ class AmbiguousRepair:
         """Perform a repair to remove excess ambiguous genes.
         """
         new_org = organism.copy()
-        
+
         # start getting rid of ambiguous items
         while 1:
             # first find all of the ambigous items
             seq_genome = new_org.genome.toseq()
-            all_ambiguous = self._ambig_finder.find_ambiguous(seq_genome.data)
+            all_ambiguous = self._ambig_finder.find_ambiguous(str(seq_genome))
 
             # if we have less then the number of ambiguous allowed, stop
             if len(all_ambiguous) <= self._num_ambiguous:
@@ -56,4 +57,3 @@ class AmbiguousRepair:
             new_org.genome[to_change] = new_gene
 
         return new_org
-            

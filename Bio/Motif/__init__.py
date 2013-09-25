@@ -2,20 +2,37 @@
 # This code is part of the Biopython distribution and governed by its
 # license.  Please see the LICENSE file that should have been included
 # as part of this package.
-"""
-Module containing different tools for sequence motif analysis.
+"""Tools for sequence motif analysis (DEPRECATED, see Bio.motifs instead).
 
-it contains the core Motif class containing various I/O methods
-as well as methods for motif comparisons and motif searching in sequences.
-It also inlcudes functionality for parsing AlignACE and MEME programs
-"""
-from _Motif import Motif
-from Parsers.AlignAce import AlignAceParser, CompareAceParser
-from Parsers.MEME import MEMEParser,MASTParser
-from Thresholds import ScoreDistribution
+This module (Bio.Motif) has been deprecated and will be removed in a
+future release of release of Biopython. Please use the new module
+Bio.motifs instead.
 
-_parsers={"AlignAce":AlignAceParser,
-          "MEME":MEMEParser
+This contains the core Motif class containing various I/O methods as
+well as methods for motif comparisons and motif searching in sequences.
+It also inlcudes functionality for parsing AlignACE and MEME programs.
+"""
+
+from __future__ import print_function
+
+import warnings
+from Bio import BiopythonDeprecationWarning
+warnings.warn("The module Bio.Motif has been deprecated and will be "
+              "removed in a future release of Biopython. Instead "
+              "please use the new module Bio.motifs instead. Please "
+              "be aware that though the functionality of Bio.Motif "
+              "is retained (and extended) in Bio.motifs, usage may "
+              "be different.",
+              BiopythonDeprecationWarning)
+
+
+from Bio.Motif._Motif import Motif
+from Bio.Motif.Parsers.AlignAce import read as _AlignAce_read
+from Bio.Motif.Parsers.MEME import read as _MEME_read
+from Bio.Motif.Thresholds import ScoreDistribution
+
+_parsers={"AlignAce" : _AlignAce_read,
+          "MEME" : _MEME_read,
           }
 
 def _from_pfm(handle):
@@ -46,7 +63,7 @@ def parse(handle,format):
 
     >>> from Bio import Motif
     >>> for motif in Motif.parse(open("Motif/alignace.out"),"AlignAce"):
-    ...     print motif.consensus()
+    ...     print(motif.consensus())
     TCTACGATTGAG
     CTGCACCTAGCTACGAGTGAG
     GTGCCCTAAGCATACTAGGCG
@@ -75,7 +92,7 @@ def parse(handle,format):
         else: #we have a proper reader 
             yield reader(handle)
     else: # we have a proper reader
-        for m in parser().parse(handle).motifs:
+        for m in parser(handle).motifs:
             yield m
 
 def read(handle,format):
@@ -143,13 +160,13 @@ def _test():
     import doctest
     import os
     if os.path.isdir(os.path.join("..","..","Tests")):
-        print "Runing doctests..."
+        print("Runing doctests...")
         cur_dir = os.path.abspath(os.curdir)
         os.chdir(os.path.join("..","..","Tests"))
         doctest.testmod()
         os.chdir(cur_dir)
         del cur_dir
-        print "Done"
+        print("Done")
 
 if __name__ == "__main__":
     #Run the doctests

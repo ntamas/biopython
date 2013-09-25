@@ -1,7 +1,7 @@
 <!-- ============================================
      ::DATATOOL:: Generated from "seq.asn"
-     ::DATATOOL:: by application DATATOOL version 1.9.0
-     ::DATATOOL:: on 04/10/2008 16:04:22
+     ::DATATOOL:: by application DATATOOL version 2.4.4
+     ::DATATOOL:: on 09/25/2012 23:04:47
      ============================================ -->
 
 <!-- ============================================ -->
@@ -9,7 +9,7 @@
 ================================================= -->
 
 <!--
-$Revision: 1.1 $
+$Revision: 375986 $
 **********************************************************************
 
   NCBI Sequence elements
@@ -37,7 +37,8 @@ $Revision: 1.1 $
           Seq-inst,
           Seq-literal,
           Seqdesc,
-          Delta-ext -->
+          Delta-ext,
+          Seq-gap -->
 
 <!-- Elements referenced from other modules:
           Date,
@@ -46,7 +47,8 @@ $Revision: 1.1 $
           Object-id,
           User-object FROM NCBI-General,
           Seq-align FROM NCBI-Seqalign,
-          Seq-feat FROM NCBI-Seqfeat,
+          Seq-feat,
+          ModelEvidenceSupport FROM NCBI-Seqfeat,
           Seq-graph FROM NCBI-Seqres,
           Pub-equiv FROM NCBI-Pub,
           Org-ref FROM NCBI-Organism,
@@ -114,7 +116,8 @@ $Revision: 1.1 $
         Seqdesc_pdb | 
         Seqdesc_het | 
         Seqdesc_source | 
-        Seqdesc_molinfo)>
+        Seqdesc_molinfo | 
+        Seqdesc_modelev)>
 
 <!-- type of molecule -->
 <!ELEMENT Seqdesc_mol-type (GIBB-mol)>
@@ -188,6 +191,9 @@ $Revision: 1.1 $
 <!-- info on the molecule and techniques -->
 <!ELEMENT Seqdesc_molinfo (MolInfo)>
 
+<!-- model evidence for XM records -->
+<!ELEMENT Seqdesc_modelev (ModelEvidenceSupport)>
+
 <!--
 ******* NOTE:
 *       mol-type, modif, method, and org are consolidated and expanded
@@ -215,7 +221,7 @@ $Revision: 1.1 $
 <!ELEMENT MolInfo_biomol (%INTEGER;)>
 
 <!--
-    pre-RNA	-  precursor RNA of any sort really 
+    pre-RNA	-  precursor RNA of any sort really
     other-genetic	-  other genetic material
     genomic-mRNA	-  reported a mix of genomic and cdna sequence
     cRNA	-  viral RNA genome copy intermediate
@@ -342,7 +348,7 @@ $Revision: 1.1 $
 <!ELEMENT GIBB-mol %ENUM;>
 
 <!--
-    pre-mRNA	-  precursor RNA of any sort really 
+    pre-mRNA	-  precursor RNA of any sort really
     other-genetic	-  other genetic material
     genomic-mRNA	-  reported a mix of genomic and cdna sequence
 -->
@@ -842,9 +848,15 @@ $Revision: 1.1 $
 
 <!ELEMENT Seq-gap (
         Seq-gap_type, 
-        Seq-gap_linkage?)>
+        Seq-gap_linkage?, 
+        Seq-gap_linkage-evidence?)>
 
 <!ELEMENT Seq-gap_type (%INTEGER;)>
+
+<!--
+    fragment	-  Deprecated. Used only for AGP 1.1
+    clone	-  Deprecated. Used only for AGP 1.1
+-->
 <!ATTLIST Seq-gap_type value (
         unknown |
         fragment |
@@ -855,6 +867,7 @@ $Revision: 1.1 $
         telomere |
         repeat |
         contig |
+        scaffold |
         other
         ) #IMPLIED >
 
@@ -863,6 +876,28 @@ $Revision: 1.1 $
 <!ATTLIST Seq-gap_linkage value (
         unlinked |
         linked |
+        other
+        ) #IMPLIED >
+
+
+<!ELEMENT Seq-gap_linkage-evidence (Linkage-evidence*)>
+
+
+<!ELEMENT Linkage-evidence (
+        Linkage-evidence_type)>
+
+<!ELEMENT Linkage-evidence_type (%INTEGER;)>
+<!ATTLIST Linkage-evidence_type value (
+        paired-ends |
+        align-genus |
+        align-xgenus |
+        align-trnscpt |
+        within-clone |
+        clone-contig |
+        map |
+        strobe |
+        unspecified |
+        pcr |
         other
         ) #IMPLIED >
 
@@ -914,17 +949,46 @@ $Revision: 1.1 $
 <!--
 *** Sequence Annotation *************************************
 *
+ This is a replica of Textseq-id
+ This is specific for annotations, and exists to maintain a semantic
+ difference between IDs assigned to annotations and IDs assigned to
+ sequences
 -->
+<!ELEMENT Textannot-id (
+        Textannot-id_name?, 
+        Textannot-id_accession?, 
+        Textannot-id_release?, 
+        Textannot-id_version?)>
+
+<!ELEMENT Textannot-id_name (#PCDATA)>
+
+<!ELEMENT Textannot-id_accession (#PCDATA)>
+
+<!ELEMENT Textannot-id_release (#PCDATA)>
+
+<!ELEMENT Textannot-id_version (%INTEGER;)>
+
+
 <!ELEMENT Annot-id (
         Annot-id_local | 
         Annot-id_ncbi | 
-        Annot-id_general)>
+        Annot-id_general | 
+        Annot-id_other)>
 
 <!ELEMENT Annot-id_local (Object-id)>
 
 <!ELEMENT Annot-id_ncbi (%INTEGER;)>
 
 <!ELEMENT Annot-id_general (Dbtag)>
+<!--
+*** Sequence Annotation *************************************
+*
+ This is a replica of Textseq-id
+ This is specific for annotations, and exists to maintain a semantic
+ difference between IDs assigned to annotations and IDs assigned to
+ sequences
+-->
+<!ELEMENT Annot-id_other (Textannot-id)>
 
 
 <!ELEMENT Annot-descr (Annotdesc*)>

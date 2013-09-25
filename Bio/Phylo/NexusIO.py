@@ -3,15 +3,14 @@
 # license. Please see the LICENSE file that should have been included
 # as part of this package.
 
-"""I/O function wrappers for Bio.Nexus trees."""
-__docformat__ = "epytext en"
+"""I/O function wrappers for `Bio.Nexus` trees."""
+__docformat__ = "restructuredtext en"
 
 from itertools import chain
 
 from Bio.Nexus import Nexus
-from Bio.Phylo import Newick
+from Bio.Phylo import Newick, NewickIO
 
-import NewickIO
 
 # Structure of a Nexus tree-only file
 NEX_TEMPLATE = """\
@@ -34,10 +33,11 @@ def parse(handle):
 
     Uses the old Nexus.Trees parser to extract the trees, converts them back to
     plain Newick trees, and feeds those strings through the new Newick parser.
-    This way we don't have to modify the Nexus module yet. When we're satisfied
-    with Bio.Phylo, we can change Nexus to use the new NewickIO parser directly.
+    This way we don't have to modify the Nexus module yet. (Perhaps we'll
+    eventually change Nexus to use the new NewickIO parser directly.)
     """
     nex = Nexus.Nexus(handle)
+
     # NB: Once Nexus.Trees is modified to use Tree.Newick objects, do this:
     # return iter(nex.trees)
     # Until then, convert the Nexus.Trees.Tree object hierarchy:
@@ -47,13 +47,14 @@ def parse(handle):
                 branch_length=node.data.branchlength,
                 name=node.data.taxon,
                 clades=subclades,
-                support=node.data.support,
+                confidence=node.data.support,
                 comment=node.data.comment)
 
     for nxtree in nex.trees:
         newroot = node2clade(nxtree, nxtree.node(nxtree.root))
         yield Newick.Tree(root=newroot, rooted=nxtree.rooted, name=nxtree.name,
                           weight=nxtree.weight)
+
 
 def write(obj, handle, **kwargs):
     """Write a new Nexus file containing the given trees.

@@ -22,18 +22,6 @@ parse              Iterates over entries in a Prodoc file.
 Classes:
 Record             Holds Prodoc data.
 Reference          Holds data from a Prodoc reference.
-
-
-DEPRECATED functions:
-index_file         Index a Prodoc file for a Dictionary.
-_extract_record    Extract Prodoc data from a web page.
-
-DEPRECATED classes:
-Dictionary         Accesses a Prodoc file using a dictionary interface.
-RecordParser       Parses a Prodoc record into a Record object.
-_Scanner           Scans Prodoc-formatted data.
-_RecordConsumer    Consumes Prodoc data to a Record object.
-Iterator           Iterates over entries in a Prodoc file.
 """
 
 
@@ -45,14 +33,16 @@ def read(handle):
         raise ValueError("More than one Prodoc record found")
     return record
 
+
 def parse(handle):
     while True:
         record = __read(handle)
         if not record:
             return
         yield record
- 
-class Record:
+
+
+class Record(object):
     """Holds information from a Prodoc record.
 
     Members:
@@ -69,7 +59,7 @@ class Record:
         self.references = []
 
 
-class Reference:
+class Reference(object):
     """Holds information from a Prodoc citation.
 
     Members:
@@ -85,6 +75,7 @@ class Reference:
 
 # Below are private functions
 
+
 def __read_prosite_reference_line(record, line):
     line = line.rstrip()
     if line[-1] != '}':
@@ -92,9 +83,11 @@ def __read_prosite_reference_line(record, line):
     acc, name = line[1:-1].split('; ')
     record.prosite_refs.append((acc, name))
 
+
 def __read_text_line(record, line):
     record.text += line
     return True
+
 
 def __read_reference_start(record, line):
     # Read the references
@@ -108,6 +101,7 @@ def __read_reference_start(record, line):
         reference.authors = line[4:].strip()
     record.references.append(reference)
 
+
 def __read_reference_line(record, line):
     if not line.strip():
         return False
@@ -120,11 +114,13 @@ def __read_reference_line(record, line):
         return True
     raise Exception("I don't understand the reference line\n%s" % line)
 
+
 def __read_copyright_line(record, line):
     # Skip the copyright statement
     if line.startswith('+----'):
         return False
     return True
+
 
 def __read(handle):
     # Skip blank lines between records

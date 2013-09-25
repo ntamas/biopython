@@ -10,6 +10,7 @@ import unittest
 
 from Bio.ExPASy import Prosite
 
+
 class TestPrositeRead(unittest.TestCase):
 
     def test_read1(self):
@@ -17,6 +18,7 @@ class TestPrositeRead(unittest.TestCase):
         filename = os.path.join('Prosite', 'ps00107.txt')
         handle = open(filename)
         record = Prosite.read(handle)
+        handle.close()
         self.assertEqual(record.name, "PROTEIN_KINASE_ATP")
         self.assertEqual(record.type, "PATTERN")
         self.assertEqual(record.accession, "PS00107")
@@ -2520,12 +2522,12 @@ class TestPrositeRead(unittest.TestCase):
         self.assertEqual(record.pdb_structs[329], '3LCK')
         self.assertEqual(record.pdb_structs[330], '4ERK')
 
-
     def test_read2(self):
         "Parsing Prosite record ps00159.txt"
         filename = os.path.join('Prosite', 'ps00159.txt')
         handle = open(filename)
         record = Prosite.read(handle)
+        handle.close()
         self.assertEqual(record.name, "ALDOLASE_KDPG_KHG_1")
         self.assertEqual(record.type, "PATTERN")
         self.assertEqual(record.accession, "PS00159")
@@ -2569,12 +2571,12 @@ class TestPrositeRead(unittest.TestCase):
         self.assertEqual(record.pdb_structs[4], "1MXS")
         self.assertEqual(record.pdb_structs[5], "1VHC")
 
-
     def test_read3(self):
         "Parsing Prosite record ps00165.txt"
         filename = os.path.join('Prosite', 'ps00165.txt')
         handle = open(filename)
         record = Prosite.read(handle)
+        handle.close()
         self.assertEqual(record.name, "DEHYDRATASE_SER_THR")
         self.assertEqual(record.type, "PATTERN")
         self.assertEqual(record.accession, "PS00165")

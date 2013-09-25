@@ -3,7 +3,8 @@
 # standard modules
 import random
 
-class SinglePositionMutation:
+
+class SinglePositionMutation(object):
     """Perform a conversion mutation, but only at a single point in the genome.
 
     This does not randomize the genome as much as ConversionMutation, since
@@ -36,7 +37,7 @@ class SinglePositionMutation:
             # pick a gene position to mutate at
             mutation_pos = \
                          self._pos_rand.choice(range(len(mutated_org.genome)))
-            
+
             # get a new letter to replace the position at
             new_letter = self._switch_rand.choice(gene_choices)
 
@@ -44,7 +45,8 @@ class SinglePositionMutation:
 
         return mutated_org
 
-class ConversionMutation:
+
+class ConversionMutation(object):
     """Potentially mutate any item to another in the alphabet.
 
     This just performs switching mutation -- changing one gene of a genome
@@ -70,9 +72,9 @@ class ConversionMutation:
         """Mutate the organisms genome.
         """
         mutated_org = organism.copy()
-        
+
         gene_choices = mutated_org.genome.alphabet.letters
-        
+
         # potentially mutate any gene in the genome
         for gene_index in range(len(mutated_org.genome)):
             mutation_chance = self._mutation_rand.random()
@@ -83,6 +85,3 @@ class ConversionMutation:
                 mutated_org.genome[gene_index] = new_letter
 
         return mutated_org
-                
-        
-    

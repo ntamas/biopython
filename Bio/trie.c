@@ -4,49 +4,48 @@
 
 #include "trie.h"
 
-/* The following is necessary to make sure that trie.pyd won't link
- * to msvcrt.dll in addition to msvcr71.dll on Windows.
- * See Bug #1767 on Bugzilla.
- */
-#ifdef __MINGW32__
-#  define strdup _strdup
-#endif
-
-struct _Transition;   /* Forward declaration, needed in _Trie. */
+static char* duplicate(const char* s) {
+    /* Don't use strdup, as it's not ANSI C. */
+    char* t = malloc((strlen(s)+1)*sizeof(char));
+    if (!t) return NULL;
+    strcpy(t, s);
+    return t;
+}
 
 
-/* _Trie is a recursive data structure.  A _Trie contains zero or more
- * _Transitions that lead to more _Tries.  The transitions are stored
- * in alphabetical order of the suffix member of the data structure.
- * _Trie also contains a pointer called value where the user can store
- * arbitrary data.  If value is NULL, then no data is stored here.
- */
-struct _Trie {
-    struct _Transition *transitions;
-    unsigned char num_transitions;
-    void *value;   /* specified by user, never freed or allocated by me! */
-};
-
-/* _Transition holds information about the transitions leading from
- * one _Trie to another.  The trie structure here is different from
+/* Transition holds information about the transitions leading from
+ * one Trie to another.  The trie structure here is different from
  * typical ones, because the transitions between nodes can contain
  * strings of arbitrary length, not just single characters.  Suffix is
  * the string that is matched from one node to the next.
  */
-typedef struct _Transition {
-    unsigned char *suffix;
-    Trie next;
-} *Transition;
+typedef struct {
+    char *suffix;
+    Trie* next;
+} Transition;
 
 
-#define MAX_KEY_LENGTH 1000
-static unsigned char KEY[MAX_KEY_LENGTH];
+/* Trie is a recursive data structure.  A Trie contains zero or more
+ * Transitions that lead to more Tries.  The transitions are stored
+ * in alphabetical order of the suffix member of the data structure.
+ * Trie also contains a pointer called value where the user can store
+ * arbitrary data.  If value is NULL, then no data is stored here.
+ */
+struct Trie {
+    Transition *transitions;
+    unsigned char num_transitions;
+    void *value;   /* specified by user, never freed or allocated by me! */
+};
 
 
-Trie Trie_new(void) {
-    Trie trie;
+#define MAX_KEY_LENGTH (1024*1024)
+static char KEY[MAX_KEY_LENGTH];
 
-    if(!(trie = (Trie)malloc(sizeof(struct _Trie))))
+
+Trie* Trie_new(void) {
+    Trie* trie;
+
+    if(!(trie = malloc(sizeof(struct Trie))))
 	return NULL;
     trie->transitions = NULL;
     trie->num_transitions = 0;
@@ -54,10 +53,10 @@ Trie Trie_new(void) {
     return trie;
 }
 
-int Trie_set(Trie trie, const unsigned char *key, const void *value) {
+int Trie_set(Trie* trie, const char *key, const void *value) {
     int i;
-    Transition transition=NULL;
-    unsigned char *suffix=NULL;
+    Transition* transition=NULL;
+    const char *suffix=NULL;
     int retval = 0;
     int first, last, mid;
 
@@ -92,15 +91,15 @@ int Trie_set(Trie trie, const unsigned char *key, const void *value) {
 
     /* If nothing matches, then insert a new trie here. */
     if((i >= trie->num_transitions) || (key[0] != suffix[0])) {
-	unsigned char *new_suffix=NULL;
-	Trie newtrie=NULL;
-	Transition new_transitions=NULL;
+	char *new_suffix=NULL;
+	Trie* newtrie=NULL;
+	Transition* new_transitions=NULL;
 
 	/* Create some variables for the new transition.  I'm going to
 	   allocate these first so that if I can detect memory errors
 	   before I mess up the data structure of the transitions.
 	*/
-	if(!(new_suffix = (unsigned char *)strdup(key)))
+	if(!(new_suffix = duplicate(key)))
 	    goto insert_memerror;
 	if(!(newtrie = Trie_new()))
 	    goto insert_memerror;
@@ -109,13 +108,13 @@ int Trie_set(Trie trie, const unsigned char *key, const void *value) {
 	   memory and shift the old transitions over to make room for
 	   this one.
 	*/
-	if(!(new_transitions = malloc(sizeof(struct _Transition) *
+	if(!(new_transitions = malloc(sizeof(Transition) *
 				      (trie->num_transitions+1))))
 	    goto insert_memerror;
 	memcpy(new_transitions, trie->transitions,
-	       sizeof(struct _Transition)*i);
+	       sizeof(Transition)*i);
 	memcpy(&new_transitions[i+1], &trie->transitions[i],
-	       sizeof(struct _Transition)*(trie->num_transitions-i));
+	       sizeof(Transition)*(trie->num_transitions-i));
 	free(trie->transitions);
 	trie->transitions = new_transitions;
 	new_transitions = NULL;
@@ -134,9 +133,9 @@ int Trie_set(Trie trie, const unsigned char *key, const void *value) {
 	    if(new_suffix) free(new_suffix);
 	    return 1;
 	}
-    } 
+    }
     /* There are three cases where the key and suffix share some
-       letters. 
+       letters.
        1.  suffix is proper substring of key.
        2.  key is proper substring of suffix.
        3.  neither is proper substring of other.
@@ -154,19 +153,18 @@ int Trie_set(Trie trie, const unsigned char *key, const void *value) {
 
 	/* Case 2 or 3, split this sucker! */
 	if(chars_shared < strlen(suffix)) {
-	    Trie newtrie=NULL;
-	    unsigned char *new_suffix1=NULL, *new_suffix2=NULL;
+	    Trie* newtrie=NULL;
+	    char *new_suffix1=NULL, *new_suffix2=NULL;
 
-	    if(!(new_suffix1 = (unsigned char *)malloc(chars_shared+1)))
+	    if(!(new_suffix1 = malloc(chars_shared+1)))
 		goto split_memerror;
 	    strncpy(new_suffix1, key, chars_shared);
 	    new_suffix1[chars_shared] = 0;
-	    if(!(new_suffix2 = (unsigned char *)strdup(suffix+chars_shared)))
+	    if(!(new_suffix2 = duplicate(suffix+chars_shared)))
 		goto split_memerror;
 	    if(!(newtrie = Trie_new()))
 		goto split_memerror;
-	    if(!(newtrie->transitions = 
-		 (Transition)malloc(sizeof(struct _Transition))))
+	    if(!(newtrie->transitions = malloc(sizeof(Transition))))
 		goto split_memerror;
 	    newtrie->num_transitions = 1;
 	    newtrie->transitions[0].next = transition->next;
@@ -191,12 +189,12 @@ int Trie_set(Trie trie, const unsigned char *key, const void *value) {
     return retval;
 }
 
-void Trie_del(Trie trie) {
+void Trie_del(Trie* trie) {
     int i;
     if(!trie)
 	return;
     for(i=0; i<trie->num_transitions; i++) {
-	Transition transition = &trie->transitions[i];
+	Transition* transition = &trie->transitions[i];
 	if(transition->suffix)
 	    free(transition->suffix);
 	Trie_del(transition->next);
@@ -204,7 +202,7 @@ void Trie_del(Trie trie) {
     free(trie);
 }
 
-void *Trie_get(const Trie trie, const unsigned char *key) {
+void *Trie_get(const Trie* trie, const char *key) {
     int first, last, mid;
 
     if(!key[0]) {
@@ -217,8 +215,8 @@ void *Trie_get(const Trie trie, const unsigned char *key) {
     first = 0;
     last = trie->num_transitions-1;
     while(first <= last) {
-	Transition transition;
-	unsigned char *suffix;
+	Transition* transition;
+	char *suffix;
 	int c;
 	mid = (first+last)/2;
 	transition = &trie->transitions[mid];
@@ -238,30 +236,58 @@ void *Trie_get(const Trie trie, const unsigned char *key) {
 }
 
 
+/* DEBUG
+static void
+_print_trie_helper(const Trie* trie, int num_indent) {
+    int i, j;
+    char *message = "no value";
+    Transition *t;
+
+    if(trie->value != NULL)
+        message = "has value";
+    for(j=0; j<num_indent; j++)
+        printf(" ");
+    printf("%d transitions, %s.\n", trie->num_transitions, message);
+    for(i=0; i<trie->num_transitions; i++) {
+        t = &trie->transitions[i];
+        for(j=0; j<num_indent; j++)
+            printf(" ");
+        printf("suffix %s\n", t->suffix);
+        _print_trie_helper(t->next, num_indent+2);
+    }
+}
+
+static void
+_print_trie(const Trie* trie) {
+    _print_trie_helper(trie, 0);
+}
+*/
+
+
 /* Mutually recursive, so need to make a forward declaration. */
-void
-_get_approximate_trie(const Trie trie, const unsigned char *key, const int k,
-		      void (*callback)(const unsigned char *key, 
+static void
+_get_approximate_trie(const Trie* trie, const char *key, const int k,
+		      void (*callback)(const char *key,
 				       const void *value,
 				       const int mismatches,
 				       void *data),
-		      void *data, 
+		      void *data,
 		      const int mismatches,
-		      unsigned char *current_key, const int max_key
+		      char *current_key, const int max_key
 		      );
 
-void 
-_get_approximate_transition(const unsigned char *key, 
+static void
+_get_approximate_transition(const char *key,
 			    const int k,
-			    const Transition transition, 
-			    const unsigned char *suffix,
-			    void (*callback)(const unsigned char *key, 
+			    const Transition* transition,
+			    const char *suffix,
+			    void (*callback)(const char *key,
 					     const void *value,
 					     const int mismatches,
 					     void *data),
-			    void *data, 
+			    void *data,
 			    const int mismatches,
-			    unsigned char *current_key, const int max_key
+			    char *current_key, const int max_key
 			    )
 {
     int i;
@@ -307,7 +333,7 @@ _get_approximate_transition(const unsigned char *key,
 
 	/* Insertion in key, skip the next letter in the key. */
 	if(key[i]) {
-	    _get_approximate_transition(&key[i+1], k-1, 
+	    _get_approximate_transition(&key[i+1], k-1,
 					transition, &suffix[i],
 					callback, data,
 					mismatches+1, current_key, max_key);
@@ -327,15 +353,15 @@ _get_approximate_transition(const unsigned char *key,
     current_key[prev_keylen] = 0;
 }
 
-void
-_get_approximate_trie(const Trie trie, const unsigned char *key, const int k,
-		      void (*callback)(const unsigned char *key, 
+static void
+_get_approximate_trie(const Trie* trie, const char *key, const int k,
+		      void (*callback)(const char *key,
 				       const void *value,
 				       const int mismatches,
 				       void *data),
-		      void *data, 
+		      void *data,
 		      const int mismatches,
-		      unsigned char *current_key, const int max_key
+		      char *current_key, const int max_key
 		      )
 {
     int i;
@@ -365,17 +391,17 @@ _get_approximate_trie(const Trie trie, const unsigned char *key, const int k,
        in the key are mismatches. */
     else if(!trie->num_transitions) {
 	if(trie->value && (strlen(key) <= k)) {
-	    (*callback)(current_key, trie->value, 
+	    (*callback)(current_key, trie->value,
 			mismatches+strlen(key), data);
 	}
     }
     /* Otherwise, try to match each of the transitions. */
     else {
 	for(i=0; i<trie->num_transitions; i++) {
-	    Transition transition = &trie->transitions[i];
-	    unsigned char *suffix = transition->suffix;
+	    Transition* transition = &trie->transitions[i];
+	    const char *suffix = transition->suffix;
 	    _get_approximate_transition(key, k, transition, suffix,
-					callback, data, 
+					callback, data,
 					mismatches, current_key, max_key);
 	}
     }
@@ -383,9 +409,9 @@ _get_approximate_trie(const Trie trie, const unsigned char *key, const int k,
 }
 
 
-void 
-Trie_get_approximate(const Trie trie, const unsigned char *key, const int k,
-		     void (*callback)(const unsigned char *key, 
+void
+Trie_get_approximate(const Trie* trie, const char *key, const int k,
+		     void (*callback)(const char *key,
 				      const void *value,
 				      const int mismatches,
 				      void *data),
@@ -396,11 +422,11 @@ Trie_get_approximate(const Trie trie, const unsigned char *key, const int k,
     _get_approximate_trie(trie, key, k, callback, data, 0, KEY,MAX_KEY_LENGTH);
 }
 
-int Trie_len(const Trie trie) 
+int Trie_len(const Trie* trie)
 {
     int i;
     int length = 0;
-    
+
     if(!trie)
 	return 0;
     if(trie->value)
@@ -411,12 +437,12 @@ int Trie_len(const Trie trie)
     return length;
 }
 
-int Trie_has_key(const Trie trie, const unsigned char *key) 
+int Trie_has_key(const Trie* trie, const char *key)
 {
     return Trie_get(trie, key) != NULL;
 }
 
-int Trie_has_prefix(const Trie trie, const unsigned char *prefix) 
+int Trie_has_prefix(const Trie* trie, const char *prefix)
 {
     int first, last, mid;
 
@@ -430,8 +456,8 @@ int Trie_has_prefix(const Trie trie, const unsigned char *prefix)
     first = 0;
     last = trie->num_transitions-1;
     while(first <= last) {
-	Transition transition;
-	unsigned char *suffix;
+	Transition* transition;
+	char *suffix;
 	int suffixlen, prefixlen, minlen;
 	int c;
 	mid = (first+last)/2;
@@ -451,20 +477,20 @@ int Trie_has_prefix(const Trie trie, const unsigned char *prefix)
     return 0;
 }
 
-static void 
-_iterate_helper(const Trie trie, 
-		void (*callback)(const unsigned char *key, 
+static void
+_iterate_helper(const Trie* trie,
+		void (*callback)(const char *key,
 				 const void *value,
 				 void *data),
 		void *data,
-		unsigned char *current_key, const int max_key)
+		char *current_key, const int max_key)
 {
     int i;
     if(trie->value)
 	(*callback)(current_key, trie->value, data);
     for(i=0; i<trie->num_transitions; i++) {
-	Transition transition = &trie->transitions[i];
-	unsigned char *suffix = transition->suffix;
+	Transition* transition = &trie->transitions[i];
+	const char *suffix = transition->suffix;
 	int keylen = strlen(current_key);
 
 	if(keylen + strlen(suffix) >= max_key) {
@@ -473,15 +499,15 @@ _iterate_helper(const Trie trie,
 	    continue;
 	}
 	strcat(current_key, suffix);
-	_iterate_helper(transition->next, callback, data, 
+	_iterate_helper(transition->next, callback, data,
 			current_key, max_key);
 	current_key[keylen] = 0;
     }
 }
 
-void 
-Trie_iterate(const Trie trie, 
-	     void (*callback)(const unsigned char *key, 
+void
+Trie_iterate(const Trie* trie,
+	     void (*callback)(const char *key,
 			      const void *value,
 			      void *data),
 	     void *data)
@@ -491,12 +517,12 @@ Trie_iterate(const Trie trie,
 }
 
 static void
-_with_prefix_helper(const Trie trie, const unsigned char *prefix,
-		    void (*callback)(const unsigned char *key, 
+_with_prefix_helper(const Trie* trie, const char *prefix,
+		    void (*callback)(const char *key,
 				     const void *value,
 				     void *data),
 		    void *data,
-		    unsigned char *current_key, const int max_key)
+		    char *current_key, const int max_key)
 {
     int first, last, mid;
 
@@ -511,8 +537,8 @@ _with_prefix_helper(const Trie trie, const unsigned char *prefix,
     first = 0;
     last = trie->num_transitions-1;
     while(first <= last) {
-	Transition transition;
-	unsigned char *suffix;
+	Transition* transition;
+	const char *suffix;
 	int suffixlen, prefixlen, minlen;
 	int c;
 	mid = (first+last)/2;
@@ -527,29 +553,49 @@ _with_prefix_helper(const Trie trie, const unsigned char *prefix,
 	else if(c > 0)
 	    first = mid+1;
 	else {
+            /* Three cases here.
+             * 1.  Suffix and prefix are the same.
+             *     Add suffix to current_key, advance prefix to the
+             *     end.  Continue recursively.  Since there is no more
+             *     prefix, every sub-trie will be considered as having
+             *     this prefix.
+             * 2.  Suffix shorter than prefix.
+             *     suffix  A
+             *     prefix  AN
+             *     Add suffix (A) to current_key.  Advance prefix by
+             *     1.  Continue recursively to match rest of prefix.
+             * 3.  Suffix longer than prefix.
+             *     suffix  AN
+             *     prefix  A
+             *     Add suffix (AN) to current_key.  Advance prefix to
+             *     the end.  Continue recursively.  Since there is no
+             *     more prefix, every sub-trie will be considered as
+             *     having this prefix.
+             */
 	    int keylen = strlen(current_key);
-	    if(keylen + minlen >= max_key) {
+	    if(keylen + suffixlen >= max_key) {
 		/* BUG: This will fail silently.  It should raise some
 		   sort of error. */
 		break;
 	    }
-	    strncat(current_key, suffix, minlen);
+	    strncat(current_key, suffix, suffixlen);
 	    _with_prefix_helper(transition->next, prefix+minlen,
 				callback, data, current_key, max_key);
-	    current_key[keylen] = 0;
+	    current_key[keylen] = 0;  /* reset current_key */
 	    break;
 	}
     }
 }
 
-void 
-Trie_with_prefix(const Trie trie, const unsigned char *prefix,
-		 void (*callback)(const unsigned char *key, 
+void
+Trie_with_prefix(const Trie* trie, const char *prefix,
+		 void (*callback)(const char *key,
 				  const void *value,
 				  void *data),
 		 void *data
 		 )
 {
+    /*_print_trie(trie);*/
     KEY[0] = 0;
     _with_prefix_helper(trie, prefix, callback, data, KEY, MAX_KEY_LENGTH);
 }
@@ -558,7 +604,7 @@ Trie_with_prefix(const Trie trie, const unsigned char *prefix,
 
 /* Need to declare _serialize_transition here so it can be called from
    _serialize_trie. */
-int _serialize_transition(const Transition transition, 
+static int _serialize_transition(const Transition* transition,
 			  int (*write)(const void *towrite, const int length,
 				       void *data),
 			  int (*write_value)(const void *value, void *data),
@@ -576,12 +622,13 @@ int _serialize_transition(const Transition transition,
  *   suffix    variable  the suffix for this transition
  *   byte      1         Whether or not there is a trie
  *   trie      variable  Recursively points to another trie.
- * 
+ *
  * The number of bytes and the endian may vary from platform to
  * platform.
  */
 
-int _serialize_trie(const Trie trie, 
+static
+int _serialize_trie(const Trie* trie,
 		    int (*write)(const void *towrite, const int length,
 				 void *data),
 		    int (*write_value)(const void *value, void *data),
@@ -601,7 +648,7 @@ int _serialize_trie(const Trie trie,
     if(!(*write)(&trie->num_transitions, sizeof(trie->num_transitions), data))
 	return 0;
     for(i=0; i<trie->num_transitions; i++) {
-	if(!_serialize_transition(&trie->transitions[i], 
+	if(!_serialize_transition(&trie->transitions[i],
 				  write, write_value, data))
 	    return 0;
     }
@@ -609,7 +656,8 @@ int _serialize_trie(const Trie trie,
     return 1;
 }
 
-int _serialize_transition(const Transition transition, 
+static
+int _serialize_transition(const Transition* transition,
 			  int (*write)(const void *towrite, const int length,
 				       void *data),
 			  int (*write_value)(const void *value, void *data),
@@ -634,8 +682,8 @@ int _serialize_transition(const Transition transition,
     return 1;
 }
 
-int Trie_serialize(const Trie trie, 
-		   int (*write)(const void *towrite, const int length, 
+int Trie_serialize(const Trie* trie,
+		   int (*write)(const void *towrite, const int length,
 				void *data),
 		   int (*write_value)(const void *value, void *data),
 		   void *data)
@@ -645,13 +693,15 @@ int Trie_serialize(const Trie trie,
     return success;
 }
 
-int _deserialize_transition(Transition transition,
-			    int (*read)(void *wasread, const int length, 
+static
+int _deserialize_transition(Transition* transition,
+			    int (*read)(void *wasread, const int length,
 					void *data),
 			    void *(*read_value)(void *data),
 			    void *data);
 
-int _deserialize_trie(Trie trie, 
+static
+int _deserialize_trie(Trie* trie,
 		      int (*read)(void *wasread, const int length, void *data),
 		      void *(*read_value)(void *data),
 		      void *data)
@@ -669,16 +719,20 @@ int _deserialize_trie(Trie trie,
     }
     if(!(*read)(&trie->num_transitions, sizeof(trie->num_transitions), data))
 	goto _deserialize_trie_error;
-    if(!(trie->transitions = 
-	 malloc(trie->num_transitions*sizeof(struct _Transition))))
+    if(!(trie->transitions =
+	 malloc(trie->num_transitions*sizeof(Transition))))
 	goto _deserialize_trie_error;
     for(i=0; i<trie->num_transitions; i++) {
-	if(!_deserialize_transition(&trie->transitions[i], 
+        trie->transitions[i].suffix = NULL;
+        trie->transitions[i].next = NULL;
+    }
+    for(i=0; i<trie->num_transitions; i++) {
+	if(!_deserialize_transition(&trie->transitions[i],
 				    read, read_value, data))
 	    goto _deserialize_trie_error;
     }
     return 1;
-   
+
  _deserialize_trie_error:
     trie->num_transitions = 0;
     if(trie->transitions) {
@@ -689,23 +743,27 @@ int _deserialize_trie(Trie trie,
     return 0;
 }
 
-int _deserialize_transition(Transition transition,
-			    int (*read)(void *wasread, const int length, 
+static
+int _deserialize_transition(Transition* transition,
+			    int (*read)(void *wasread, const int length,
 					void *data),
 			    void *(*read_value)(void *data),
 			    void *data)
 {
     int suffixlen;
     unsigned char has_trie;
-    
+
     if(!(*read)(&suffixlen, sizeof(suffixlen), data))
 	goto _deserialize_transition_error;
-    if(suffixlen < 0 || suffixlen >= MAX_KEY_LENGTH)
+    if(suffixlen < 0 || suffixlen >= MAX_KEY_LENGTH) {
+        printf("MAX_KEY_LENGTH too short [%d:%d]\n", 
+               MAX_KEY_LENGTH, suffixlen);
 	goto _deserialize_transition_error;
+    }
     if(!(*read)(KEY, suffixlen, data))
 	goto _deserialize_transition_error;
     KEY[suffixlen] = 0;
-    if(!(transition->suffix = (unsigned char *)strdup(KEY)))
+    if(!(transition->suffix = duplicate(KEY)))
 	goto _deserialize_transition_error;
     if(!(*read)(&has_trie, sizeof(has_trie), data))
 	goto _deserialize_transition_error;
@@ -730,49 +788,14 @@ int _deserialize_transition(Transition transition,
     return 0;
 }
 
-Trie Trie_deserialize(int (*read)(void *wasread, const int length, void *data),
+Trie* Trie_deserialize(int (*read)(void *wasread, const int length, void *data),
 		      void *(*read_value)(void *data),
 		      void *data)
 {
-    Trie trie = Trie_new();
+    Trie* trie = Trie_new();
     if(!_deserialize_trie(trie, read, read_value, data)) {
 	Trie_del(trie);
 	return NULL;
     }
     return trie;
 }
-
-void test(void) {
-    Trie trie;
-
-    printf("Hello world!\n");
-
-    trie = Trie_new();
-    printf("New trie %p\n", trie);
-    Trie_set(trie, "hello world", "s1");
-    Trie_set(trie, "bye", "s2");
-    Trie_set(trie, "hell sucks", "s3");
-    Trie_set(trie, "hebee", "s4");
-
-    printf("%s\n", (char *)Trie_get(trie, "hello world"));
-    printf("%s\n", (char *)Trie_get(trie, "bye"));
-    printf("%s\n", (char *)Trie_get(trie, "hell sucks"));
-    printf("%s\n", (char *)Trie_get(trie, "hebee"));
-
-    Trie_set(trie, "blah", "s5");
-    printf("%s\n", (char *)Trie_get(trie, "blah"));
-
-    printf("%p\n", Trie_get(trie, "foobar"));
-    printf("%d\n", Trie_len(trie));
-
-    Trie_set(trie, "blah", "snew");
-    printf("%s\n", (char *)Trie_get(trie, "blah"));
-
-    Trie_del(trie);
-}
-
-#if 0
-int main() {
-    test();
-}
-#endif

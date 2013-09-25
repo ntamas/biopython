@@ -28,11 +28,14 @@
 """
 
 # ReportLab imports
+from __future__ import print_function
+
 from reportlab.lib import colors
 
 from math import sqrt
 
-class GraphData:
+
+class GraphData(object):
     """ GraphData
 
         Provides:
@@ -61,10 +64,8 @@ class GraphData:
 
         o __len__(self) Returns the length of sequence covered by the data
 
-        o __getitem__(self, key)    Returns the value at the base specified
-
-        o __getslice__(self, low, high) Returns graph data in the base range
-                        specified
+        o __getitem__(self, index)  Returns the value at the base specified,
+                                    or graph data in the base range
 
         o __str__(self) Returns a formatted string describing the graph data
 
@@ -87,7 +88,7 @@ class GraphData:
     """
     def __init__(self, id=None, data=None, name=None, style='bar',
                  color=colors.lightgreen, altcolor=colors.darkseagreen,
-                 center=None, colour=None, altcolour=None, centre=None):
+                 center=None, colour=None, altcolour=None):
         """__init__(self, id=None, data=None, name=None, style='bar',
                  color=colors.lightgreen, altcolor=colors.darkseagreen)
 
@@ -108,8 +109,7 @@ class GraphData:
                        values (some styles only) (overridden by backwards
                        compatible argument with UK spelling, colour).
 
-            o center Value at which x-axis crosses y-axis (overridden by
-                     backwards comparible argument with UK spelling, centre).
+            o center Value at which x-axis crosses y-axis.
 
         """
 
@@ -118,12 +118,10 @@ class GraphData:
             color = colour
         if altcolour is not None:
             altcolor = altcolour
-        if centre is not None:
-            center = centre
 
         self.id = id            # Unique identifier for the graph
         self.data = {}          # holds values, keyed by sequence position
-        if data is not None:    
+        if data is not None:
             self.set_data(data)
         self.name = name        # Descriptive string
 
@@ -133,12 +131,6 @@ class GraphData:
         self.negcolor = altcolor  # Color to draw 'low' values
         self.linewidth = 2          # linewidth to use in line graphs
         self.center = center        # value at which x-axis crosses y-axis
-
-    def _set_centre(self, value):
-        self.center = value
-    centre = property(fget = lambda self : self.center,
-                       fset = _set_centre,
-                       doc="Backwards compatible alias for center (OBSOLETE)")
 
     def set_data(self, data):
         """ set_data(self, data)
@@ -150,7 +142,6 @@ class GraphData:
         for (pos, val) in data:     # Fill data dictionary
             self.data[pos] = val
 
-
     def get_data(self):
         """ get_data(self) -> [(int, float), (int, float), ...]
 
@@ -158,11 +149,10 @@ class GraphData:
         """
         data = []
         for xval in self.data.keys():
-            yval = self.data[xval]            
+            yval = self.data[xval]
             data.append((xval, yval))
         data.sort()
         return data
-
 
     def add_point(self, point):
         """ add_point(self, point)
@@ -174,7 +164,6 @@ class GraphData:
         pos, val = point
         self.data[pos] = val
 
-
     def quartiles(self):
         """ quartiles(self) -> (float, float, float, float, float)
 
@@ -184,9 +173,8 @@ class GraphData:
         data = self.data.values()
         data.sort()
         datalen = len(data)
-        return(data[0], data[datalen/4], data[datalen/2],
-               data[3*datalen/4], data[-1])
-
+        return(data[0], data[datalen//4], data[datalen//2],
+               data[3*datalen//4], data[-1])
 
     def range(self):
         """ range(self) -> (int, int)
@@ -198,8 +186,7 @@ class GraphData:
         positions.sort()
         # Return first and last positions in graph
         #print len(self.data)
-        return (positions[0], positions[-1])    
-
+        return (positions[0], positions[-1])
 
     def mean(self):
         """ mean(self) -> Float
@@ -211,7 +198,6 @@ class GraphData:
         for item in data:
             sum += float(item)
         return sum/len(data)
-
 
     def stdev(self):
         """ stdev(self) -> Float
@@ -226,7 +212,6 @@ class GraphData:
         # This is sample standard deviation; population stdev would involve
         # division by len(data), rather than len(data)-1
         return sqrt(runtotal/(len(data)-1))
-        
 
     def __len__(self):
         """ __len__(self) -> Int
@@ -235,35 +220,35 @@ class GraphData:
         """
         return len(self.data)
 
+    def __getitem__(self, index):
+        """ __getitem__(self, index) -> Float or list of tuples
 
-    def __getitem__(self, key):
-        """ __getitem__(self, key) -> Float
+            Given an integer representing position on the sequence
+            returns a float - the data value at the passed position.
 
-            o key       Integer representing position on the sequence
+            If a slice, returns graph data from the region as a list or
+            (position, value) tuples. Slices with step are not supported.
 
             Returns the data value at the passed position
         """
-        return self.data[key]
-
-
-    def __getslice__(self, low, high):
-        """ __getslice__(self, low, high) -> [(int, float), (int, float), ...]
-
-            o low       The start point for the data range
-            
-            o high      The end point for the data range
-
-            Returns a slice of the graph data from the passed low to the passed
-            high value as a list of (position, value) tuples
-        """
-        positions = self.data.keys()
-        positions.sort()
-        outlist = []
-        for pos in positions:
-            if pos >= low and pos <=high:
-                outlist.append((pos, self.data[pos]))
-        return outlist
-
+        if isinstance(index, int):
+            return self.data[index]
+        elif isinstance(index, slice):
+            #TODO - Why does it treat the end points both as inclusive?
+            #This doesn't match Python norms does it?
+            low = index.start
+            high = index.stop
+            if index.step is not None and index.step != 1:
+                raise ValueError
+            positions = self.data.keys()
+            positions.sort()
+            outlist = []
+            for pos in positions:
+                if pos >= low and pos <=high:
+                    outlist.append((pos, self.data[pos]))
+            return outlist
+        else:
+            raise TypeError("Need an integer or a slice")
 
     def __str__(self):
         """ __str__(self) -> ""
@@ -277,5 +262,3 @@ class GraphData:
         outstr.append("Minimum: %s\n1Q: %s\n2Q: %s\n3Q: %s\nMaximum: %s" % self.quartiles())
         outstr.append("Sequence Range: %s..%s" % self.range())
         return "\n".join(outstr)
-
-

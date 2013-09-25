@@ -3,14 +3,17 @@
 # license.  Please see the LICENSE file that should have been included
 # as part of this package.
 
-from math import pi
+"""Half-sphere exposure and coordination number calculation."""
+
+from __future__ import print_function
+
 import warnings
+from math import pi
 
-from Bio.PDB import *
-from AbstractPropertyMap import AbstractPropertyMap
-
-
-__doc__="Half sphere exposure and coordination number calculation."
+from Bio.PDB.AbstractPropertyMap import AbstractPropertyMap
+from Bio.PDB.PDBParser import PDBParser
+from Bio.PDB.Polypeptide import CaPPBuilder, is_aa
+from Bio.PDB.Vector import rotaxis
 
 
 class _AbstractHSExposure(AbstractPropertyMap):
@@ -18,10 +21,10 @@ class _AbstractHSExposure(AbstractPropertyMap):
     Abstract class to calculate Half-Sphere Exposure (HSE).
 
     The HSE can be calculated based on the CA-CB vector, or the pseudo CB-CA
-    vector based on three consecutive CA atoms. This is done by two separate 
-    subclasses. 
+    vector based on three consecutive CA atoms. This is done by two separate
+    subclasses.
     """
-    def __init__(self, model, radius, offset, hse_up_key, hse_down_key, 
+    def __init__(self, model, radius, offset, hse_up_key, hse_down_key,
             angle_key=None):
         """
         @param model: model
@@ -40,7 +43,7 @@ class _AbstractHSExposure(AbstractPropertyMap):
         @param hse_down_key: key used to store HSEdown in the entity.xtra attribute
         @type hse_down_key: string
 
-        @param angle_key: key used to store the angle between CA-CB and CA-pCB in 
+        @param angle_key: key used to store the angle between CA-CB and CA-pCB in
             the entity.xtra attribute
         @type angle_key: string
         """
@@ -75,7 +78,7 @@ class _AbstractHSExposure(AbstractPropertyMap):
                 for pp2 in ppl:
                     for j in range(0, len(pp2)):
                         if pp1 is pp2 and abs(i-j)<=offset:
-                            # neighboring residues in the chain are ignored 
+                            # neighboring residues in the chain are ignored
                             continue
                         ro=pp2[j]
                         if not is_aa(ro) or not ro.has_id('CA'):
@@ -100,12 +103,16 @@ class _AbstractHSExposure(AbstractPropertyMap):
                     r2.xtra[angle_key]=angle
         AbstractPropertyMap.__init__(self, hse_map, hse_keys, hse_list)
 
+    def _get_cb(self, r1, r2, r3):
+        """This method is provided by the subclasses to calculate HSE."""
+        return NotImplemented
+
     def _get_gly_cb_vector(self, residue):
         """
         Return a pseudo CB vector for a Gly residue.
         The pseudoCB vector is centered at the origin.
 
-        CB coord=N coord rotated over -120 degrees 
+        CB coord=N coord rotated over -120 degrees
         along the CA-C axis.
         """
         try:
@@ -127,7 +134,6 @@ class _AbstractHSExposure(AbstractPropertyMap):
         return cb_at_origin_v
 
 
-
 class HSExposureCA(_AbstractHSExposure):
     """
     Class to calculate HSE based on the approximate CA-CB vectors,
@@ -144,15 +150,15 @@ class HSExposureCA(_AbstractHSExposure):
         @param offset: number of flanking residues that are ignored in the calculation            of the number of neighbors
         @type offset: int
         """
-        _AbstractHSExposure.__init__(self, model, radius, offset, 
+        _AbstractHSExposure.__init__(self, model, radius, offset,
                 'EXP_HSE_A_U', 'EXP_HSE_A_D', 'EXP_CB_PCB_ANGLE')
 
     def _get_cb(self, r1, r2, r3):
         """
         Calculate the approximate CA-CB direction for a central
         CA atom based on the two flanking CA positions, and the angle
-        with the real CA-CB vector. 
-        
+        with the real CA-CB vector.
+
         The CA-CB vector is centered at the origin.
 
         @param r1, r2, r3: three consecutive residues
@@ -194,7 +200,7 @@ class HSExposureCA(_AbstractHSExposure):
 
     def pcb_vectors_pymol(self, filename="hs_exp.py"):
         """
-        Write a PyMol script that visualizes the pseudo CB-CA directions 
+        Write a PyMol script that visualizes the pseudo CB-CA directions
         at the CA coordinates.
 
         @param filename: the name of the pymol script file
@@ -257,7 +263,7 @@ class HSExposureCB(_AbstractHSExposure):
 class ExposureCN(AbstractPropertyMap):
     def __init__(self, model, radius=12.0, offset=0):
         """
-        A residue's exposure is defined as the number of CA atoms around 
+        A residue's exposure is defined as the number of CA atoms around
         that residues CA atom. A dictionary is returned that uses a L{Residue}
         object as key, and the residue exposure as corresponding value.
 
@@ -320,24 +326,22 @@ if __name__=="__main__":
 
     hse=HSExposureCA(model, radius=RADIUS, offset=OFFSET)
     for l in hse:
-        print l
+        print(l)
     print
 
     hse=HSExposureCB(model, radius=RADIUS, offset=OFFSET)
     for l in hse:
-        print l
+        print(l)
     print
 
     hse=ExposureCN(model, radius=RADIUS, offset=OFFSET)
     for l in hse:
-        print l
+        print(l)
     print
 
     for c in model:
         for r in c:
             try:
-                print r.xtra['PCB_CB_ANGLE']
+                print(r.xtra['PCB_CB_ANGLE'])
             except:
                 pass
-
-

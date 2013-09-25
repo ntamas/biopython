@@ -1,3 +1,8 @@
+# Copyright 2005 by Jonathan Taylor.
+# All rights reserved.
+# This code is part of the Biopython distribution and governed by its
+# license.  Please see the LICENSE file that should have been included
+# as part of this package.
 """This module deals with CAPS markers.
 
 A CAPS marker is a location a DifferentialCutsite as described below and a
@@ -9,7 +14,8 @@ http://www.ncbi.nlm.nih.gov/entrez/query.fcgi?cmd=Retrieve&db=PubMed&list_uids=8
 Copyright Jonathan Taylor 2005
 """
 
-class DifferentialCutsite:
+
+class DifferentialCutsite(object):
     """A differential cutsite is a location in an alignment where an enzyme cuts
     at least one sequence and also cannot cut at least one other sequence.
 
@@ -29,21 +35,23 @@ class DifferentialCutsite:
         Each member (as listed in the class description) should be included as a
         keyword.
         """
-        
+
         self.start = int(kwds["start"])
         self.enzyme = kwds["enzyme"]
         self.cuts_in = kwds["cuts_in"]
         self.blocked_in = kwds["blocked_in"]
 
+
 class AlignmentHasDifferentLengthsError(Exception):
     pass
 
-class CAPSMap:
+
+class CAPSMap(object):
     """A map of an alignment showing all possible dcuts.
 
     Members:
     alignment  The alignment that is mapped.
-    dcuts      A list of possible CAPS markers in the form of 
+    dcuts      A list of possible CAPS markers in the form of
                          DifferentialCutsites.
     """
 
@@ -57,7 +65,7 @@ class CAPSMap:
         enzymes      The enzymes to be used to create the map.
         """
 
-        self.sequences = [rec.seq for rec in alignment.get_all_seqs()]
+        self.sequences = [rec.seq for rec in alignment]
         self.size = len(self.sequences)
         self.length = len(self.sequences[0])
         for seq in self.sequences:
@@ -69,30 +77,28 @@ class CAPSMap:
 
         # look for dcuts
         self._digest()
-    
+
     def _digest_with(self, enzyme):
-        cuts = {}
+        cuts = [] # list of lists, one per sequence
         all = []
 
         # go through each sequence
         for seq in self.sequences:
-
             # grab all the cuts in the sequence
-            cuts[seq] = [cut - enzyme.fst5 for cut in enzyme.search(seq)]
-
+            seq_cuts = [cut - enzyme.fst5 for cut in enzyme.search(seq)]
             # maintain a list of all cuts in all sequences
-            all.extend(cuts[seq])
+            all.extend(seq_cuts)
+            cuts.append(seq_cuts)
 
         # we sort the all list and remove duplicates
         all.sort()
-        
+
         last = -999
         new = []
         for cut in all:
             if cut != last:
                 new.append(cut)
             last = cut
-
         all = new
         # all now has indices for all sequences in the alignment
 
@@ -104,7 +110,7 @@ class CAPSMap:
 
             for i in range(0, self.size):
                 seq = self.sequences[i]
-                if cut in cuts[seq]:
+                if cut in cuts[i]:
                     cuts_in.append(i)
                 else:
                     blocked_in.append(i)
