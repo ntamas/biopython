@@ -10,6 +10,8 @@ This exercises the Motif, Schema and Signature methods of representing
 genes, as well as generic Pattern methods.
 """
 # standard library
+from __future__ import print_function
+
 import os
 import unittest
 
@@ -127,9 +129,10 @@ class PatternIOTest(unittest.TestCase):
                "Got back unexpected signatures %s, wanted %s" \
                % (read_sigs, signatures)
 
+
 class PatternRepositoryTest(unittest.TestCase):
     """Tests for retrieving info from a repository of patterns.
-    """ 
+    """
     def setUp(self):
         self.motifs = {"GATC" : 30,
                        "GGGG" : 10,
@@ -171,7 +174,7 @@ class PatternRepositoryTest(unittest.TestCase):
 
             for pattern in patterns:
                 assert pattern in self.motifs.keys(), \
-                       "Got unexpected pattern %s" % pattern      
+                       "Got unexpected pattern %s" % pattern
 
     def test_get_top(self):
         """Retrieve a certain number of the top patterns.
@@ -184,7 +187,7 @@ class PatternRepositoryTest(unittest.TestCase):
 
             for pattern in patterns:
                 assert pattern in self.motifs.keys(), \
-                       "Got unexpected pattern %s" % pattern       
+                       "Got unexpected pattern %s" % pattern
 
     def test_get_differing(self):
         """Retrieve patterns from both sides of the list (top and bottom).
@@ -200,7 +203,7 @@ class PatternRepositoryTest(unittest.TestCase):
         assert len(patterns) == 5, "Unexpected starting: %s" % patterns
 
         self.repository.remove_polyA()
-        
+
         patterns = self.repository.get_all()
         assert len(patterns) == 3, "Unexpected ending: %s" % patterns
         assert patterns == ["GATC", "GGGG", "GTAG"], \
@@ -216,6 +219,7 @@ class PatternRepositoryTest(unittest.TestCase):
         num_times = self.repository.count("NOT_IN_THERE")
         assert num_times == 0, \
                "Counted items not in repository: %s" % num_times
+
 
 # --- Tests for motifs
 
@@ -239,7 +243,7 @@ class MotifFinderTest(unittest.TestCase):
                                    alphabet=IUPAC.unambiguous_dna)
             while 1:
                 try:
-                    seq_record = iterator.next()
+                    seq_record = next(iterator)
                 except StopIteration:
                     break
                 if seq_record is None:
@@ -272,6 +276,7 @@ class MotifFinderTest(unittest.TestCase):
         assert top == "TTGGAAAG", "Got unexpected top motif %s" % top
         assert bottom == "AATGGCAT", "Got unexpected bottom motif %s" % bottom
 
+
 class MotifCoderTest(unittest.TestCase):
     """Test the ability to encode sequences as a set of motifs.
     """
@@ -280,10 +285,9 @@ class MotifCoderTest(unittest.TestCase):
 
         self.match_strings = (("GATCGCC", [0.0, 1.0, 1.0, 0.0]),
                               ("GATGATCGAGCC", [.5, 1.0, .5, 0.0]))
-        
+
         self.coder = Motif.MotifCoder(motifs)
 
-        
     def test_representation(self):
         """Convert a sequence into its motif representation.
         """
@@ -294,6 +298,7 @@ class MotifCoderTest(unittest.TestCase):
             assert matches == expected, \
                    "Did not match representation, expected %s, got %s" \
                    % (expected, matches)
+
 
 # --- Tests for schemas
 
@@ -348,7 +353,7 @@ class SchemaTest(unittest.TestCase):
             assert found_positions == expected, \
                    "Expected %s, got %s for %s" % (expected, found_positions,
                                                    motif)
-        
+
     def test_num_ambiguous(self):
         """Find the number of ambiguous items in a sequence.
         """
@@ -383,6 +388,7 @@ class SchemaTest(unittest.TestCase):
         expected = ["A", "C", "G", "T"]
         assert found_unambig == expected, \
                "Got %s, expected %s" % (found_unambig, expected)
+
 
 class SchemaFinderTest(unittest.TestCase):
     """Test finding schemas from a set of sequences.
@@ -429,7 +435,8 @@ class SchemaFinderTest(unittest.TestCase):
             schemas = repository.get_all()
 
             assert len(schemas) >= self.num_schemas, "Got too few schemas."
-        
+
+
 class SchemaCoderTest(unittest.TestCase):
     """Test encoding sequences as a grouping of motifs.
     """
@@ -459,13 +466,14 @@ class SchemaCoderTest(unittest.TestCase):
             found_rep = self.motif_coder.representation(match_seq)
             assert found_rep == expected, "Got %s, expected %s" % \
                    (found_rep, expected)
-    
+
+
 class SchemaMatchingTest(unittest.TestCase):
     """Matching schema to strings works correctly.
     """
     def shortDescription(self):
         return "%s:%s" % (self.__class__.__name__, self.__doc__)
-    
+
     def runTest(self):
         match = Schema.matches_schema("GATC", "AAAAA")
         assert match == 0, "Expected no match because of length differences"
@@ -482,6 +490,7 @@ class SchemaMatchingTest(unittest.TestCase):
         match = Schema.matches_schema("G*TC", "*TTC")
         assert match == 1, "Expected match because of ambiguity."
 
+
 class SchemaFactoryTest(unittest.TestCase):
     """Test the SchemaFactory for generating Schemas.
     """
@@ -490,7 +499,7 @@ class SchemaFactoryTest(unittest.TestCase):
 
         # a cached schema bank, so we don't have to load it multiple times
         self.schema_bank = None
-    
+
     def setUp(self):
         self.factory = Schema.SchemaFactory()
 
@@ -517,9 +526,9 @@ class SchemaFactoryTest(unittest.TestCase):
 
         schema_bank = self.factory.from_motifs(motif_bank, .5, 2)
         if VERBOSE:
-            print "\nSchemas:"
+            print("\nSchemas:")
             for schema in schema_bank.get_all():
-                print "%s: %s" % (schema, schema_bank.count(schema))
+                print("%s: %s" % (schema, schema_bank.count(schema)))
 
     def test_hard_from_motifs(self):
         """Generating schema from a real life set of motifs.
@@ -527,9 +536,9 @@ class SchemaFactoryTest(unittest.TestCase):
         schema_bank = self._load_schema_repository()
 
         if VERBOSE:
-            print "\nSchemas:"
+            print("\nSchemas:")
             for schema in schema_bank.get_top(5):
-                print "%s: %s" % (schema, schema_bank.count(schema))
+                print("%s: %s" % (schema, schema_bank.count(schema)))
 
     def _load_schema_repository(self):
         """Helper function to load a schema repository from a file.
@@ -540,7 +549,7 @@ class SchemaFactoryTest(unittest.TestCase):
         # if we already have a cached repository, return it
         if self.schema_bank is not None:
             return self.schema_bank
-        
+
         # otherwise, we'll read in a new schema bank
 
         # read in the all of the motif records
@@ -554,7 +563,7 @@ class SchemaFactoryTest(unittest.TestCase):
         motif_size = 9
 
         motif_bank = motif_finder.find(seq_records, motif_size)
-        
+
         schema_bank = self.factory.from_motifs(motif_bank, .1, 2)
 
         # cache the repository
@@ -576,8 +585,9 @@ class SchemaFactoryTest(unittest.TestCase):
                                       alphabet=IUPAC.unambiguous_dna):
             schema_values = schema_coder.representation(seq_record.seq)
             if VERBOSE:
-                print "Schema values:", schema_values
+                print("Schema values: %s" % schema_values)
         fasta_handle.close()
+
 
 # --- Tests for Signatures
 class SignatureFinderTest(unittest.TestCase):
@@ -604,6 +614,7 @@ class SignatureFinderTest(unittest.TestCase):
 
         assert top_sig[0] == ('TTGGAA', 'TGGAAA'), \
                "Unexpected signature %s" % top_sig[0]
+
 
 class SignatureCoderTest(unittest.TestCase):
     """Test the ability to encode sequences as a set of signatures.

@@ -9,15 +9,17 @@ from Bio.Blast import NCBIXML
 
 E_VALUE_THRESH = 1e-10
 
+
 class TestNCBIXML(unittest.TestCase):
 
-    def test_xbt001(self):
-        "Parsing BLASTP 2.2.12, gi|49176427|ref|NP_418280.3| (xbt001)"
+    def test_xml_2212L_blastp_001(self):
+        "Parsing BLASTP 2.2.12, gi|49176427|ref|NP_418280.3| (xml_2212L_blastp_001)"
 
-        filename = 'xbt001.xml'
+        filename = 'xml_2212L_blastp_001.xml'
         datafile = os.path.join("Blast", filename)
-        records = NCBIXML.parse(open(datafile))
-        record = records.next()
+        handle = open(datafile)
+        records = NCBIXML.parse(handle)
+        record = next(records)
 
         alignments = record.alignments
         self.assertEqual(len(alignments), 212)
@@ -1388,16 +1390,21 @@ class TestNCBIXML(unittest.TestCase):
         self.assertEqual(len(alignment.hsps), 1)
         self.assertTrue(alignment.hsps[0].expect > E_VALUE_THRESH)
 
-        self.assertRaises(StopIteration, records.next)
-        record = NCBIXML.read(open(datafile))
+        self.assertRaises(StopIteration, next, records)
+        handle.close()
 
-    def test_xbt002(self):
-        "Parsing BLASTN 2.2.12, gi|1348916|gb|G26684.1|G26684 (xbt002)"
+        handle = open(datafile)
+        record = NCBIXML.read(handle)
+        handle.close()
 
-        filename = 'xbt002.xml'
+    def test_xml_2212L_blastn_001(self):
+        "Parsing BLASTN 2.2.12, gi|1348916|gb|G26684.1|G26684 (xml_2212L_blastn_001)"
+
+        filename = 'xml_2212L_blastn_001.xml'
         datafile = os.path.join("Blast", filename)
-        records = NCBIXML.parse(open(datafile))
-        record = records.next()
+        handle = open(datafile)
+        records = NCBIXML.parse(handle)
+        record = next(records)
         alignments = record.alignments
 
         self.assertEqual(record.query_id, "gi|1348916|gb|G26684.1|G26684")
@@ -1412,63 +1419,84 @@ class TestNCBIXML(unittest.TestCase):
         self.assertEqual(len(alignments[1].hsps), 1)
         self.assertTrue(alignments[1].hsps[0].expect > E_VALUE_THRESH)
 
-        self.assertRaises(StopIteration, records.next)
-        record = NCBIXML.read(open(datafile))
+        self.assertRaises(StopIteration, next, records)
+        handle.close()
 
-    def test_xbt003(self):
-        "Parsing BLASTX 2.2.12, gi|1347369|gb|G25137.1|G25137 (xbt003)"
+        handle = open(datafile)
+        record = NCBIXML.read(handle)
+        handle.close()
 
-        filename = 'xbt003.xml'
+    def test_xml_2212L_blastx_001(self):
+        "Parsing BLASTX 2.2.12, gi|1347369|gb|G25137.1|G25137 (xml_2212L_blastx_001)"
+
+        filename = 'xml_2212L_blastx_001.xml'
         datafile = os.path.join("Blast", filename)
-        records = NCBIXML.parse(open(datafile))
-        record = records.next()
+
+        handle = open(datafile)
+        records = NCBIXML.parse(handle)
+        record = next(records)
         alignments = record.alignments
         self.assertEqual(record.query_id, "gi|1347369|gb|G25137.1|G25137")
         self.assertEqual(len(alignments), 78)
         self.assertEqual(sum([len(a.hsps) for a in alignments]), 84)
+        self.assertRaises(StopIteration, next, records)
+        handle.close()
 
-        self.assertRaises(StopIteration, records.next)
-        record = NCBIXML.read(open(datafile))
+        handle = open(datafile)
+        record = NCBIXML.read(handle)
+        handle.close()
 
-    def test_xbt004(self):
-        "Parsing TBLASTN 2.2.12, gi|729325|sp|P39483|DHG2_BACME (xbt004)"
+    def test_xml_2212L_tblastn_001(self):
+        "Parsing TBLASTN 2.2.12, gi|729325|sp|P39483|DHG2_BACME (xml_2212L_tblastn_001)"
 
-        filename = 'xbt004.xml'
+        filename = 'xml_2212L_tblastn_001.xml'
         datafile = os.path.join("Blast", filename)
-        records = NCBIXML.parse(open(datafile))
-        record = records.next()
+
+        handle = open(datafile)
+        records = NCBIXML.parse(handle)
+        record = next(records)
         alignments = record.alignments
         self.assertEqual(record.query_id, "gi|729325|sp|P39483|DHG2_BACME")
         self.assertEqual(len(alignments), 100)
         self.assertEqual(sum([len(a.hsps) for a in alignments]), 127)
+        self.assertRaises(StopIteration, next, records)
+        handle.close()
 
-        self.assertRaises(StopIteration, records.next)
-        record = NCBIXML.read(open(datafile))
+        handle = open(datafile)
+        record = NCBIXML.read(handle)
+        handle.close()
 
-    def test_xbt005(self):
-        "Parsing TBLASTX 2.2.12, gi|1348853|gb|G26621.1|G26621, BLOSUM80 (xbt005)"
+    def test_xml_2212L_tblastx_001(self):
+        "Parsing TBLASTX 2.2.12, gi|1348853|gb|G26621.1|G26621, BLOSUM80 (xml_2212L_tblastx_001)"
 
-        filename = 'xbt005.xml'
+        filename = 'xml_2212L_tblastx_001.xml'
         datafile = os.path.join("Blast", filename)
-        records = NCBIXML.parse(open(datafile))
-        record = records.next()
+
+        handle = open(datafile)
+        records = NCBIXML.parse(handle)
+        record = next(records)
         alignments = record.alignments
         self.assertEqual(record.query_id, "gi|1348853|gb|G26621.1|G26621")
         self.assertEqual(len(alignments), 10)
         self.assertEqual(sum([len(a.hsps) for a in alignments]), 102)
+        self.assertRaises(StopIteration, next, records)
+        handle.close()
 
-        self.assertRaises(StopIteration, records.next)
-        record = NCBIXML.read(open(datafile))
+        handle = open(datafile)
+        record = NCBIXML.read(handle)
+        handle.close()
 
-    def test_xbt006(self):
-        "Parsing BLASTP 2.2.18+, gi|160837788|ref|NP_075631.2| (xbt006)"
+    def test_xml_2218_blastp_001(self):
+        "Parsing BLASTP 2.2.18+, gi|160837788|ref|NP_075631.2| (xml_2218_blastp_001)"
         # NOTE - no date in version field, downloaded 2008/05/08
 
-        filename = 'xbt006.xml'
+        filename = 'xml_2218_blastp_001.xml'
         datafile = os.path.join("Blast", filename)
-        records = NCBIXML.parse(open(datafile))
 
-        record = records.next()
+        handle = open(datafile)
+        records = NCBIXML.parse(handle)
+
+        record = next(records)
         alignments = record.alignments
         self.assertEqual(record.query_id, "31493")
         self.assertEqual(len(alignments), 10)
@@ -1518,47 +1546,60 @@ class TestNCBIXML(unittest.TestCase):
         self.assertTrue(alignments[9].hsps[0].expect > E_VALUE_THRESH)
         self.assertTrue(alignments[9].hsps[1].expect > E_VALUE_THRESH)
 
-        self.assertRaises(StopIteration, records.next)
-        record = NCBIXML.read(open(datafile))
+        self.assertRaises(StopIteration, next, records)
+        handle.close()
 
-    def test_xbt007(self):
-        "Parsing BLASTP 2.2.18+, SwissProt Q08386 and P07175, no hits (xbt007)"
+        handle = open(datafile)
+        record = NCBIXML.read(handle)
+        handle.close()
 
-        filename = 'xbt007.xml'
+    def test_xml_2218_blastp_002(self):
+        "Parsing BLASTP 2.2.18+, SwissProt Q08386 and P07175, no hits (xml_2218_blastp_002)"
+
+        filename = 'xml_2218_blastp_002.xml'
         datafile = os.path.join("Blast", filename)
-        records = NCBIXML.parse(open(datafile))
-        record = records.next()
+        handle = open(datafile)
+        records = NCBIXML.parse(handle)
+        record = next(records)
         self.assertEqual(record.query_id, "gi|585505|sp|Q08386|MOPB_RHOCA")
         alignments = record.alignments
         self.assertEqual(len(record.alignments), 0)
-        record = records.next()
+        record = next(records)
         self.assertEqual(record.query_id, "gi|129628|sp|P07175.1|PARA_AGRTU")
         self.assertEqual(len(record.alignments), 0)
+        self.assertRaises(StopIteration, next, records)
+        handle.close()
 
-        self.assertRaises(StopIteration, records.next)
+    def test_xml_2218L_blastp_001(self):
+        "Parsing BLASTP 2.2.18, Fake query (xml_2218L_blastp_001)"
 
-    def test_xbt008(self):
-        "Parsing BLASTP 2.2.18, Fake query (xbt008)"
-
-        filename = 'xbt008.xml'
+        filename = 'xml_2218L_blastp_001.xml'
         datafile = os.path.join("Blast", filename)
-        records = NCBIXML.parse(open(datafile))
-        record = records.next()
+
+        handle = open(datafile)
+        records = NCBIXML.parse(handle)
+        record = next(records)
         self.assertEqual(record.query_id, "lcl|1_0")
         alignments = record.alignments
         self.assertEqual(len(alignments), 0)
-        self.assertRaises(StopIteration, records.next)
-        record = NCBIXML.read(open(datafile))
+        self.assertRaises(StopIteration, next, records)
+        handle.close()
 
-    def test_xbt009(self):
-        "Parsing BLASTX 2.2.22+, multiple queries against NR (xbt009)"
+        handle = open(datafile)
+        record = NCBIXML.read(handle)
+        handle.close()
+
+    def test_xml_2222_blastx_001(self):
+        "Parsing BLASTX 2.2.22+, multiple queries against NR (xml_2222_blastx_001)"
         #See also plain text file bt081.txt (matching output from blastx tool)
 
-        filename = 'xbt009.xml'
+        filename = 'xml_2222_blastx_001.xml'
         datafile = os.path.join("Blast", filename)
-        records = NCBIXML.parse(open(datafile))
 
-        record = records.next()
+        handle = open(datafile)
+        records = NCBIXML.parse(handle)
+
+        record = next(records)
         self.assertEqual(record.application, "BLASTX")
         self.assertEqual(record.version, '2.2.22+')
         self.assertEqual(record.date, "")
@@ -1568,12 +1609,12 @@ class TestNCBIXML(unittest.TestCase):
         self.assertEqual(record.num_sequences_in_database, 8994603)
         self.assertEqual(record.database_sequences, 8994603)
         #self.assertEqual(record.database_length, 3078807967)
-        self.assertEqual(record.database_length, -1216159329) #NCBI bug!
+        self.assertEqual(record.database_length, -1216159329)  # NCBI bug!
         self.assertEqual(len(record.descriptions), 1)
         self.assertEqual(len(record.alignments), 1)
         self.assertEqual(len(record.alignments[0].hsps), 1)
 
-        record = records.next()
+        record = next(records)
         self.assertEqual(record.application, "BLASTX")
         self.assertEqual(record.version, '2.2.22+')
         self.assertEqual(record.date, "")
@@ -1583,15 +1624,15 @@ class TestNCBIXML(unittest.TestCase):
         self.assertEqual(record.num_sequences_in_database, 8994603)
         self.assertEqual(record.database_sequences, 8994603)
         #self.assertEqual(record.database_length, 3078807967)
-        self.assertEqual(record.database_length, -1216159329) #NCBI bug!
+        self.assertEqual(record.database_length, -1216159329)  # NCBI bug!
         # I used -num_descriptions 10 and -num_alignments 1
         self.assertEqual(len(record.descriptions), 10)
         self.assertEqual(len(record.alignments), 10)
         self.assertEqual(len(record.alignments[0].hsps), 2)
         self.assertEqual(len(record.alignments[1].hsps), 2)
         self.assertEqual(len(record.alignments[9].hsps), 2)
-        
-        record = records.next()
+
+        record = next(records)
         self.assertEqual(record.application, "BLASTX")
         self.assertEqual(record.version, '2.2.22+')
         self.assertEqual(record.date, "")
@@ -1601,11 +1642,11 @@ class TestNCBIXML(unittest.TestCase):
         self.assertEqual(record.num_sequences_in_database, 8994603)
         self.assertEqual(record.database_sequences, 8994603)
         #self.assertEqual(record.database_length, 3078807967)
-        self.assertEqual(record.database_length, -1216159329) #NCBI bug!
+        self.assertEqual(record.database_length, -1216159329)  # NCBI bug!
         self.assertEqual(len(record.descriptions), 0)
         self.assertEqual(len(record.alignments), 0)
 
-        record = records.next()
+        record = next(records)
         self.assertEqual(record.application, "BLASTX")
         self.assertEqual(record.version, '2.2.22+')
         self.assertEqual(record.date, "")
@@ -1615,13 +1656,13 @@ class TestNCBIXML(unittest.TestCase):
         self.assertEqual(record.num_sequences_in_database, 8994603)
         self.assertEqual(record.database_sequences, 8994603)
         #self.assertEqual(record.database_length, 3078807967)
-        self.assertEqual(record.database_length, -1216159329) #NCBI bug!
+        self.assertEqual(record.database_length, -1216159329)  # NCBI bug!
         self.assertEqual(len(record.descriptions), 10)
         self.assertEqual(len(record.alignments), 10)
         self.assertEqual(len(record.alignments[0].hsps), 1)
         self.assertEqual(len(record.alignments[9].hsps), 1)
 
-        record = records.next()
+        record = next(records)
         self.assertEqual(record.application, "BLASTX")
         self.assertEqual(record.version, '2.2.22+')
         self.assertEqual(record.date, "")
@@ -1631,13 +1672,13 @@ class TestNCBIXML(unittest.TestCase):
         self.assertEqual(record.num_sequences_in_database, 8994603)
         self.assertEqual(record.database_sequences, 8994603)
         #self.assertEqual(record.database_length, 3078807967)
-        self.assertEqual(record.database_length, -1216159329) #NCBI bug!
+        self.assertEqual(record.database_length, -1216159329)  # NCBI bug!
         self.assertEqual(len(record.descriptions), 10)
         self.assertEqual(len(record.alignments), 10)
         self.assertEqual(len(record.alignments[0].hsps), 2)
         self.assertEqual(len(record.alignments[9].hsps), 1)
 
-        record = records.next()
+        record = next(records)
         self.assertEqual(record.application, "BLASTX")
         self.assertEqual(record.version, '2.2.22+')
         self.assertEqual(record.date, "")
@@ -1647,13 +1688,13 @@ class TestNCBIXML(unittest.TestCase):
         self.assertEqual(record.num_sequences_in_database, 8994603)
         self.assertEqual(record.database_sequences, 8994603)
         #self.assertEqual(record.database_length, 3078807967)
-        self.assertEqual(record.database_length, -1216159329) #NCBI bug!
+        self.assertEqual(record.database_length, -1216159329)  # NCBI bug!
         self.assertEqual(len(record.descriptions), 10)
         self.assertEqual(len(record.alignments), 10)
         self.assertEqual(len(record.alignments[0].hsps), 1)
         self.assertEqual(len(record.alignments[9].hsps), 1)
 
-        record = records.next()
+        record = next(records)
         self.assertEqual(record.application, "BLASTX")
         self.assertEqual(record.version, '2.2.22+')
         self.assertEqual(record.date, "")
@@ -1663,23 +1704,26 @@ class TestNCBIXML(unittest.TestCase):
         self.assertEqual(record.num_sequences_in_database, 8994603)
         self.assertEqual(record.database_sequences, 8994603)
         #self.assertEqual(record.database_length, 3078807967)
-        self.assertEqual(record.database_length, -1216159329) #NCBI bug!
+        self.assertEqual(record.database_length, -1216159329)  # NCBI bug!
         self.assertEqual(len(record.descriptions), 10)
         self.assertEqual(len(record.alignments), 10)
         self.assertEqual(len(record.alignments[0].hsps), 1)
         self.assertEqual(len(record.alignments[9].hsps), 1)
 
-        self.assertRaises(StopIteration, records.next)
+        self.assertRaises(StopIteration, next, records)
+        handle.close()
 
-    def test_xbt010(self):
-        "Parsing BLASTP 2.2.22+, multiple queries against NR (xbt010)"
+    def test_xml_2222_blastp_001(self):
+        "Parsing BLASTP 2.2.22+, multiple queries against NR (xml_2222_blastp_001)"
         #This is from blastp NOT blastall
 
-        filename = 'xbt010.xml'
+        filename = 'xml_2222_blastp_001.xml'
         datafile = os.path.join("Blast", filename)
-        records = NCBIXML.parse(open(datafile))
 
-        record = records.next()
+        handle = open(datafile)
+        records = NCBIXML.parse(handle)
+
+        record = next(records)
         self.assertEqual(record.application, "BLASTP")
         self.assertEqual(record.version, '2.2.22+')
         self.assertEqual(record.date, "")
@@ -1689,37 +1733,40 @@ class TestNCBIXML(unittest.TestCase):
         self.assertEqual(record.num_sequences_in_database, 8994603)
         self.assertEqual(record.database_sequences, 8994603)
         #self.assertEqual(record.database_length, 3078807967)
-        self.assertEqual(record.database_length, -1216159329) #NCBI bug!
+        self.assertEqual(record.database_length, -1216159329)  # NCBI bug!
         self.assertEqual(len(record.descriptions), 10)
         self.assertEqual(len(record.alignments), 10)
         self.assertEqual(len(record.alignments[0].hsps), 1)
 
-        record = records.next()
+        record = next(records)
         self.assertEqual(record.query, "gi|2781234|pdb|1JLY|B Chain B, Crystal Structure Of Amaranthus Caudatus Agglutinin")
         self.assertEqual(record.query_letters, 304)
 
-        record = records.next()
+        record = next(records)
         self.assertEqual(record.query, "gi|4959044|gb|AAD34209.1|AF069992_1 LIM domain interacting RING finger protein")
         self.assertEqual(record.query_letters, 600)
 
-        record = records.next()
+        record = next(records)
         self.assertEqual(record.query, "gi|671626|emb|CAA85685.1| rubisco large subunit")
         self.assertEqual(record.query_letters, 473)
 
-        self.assertRaises(StopIteration, records.next)
+        self.assertRaises(StopIteration, next, records)
+        handle.close()
 
-    def test_xbt011(self):
-        "Parsing PSI-BLASTP 2.2.18, single query which converges in 3 iterations (xbt011)"
+    def test_xml_2218L_rpsblast_001(self):
+        "Parsing PSI-BLASTP 2.2.18, single query which converges in 3 iterations (xml_2218L_rpsblast_001)"
         #This is from old pgpblast command line tool, NOT new psiblast
         #NOTE - The parser currently returns three BLAST record objects.
         #The old text parser would return a single PSI BLAST record object with three rounds.
         #This may change... although it may require a PSI BLAST specific XML parser.
 
-        filename = 'xbt011.xml'
+        filename = 'xml_2218L_rpsblast_001.xml'
         datafile = os.path.join("Blast", filename)
-        records = NCBIXML.parse(open(datafile))
 
-        record = records.next()
+        handle = open(datafile)
+        records = NCBIXML.parse(handle)
+
+        record = next(records)
         self.assertEqual(record.application, "BLASTP")
         self.assertEqual(record.version, '2.2.18')
         self.assertEqual(record.date, "Mar-02-2008")
@@ -1760,7 +1807,7 @@ class TestNCBIXML(unittest.TestCase):
         self.assertEqual(hsp.sbjct_start, 1)
         self.assertEqual(hsp.sbjct_end, 76)
 
-        record = records.next()
+        record = next(records)
         self.assertEqual(record.application, "BLASTP")
         self.assertEqual(record.version, '2.2.18')
         self.assertEqual(record.date, "Mar-02-2008")
@@ -1787,7 +1834,7 @@ class TestNCBIXML(unittest.TestCase):
         self.assertEqual(hsp.sbjct_start, 1)
         self.assertEqual(hsp.sbjct_end, 131)
 
-        record = records.next()
+        record = next(records)
         self.assertEqual(record.application, "BLASTP")
         self.assertEqual(record.version, '2.2.18')
         self.assertEqual(record.date, "Mar-02-2008")
@@ -1816,7 +1863,8 @@ class TestNCBIXML(unittest.TestCase):
 
         #TODO - Can we detect the convergence status:
         #<Iteration_message>CONVERGED</Iteration_message>
-        self.assertRaises(StopIteration, records.next)
+        self.assertRaises(StopIteration, next, records)
+        handle.close()
 
 
 if __name__ == "__main__":

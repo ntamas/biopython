@@ -27,10 +27,15 @@ dist
 
 #Ignore all Jython class files (present if using Jython)
 *.class
+
+#Ignore the MANIFEST file created automatically from MANIFEST.in
+MANIFEST
+
+#Ignore potential directory created during install:
+biopython.egg-info
  
 #The graphics unit tests produce output files for human inspection
-#(at the time of writing, only PDF files are created but I expect
-#this to change).
+#(at the time of writing, only PDF and PNG files are created)
 Tests/Graphics/*.pdf
 Tests/Graphics/*.eps
 Tests/Graphics/*.svg
@@ -62,13 +67,18 @@ Doc/*/*/*.htoc
 Doc/Tutorial.txt
 Doc/Tutorial.pdf
 Doc/Tutorial.html
+Doc/biopdb_faq.pdf
 Doc/install/Installation.txt
 Doc/install/Installation.pdf
 Doc/install/Installation.html
 Doc/cookbook/motif/motif.pdf
 Doc/cookbook/motif/motif.html
 
-Ignore the hevea.sty file if present (used for HTML docs)
+#Ignore the hevea.sty file if present (used for HTML docs)
 Doc/hevea.sty
 Doc/*/hevea.sty
 Doc/*/*/hevea.sty
+
+#Ignore IntelliJ IDEA directory and project files
+.idea
+*.iml

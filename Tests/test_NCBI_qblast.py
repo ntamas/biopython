@@ -12,10 +12,11 @@ Goals:
     Make sure that all retrieval is working as expected.
     Make sure we can parse the latest XML format being used by the NCBI.
 """
-import sys
+from __future__ import print_function
+
 import requires_internet
 requires_internet.check()
-from Bio import MissingExternalDependencyError 
+from Bio import MissingExternalDependencyError
 from urllib2 import HTTPError
 
 #We want to test these:
@@ -32,7 +33,7 @@ from Bio.Blast import NCBIXML
 # - expectation value threshold
 # - Entrez filter string (or None)
 # - list of hit identifiers expected to be found (or None if expect 0)
-tests = [ \
+tests = [
     #Simple protein blast filtered for rat only, using protein GI:160837788
     #the actin related protein 2/3 complex, subunit 1B [Mus musculus]
     ("blastp", "nr", "160837788", 0.001,
@@ -54,21 +55,21 @@ ACATTAGTATCATATGGCTATTTGCTCAATTGCAGATTTCTTTCTTTTGTGAATG""",
      0.0000001, None, ["21554275","18409071","296087288"]),
 ]
 
-print "Checking Bio.Blast.NCBIWWW.qblast() with various queries"
+print("Checking Bio.Blast.NCBIWWW.qblast() with various queries")
 for program,database,query,e_value,entrez_filter,expected_hits in tests:
-    print "qblast('%s', '%s', %s, ...)" % (program, database, repr(query))
+    print("qblast('%s', '%s', %s, ...)" % (program, database, repr(query)))
     try:
         if program=="blastn":
             #Check the megablast parameter is accepted
-            handle = NCBIWWW.qblast(program, database, query, \
-                                    alignments=10, descriptions=10, \
-                                    hitlist_size=10, \
+            handle = NCBIWWW.qblast(program, database, query,
+                                    alignments=10, descriptions=10,
+                                    hitlist_size=10,
                                     entrez_query=entrez_filter,
                                     expect=e_value, megablast="FALSE")
         else:
-            handle = NCBIWWW.qblast(program, database, query, \
-                                    alignments=10, descriptions=10, \
-                                    hitlist_size=10, \
+            handle = NCBIWWW.qblast(program, database, query,
+                                    alignments=10, descriptions=10,
+                                    hitlist_size=10,
                                     entrez_query=entrez_filter,
                                     expect=e_value)
     except HTTPError:
@@ -104,9 +105,9 @@ for program,database,query,e_value,entrez_filter,expected_hits in tests:
                     found_result = True
                     break
         if len(expected_hits)==1:
-            print "Update this test to have some redundancy..."
+            print("Update this test to have some redundancy...")
             for alignment in record.alignments:
-                print alignment.hit_id
+                print(alignment.hit_id)
         assert found_result, "Missing all of %s in alignments" \
                % ", ".join(expected_hits)
 
@@ -124,4 +125,4 @@ for program,database,query,e_value,entrez_filter,expected_hits in tests:
                     break
         assert found_result, "Missing all of %s in descriptions" % expected_hit
 
-print "Done"
+print("Done")

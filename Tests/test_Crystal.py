@@ -6,10 +6,10 @@
 # python unittest framework
 import unittest
 import copy
-import sys
 
 # modules to be tested
 from Bio.Crystal import Hetero, Chain, Crystal, CrystalError
+
 
 class ChainTestCase(unittest.TestCase):
 
@@ -38,20 +38,19 @@ class ChainTestCase(unittest.TestCase):
 
         first = Chain(self.a)
         second = Chain(self.g)
-        self.assertNotEquals(first, second)
+        self.assertNotEqual(first, second)
 
         first = Chain(self.a)
         second = Chain(self.h)
-        self.assertNotEquals(first, second)
+        self.assertNotEqual(first, second)
 
         first = Chain(self.c)
         second = Chain(self.e)
-        self.assertNotEquals(first, second)
+        self.assertNotEqual(first, second)
 
         first = Chain(self.c)
         second = Chain(self.f)
-        self.assertNotEquals(first, second)
-
+        self.assertNotEqual(first, second)
 
     def testLen(self):
         chain = Chain(self.a)
@@ -68,7 +67,6 @@ class ChainTestCase(unittest.TestCase):
         elements = self.c.strip().split()
         num_elements = len(elements)
         self.assertEqual(len(chain), num_elements)
-
 
     def testAppend(self):
         chain = Chain(self.a[:])
@@ -111,7 +109,6 @@ class ChainTestCase(unittest.TestCase):
         self.assertEqual('ser', last_element.data)
         self.assertEqual(len(chain), num_elements + 1)
 
-
     def testInsert(self):
         chain = Chain(self.a[:])
         i = 4
@@ -149,7 +146,6 @@ class ChainTestCase(unittest.TestCase):
         self.assertEqual('gln', target_element.data)
         self.assertEqual(len(chain), num_elements + 1)
 
-
     def testRemove(self):
 
         chain = Chain(self.a[:])
@@ -179,7 +175,6 @@ class ChainTestCase(unittest.TestCase):
         self.assertEqual(num_leu_remaining, num_leu - 1)
         self.assertEqual(len(chain), num_elements - 1)
 
-
     def testCount(self):
         chain = Chain(self.a[:])
         num_a = chain.data.count(Hetero('a'))
@@ -196,7 +191,6 @@ class ChainTestCase(unittest.TestCase):
         chain = Chain(self.c[:])
         num_a = chain.data.count(Hetero('cys'))
         self.assertEqual(chain.count('cys'), num_a)
-
 
     def testIndex(self):
         chain = Chain(self.a[:])
@@ -313,7 +307,6 @@ class ChainTestCase(unittest.TestCase):
         other = chain.data[:]
         self.assertEqual(slice.data, other)
 
-
         chain = Chain(self.a[:] )
         first = 0
         last = 4
@@ -348,14 +341,12 @@ class ChainTestCase(unittest.TestCase):
         other = chain.data[ first: last ]
         self.assertEqual(slice.data, other)
 
-
     def testSetSlice(self):
         chain = Chain(self.a[:] )
         slice = 'G T C A G 5NC G C A T G G'
         chain[ : ] = slice[ 4 : 7 ]
         other = Chain(slice[ 4: 7 ] )
         self.assertEqual(chain, other)
-
 
         chain = Chain(self.c[:] )
         old_chain = Chain(self.c[ : ])
@@ -397,7 +388,6 @@ class ChainTestCase(unittest.TestCase):
         other = Chain(old_chain.data[ :9 ])
         self.assertEqual(chain, other)
 
-
     def testContains(self):
         chain = Chain(self.c[ : ])
         self.assertFalse('ser' in chain)
@@ -424,15 +414,13 @@ class ChainTestCase(unittest.TestCase):
         self.assertEqual(targete, targetb)
 
 
-
-
 class CrystalTestCase(unittest.TestCase):
 
     def setUp(self):
 
-        self.crystal = Crystal({ 'a' : 'T T G A C T C T C T T A A', \
-                             'b' : Chain('G A G A G T C A'), \
-                             'c' : 'T T G A C T C T C T T A A', \
+        self.crystal = Crystal({ 'a' : 'T T G A C T C T C T T A A',
+                             'b' : Chain('G A G A G T C A'),
+                             'c' : 'T T G A C T C T C T T A A',
                              'd' : Chain('G A G A G T C A')
                             })
 
@@ -505,16 +493,15 @@ class HeteroTestCase(unittest.TestCase):
         u1 = Hetero('u')
         self.assertEqual(u, u1)
         self.assertEqual(u, Hetero('U'))
-        self.assertNotEquals(u, Hetero('u1'))
-        self.assertNotEquals(u, Hetero('x'))
+        self.assertNotEqual(u, Hetero('u1'))
+        self.assertNotEqual(u, Hetero('x'))
         gna = Hetero('gna')
         self.assertEqual(gna, Hetero('gNA'))
         self.assertEqual(gna, Hetero('GnA'))
-        self.assertNotEquals(gna, Hetero('gnb'))
-        self.assertNotEquals(gna, Hetero('na'))
+        self.assertNotEqual(gna, Hetero('gnb'))
+        self.assertNotEqual(gna, Hetero('na'))
 
 
 if __name__ == "__main__":
     runner = unittest.TextTestRunner(verbosity = 2)
     unittest.main(testRunner=runner)
-

@@ -21,16 +21,16 @@ for path in os.environ['PATH'].split(os.pathsep):
                 found = True
                 simcoal_dir = path
     except os.error:
-        pass #Path doesn't exist - correct to pass
+        pass  # Path doesn't exist - correct to pass
 if not found:
-    raise MissingExternalDependencyError(\
+    raise MissingExternalDependencyError(
         "Install SIMCOAL2 if you want to use Bio.PopGen.SimCoal.")
 
 
 class AppTest(unittest.TestCase):
     """Tests simcoal execution via biopython.
     """
-    def startUp(self):
+    def setUp(self):
         self.tidy()
 
     def tearDown(self):

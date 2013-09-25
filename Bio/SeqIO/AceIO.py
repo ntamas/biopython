@@ -11,12 +11,14 @@ See also the Bio.Sequencing.Ace module which offers more than just accessing
 the contig consensus sequences in an ACE file as SeqRecord objects.
 """
 
+from __future__ import print_function
+
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Alphabet import generic_nucleotide, generic_dna, generic_rna, Gapped
 from Bio.Sequencing import Ace
 
-#This is a generator function!
+
 def AceIterator(handle):
     """Returns SeqRecord objects from an ACE file.
 
@@ -32,8 +34,8 @@ def AceIterator(handle):
     >>> from Bio import SeqIO
     >>> handle = open("Ace/consed_sample.ace", "rU")
     >>> for record in SeqIO.parse(handle, "ace"):
-    ...     print record.id, record.seq[:10]+"...", len(record)
-    ...     print max(record.letter_annotations["phred_quality"])
+    ...     print("%s %s... %i" % (record.id, record.seq[:10], len(record)))
+    ...     print(max(record.letter_annotations["phred_quality"]))
     Contig1 agccccgggc... 1475
     90
 
@@ -47,9 +49,9 @@ def AceIterator(handle):
     >>> from Bio import SeqIO
     >>> handle = open("Ace/contig1.ace", "rU")
     >>> for record in SeqIO.parse(handle, "ace"):
-    ...     print record.id, "..." + record.seq[85:95]+"..."
-    ...     print record.letter_annotations["phred_quality"][85:95]
-    ...     print max(record.letter_annotations["phred_quality"])
+    ...     print("%s ...%s..." % (record.id, record.seq[85:95]))
+    ...     print(record.letter_annotations["phred_quality"][85:95])
+    ...     print(max(record.letter_annotations["phred_quality"]))
     Contig1 ...AGAGG-ATGC...
     [57, 57, 54, 57, 57, 0, 57, 72, 72, 72]
     90
@@ -70,12 +72,12 @@ def AceIterator(handle):
                 alpha = generic_rna
         else:
             alpha = generic_dna
-            
+
         if "*" in consensus_seq_str:
             #For consistency with most other file formats, map
             #any * gaps into - gaps.
             assert "-" not in consensus_seq_str
-            consensus_seq = Seq(consensus_seq_str.replace("*","-"),
+            consensus_seq = Seq(consensus_seq_str.replace("*", "-"),
                                 Gapped(alpha, gap_char="-"))
         else:
             consensus_seq = Seq(consensus_seq_str, alpha)
@@ -86,10 +88,10 @@ def AceIterator(handle):
 
         #TODO - Supporting reads (RD lines, plus perhaps QA and DS lines)
         #Perhaps as SeqFeature objects?
-            
+
         seq_record = SeqRecord(consensus_seq,
-                               id = ace_contig.name,
-                               name = ace_contig.name)
+                               id=ace_contig.name,
+                               name=ace_contig.name)
 
         #Consensus base quality (BQ lines).  Note that any gaps (originally
         #as * characters) in the consensus do not get a quality entry, so
@@ -106,34 +108,11 @@ def AceIterator(handle):
         assert i == len(ace_contig.quality)
         seq_record.letter_annotations["phred_quality"] = quals
 
-        yield seq_record 
+        yield seq_record
     #All done
 
-def _test():
-    """Run the Bio.SeqIO module's doctests.
 
-    This will try and locate the unit tests directory, and run the doctests
-    from there in order that the relative paths used in the examples work.
-    """
-    import doctest
-    import os
-    if os.path.isdir(os.path.join("..", "..", "Tests", "Ace")):
-        print "Runing doctests..."
-        cur_dir = os.path.abspath(os.curdir)
-        os.chdir(os.path.join("..", "..", "Tests"))
-        assert os.path.isfile("Ace/consed_sample.ace")
-        doctest.testmod()
-        os.chdir(cur_dir)
-        del cur_dir
-        print "Done"
-    elif os.path.isdir(os.path.join("Tests", "Ace")):
-        print "Runing doctests..."
-        cur_dir = os.path.abspath(os.curdir)
-        os.chdir(os.path.join("Tests"))
-        doctest.testmod()
-        os.chdir(cur_dir)
-        del cur_dir
-        print "Done"
-        
 if __name__ == "__main__":
-    _test()
+    from Bio._utils import run_doctest
+    run_doctest()
+

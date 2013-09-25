@@ -1,4 +1,9 @@
 #!/usr/bin/env python
+# Copyright 2009 by Michiel de Hoon.  All rights reserved.
+# Revisions copyright 2010 by Peter Cock. All rights reserved.
+# This code is part of the Biopython distribution and governed by its
+# license.  Please see the LICENSE file that should have been included
+# as part of this package.
 """Test for the SwissProt parser on SwissProt files.
 """
 import os
@@ -7,7 +12,6 @@ import unittest
 from Bio import SeqIO
 from Bio import SwissProt
 from Bio.SeqRecord import SeqRecord
-
 
 
 class TestSwissProt(unittest.TestCase):
@@ -39,7 +43,7 @@ class TestSwissProt(unittest.TestCase):
         self.assertEqual(record.accessions, ['Q13454', 'Q14911', 'Q14912'])
         self.assertEqual(record.organism_classification, ['Eukaryota', 'Metazoa', 'Chordata', 'Craniata', 'Vertebrata', 'Mammalia', 'Eutheria', 'Primates', 'Catarrhini', 'Hominidae', 'Homo'])
         self.assertEqual(record.seqinfo, (348, 39676, '75818910'))
-    
+
         self.assertEqual(len(record.features), 6)
         self.assertEqual(record.features[0], ('TRANSMEM', 20, 40, 'POTENTIAL.', ''))
         self.assertEqual(record.features[1], ('TRANSMEM', 197, 217, 'POTENTIAL.', ''))
@@ -55,7 +59,7 @@ class TestSwissProt(unittest.TestCase):
         self.assertEqual(record.references[0].references[0], ('MEDLINE', '96299740'))
 
         #Check the two parsers agree on the essentials
-        self.assertEqual(seq_record.seq.tostring(), record.sequence)
+        self.assertEqual(str(seq_record.seq), record.sequence)
         self.assertEqual(seq_record.description, record.description)
         self.assertEqual(seq_record.name, record.entry_name)
         self.assertTrue(seq_record.id in record.accessions)
@@ -72,7 +76,7 @@ class TestSwissProt(unittest.TestCase):
         self.assertTrue(isinstance(records[0], SeqRecord))
 
         #Check matches what we got earlier without the iterator:
-        self.assertEqual(records[0].seq.tostring(), seq_record.seq.tostring())
+        self.assertEqual(str(records[0].seq), str(seq_record.seq))
         self.assertEqual(records[0].description, seq_record.description)
         self.assertEqual(records[0].name, seq_record.name)
         self.assertEqual(records[0].id, seq_record.id)
@@ -90,7 +94,6 @@ class TestSwissProt(unittest.TestCase):
         self.assertEqual(records[0].description, record.description)
         self.assertEqual(records[0].entry_name, record.entry_name)
         self.assertEqual(records[0].accessions, record.accessions)
-
 
     def test_sp002(self):
         "Parsing SwissProt file sp002"
@@ -120,8 +123,8 @@ class TestSwissProt(unittest.TestCase):
         self.assertEqual(record.accessions, ['P54101'])
         self.assertEqual(record.organism_classification, ['Eukaryota', 'Metazoa', 'Chordata', 'Craniata', 'Vertebrata', 'Mammalia', 'Eutheria', 'Rodentia', 'Sciurognathi', 'Muridae', 'Murinae', 'Mus'])
         self.assertEqual(record.seqinfo, (198, 22100, '9DF0142B'))
-    
-        self.assertEqual(len(record.features), 2) 
+
+        self.assertEqual(len(record.features), 2)
         self.assertEqual(record.features[0], ('DOMAIN', 13, 82, 'DNAJ-LIKE.', ''))
         self.assertEqual(record.features[1], ('DOMAIN', 118, 128, 'POLY-CYS.', ''))
 
@@ -139,7 +142,7 @@ class TestSwissProt(unittest.TestCase):
         self.assertEqual(record.references[2].references[0], ('MEDLINE', '96188189'))
 
         #Check the two parsers agree on the essentials
-        self.assertEqual(seq_record.seq.tostring(), record.sequence)
+        self.assertEqual(str(seq_record.seq), record.sequence)
         self.assertEqual(seq_record.description, record.description)
         self.assertEqual(seq_record.name, record.entry_name)
         self.assertTrue(seq_record.id in record.accessions)
@@ -156,7 +159,7 @@ class TestSwissProt(unittest.TestCase):
         self.assertTrue(isinstance(records[0], SeqRecord))
 
         #Check matches what we got earlier without the iterator:
-        self.assertEqual(records[0].seq.tostring(), seq_record.seq.tostring())
+        self.assertEqual(str(records[0].seq), str(seq_record.seq))
         self.assertEqual(records[0].description, seq_record.description)
         self.assertEqual(records[0].name, seq_record.name)
         self.assertEqual(records[0].id, seq_record.id)
@@ -262,7 +265,7 @@ class TestSwissProt(unittest.TestCase):
         self.assertEqual(record.references[12].references[0], ('MEDLINE', '90345949'))
 
         #Check the two parsers agree on the essentials
-        self.assertEqual(seq_record.seq.tostring(), record.sequence)
+        self.assertEqual(str(seq_record.seq), record.sequence)
         self.assertEqual(seq_record.description, record.description)
         self.assertEqual(seq_record.name, record.entry_name)
         self.assertTrue(seq_record.id in record.accessions)
@@ -279,7 +282,7 @@ class TestSwissProt(unittest.TestCase):
         self.assertTrue(isinstance(records[0], SeqRecord))
 
         #Check matches what we got earlier without the iterator:
-        self.assertEqual(records[0].seq.tostring(), seq_record.seq.tostring())
+        self.assertEqual(str(records[0].seq), str(seq_record.seq))
         self.assertEqual(records[0].description, seq_record.description)
         self.assertEqual(records[0].name, seq_record.name)
         self.assertEqual(records[0].id, seq_record.id)
@@ -297,7 +300,6 @@ class TestSwissProt(unittest.TestCase):
         self.assertEqual(records[0].description, record.description)
         self.assertEqual(records[0].entry_name, record.entry_name)
         self.assertEqual(records[0].accessions, record.accessions)
-
 
     def test_sp004(self):
         "Parsing SwissProt file sp004"
@@ -327,7 +329,7 @@ class TestSwissProt(unittest.TestCase):
         self.assertEqual(record.accessions, ['P23082', 'Q52123', 'O07829'])
         self.assertEqual(record.organism_classification, ['Bacteria', 'Proteobacteria', 'gamma subdivision', 'Pseudomonas group', 'Pseudomonas'])
         self.assertEqual(record.seqinfo, (103, 11315, '9F91B3C8'))
-    
+
         self.assertEqual(len(record.features), 12)
         self.assertEqual(record.features[0], ('INIT_MET', 0, 0, '', ''))
         self.assertEqual(record.features[1], ('METAL', 44, 44, 'IRON-SULFUR (2FE-2S) (POTENTIAL).', ''))
@@ -342,7 +344,7 @@ class TestSwissProt(unittest.TestCase):
         self.assertEqual(record.features[10], ('VARIANT', 90, 90, 'P -> A (IN STRAIN G7).', ''))
         self.assertEqual(record.features[11], ('VARIANT', 103, 103, 'S -> GEF (IN STRAIN G7).', ''))
 
-        self.assertEqual(len(record.references), 4) 
+        self.assertEqual(len(record.references), 4)
         self.assertEqual(record.references[0].authors, "KURKELA S., LEHVAESLAIHO H., PALVA E.T., TEERI T.H.")
         self.assertEqual(record.references[0].title, "Cloning, nucleotide sequence and characterization of genes encoding naphthalene dioxygenase of Pseudomonas putida strain NCIB9816.")
         self.assertEqual(len(record.references[0].references), 1)
@@ -360,7 +362,7 @@ class TestSwissProt(unittest.TestCase):
         self.assertEqual(len(record.references[3].references), 0)
 
         #Check the two parsers agree on the essentials
-        self.assertEqual(seq_record.seq.tostring(), record.sequence)
+        self.assertEqual(str(seq_record.seq), record.sequence)
         self.assertEqual(seq_record.description, record.description)
         self.assertEqual(seq_record.name, record.entry_name)
         self.assertTrue(seq_record.id in record.accessions)
@@ -377,7 +379,7 @@ class TestSwissProt(unittest.TestCase):
         self.assertTrue(isinstance(records[0], SeqRecord))
 
         #Check matches what we got earlier without the iterator:
-        self.assertEqual(records[0].seq.tostring(), seq_record.seq.tostring())
+        self.assertEqual(str(records[0].seq), str(seq_record.seq))
         self.assertEqual(records[0].description, seq_record.description)
         self.assertEqual(records[0].name, seq_record.name)
         self.assertEqual(records[0].id, seq_record.id)
@@ -424,7 +426,7 @@ class TestSwissProt(unittest.TestCase):
         self.assertEqual(record.accessions, ['P24973'])
         self.assertEqual(record.organism_classification, ['Eukaryota', 'Metazoa', 'Chordata', 'Craniata', 'Vertebrata', 'Mammalia', 'Eutheria', 'Cetartiodactyla', 'Cetacea', 'Mysticeti', 'Balaenopteridae', 'Balaenoptera'])
         self.assertEqual(record.seqinfo, (115, 13022, 'ACF02965'))
-    
+
         self.assertEqual(len(record.features), 0)
 
         self.assertEqual(len(record.references), 2)
@@ -438,7 +440,7 @@ class TestSwissProt(unittest.TestCase):
         self.assertEqual(record.references[1].references[0], ('MEDLINE', '94141932'))
 
         #Check the two parsers agree on the essentials
-        self.assertEqual(seq_record.seq.tostring(), record.sequence)
+        self.assertEqual(str(seq_record.seq), record.sequence)
         self.assertEqual(seq_record.description, record.description)
         self.assertEqual(seq_record.name, record.entry_name)
         self.assertTrue(seq_record.id in record.accessions)
@@ -455,7 +457,7 @@ class TestSwissProt(unittest.TestCase):
         self.assertTrue(isinstance(records[0], SeqRecord))
 
         #Check matches what we got earlier without the iterator:
-        self.assertEqual(records[0].seq.tostring(), seq_record.seq.tostring())
+        self.assertEqual(str(records[0].seq), str(seq_record.seq))
         self.assertEqual(records[0].description, seq_record.description)
         self.assertEqual(records[0].name, seq_record.name)
         self.assertEqual(records[0].id, seq_record.id)
@@ -473,7 +475,6 @@ class TestSwissProt(unittest.TestCase):
         self.assertEqual(records[0].description, record.description)
         self.assertEqual(records[0].entry_name, record.entry_name)
         self.assertEqual(records[0].accessions, record.accessions)
-
 
     def test_sp006(self):
         "Parsing SwissProt file sp006"
@@ -503,7 +504,7 @@ class TestSwissProt(unittest.TestCase):
         self.assertEqual(record.accessions, ['P39896'])
         self.assertEqual(record.organism_classification, ['BACTERIA', 'FIRMICUTES', 'ACTINOBACTERIA', 'ACTINOBACTERIDAE', 'ACTINOMYCETALES', 'STREPTOMYCINEAE', 'STREPTOMYCETACEAE', 'STREPTOMYCES'])
         self.assertEqual(record.seqinfo, (339, 37035, '848B7337'))
-    
+
         self.assertEqual(len(record.features), 0)
 
         self.assertEqual(len(record.references), 1)
@@ -513,7 +514,7 @@ class TestSwissProt(unittest.TestCase):
         self.assertEqual(record.references[0].references[0], ('MEDLINE', '92193265'))
 
         #Check the two parsers agree on the essentials
-        self.assertEqual(seq_record.seq.tostring(), record.sequence)
+        self.assertEqual(str(seq_record.seq), record.sequence)
         self.assertEqual(seq_record.description, record.description)
         self.assertEqual(seq_record.name, record.entry_name)
         self.assertTrue(seq_record.id in record.accessions)
@@ -530,7 +531,7 @@ class TestSwissProt(unittest.TestCase):
         self.assertTrue(isinstance(records[0], SeqRecord))
 
         #Check matches what we got earlier without the iterator:
-        self.assertEqual(records[0].seq.tostring(), seq_record.seq.tostring())
+        self.assertEqual(str(records[0].seq), str(seq_record.seq))
         self.assertEqual(records[0].description, seq_record.description)
         self.assertEqual(records[0].name, seq_record.name)
         self.assertEqual(records[0].id, seq_record.id)
@@ -548,7 +549,6 @@ class TestSwissProt(unittest.TestCase):
         self.assertEqual(records[0].description, record.description)
         self.assertEqual(records[0].entry_name, record.entry_name)
         self.assertEqual(records[0].accessions, record.accessions)
-
 
     def test_sp007(self):
         "Parsing SwissProt file sp007"
@@ -578,7 +578,7 @@ class TestSwissProt(unittest.TestCase):
         self.assertEqual(record.accessions, ['O95832'])
         self.assertEqual(record.organism_classification, ['Eukaryota', 'Metazoa', 'Chordata', 'Craniata', 'Vertebrata', 'Mammalia', 'Eutheria', 'Primates', 'Catarrhini', 'Hominidae', 'Homo'])
         self.assertEqual(record.seqinfo, (211, 22744, '07269000E6C214F0'))
-    
+
         self.assertEqual(len(record.features), 6)
         self.assertEqual(record.features[0], ('TRANSMEM', 8, 28, 'POTENTIAL.', ''))
         self.assertEqual(record.features[1], ('TRANSMEM', 82, 102, 'POTENTIAL.', ''))
@@ -597,7 +597,7 @@ class TestSwissProt(unittest.TestCase):
         self.assertEqual(len(record.references[1].references), 0)
 
         #Check the two parsers agree on the essentials
-        self.assertEqual(seq_record.seq.tostring(), record.sequence)
+        self.assertEqual(str(seq_record.seq), record.sequence)
         self.assertEqual(seq_record.description, record.description)
         self.assertEqual(seq_record.name, record.entry_name)
         self.assertTrue(seq_record.id in record.accessions)
@@ -614,7 +614,7 @@ class TestSwissProt(unittest.TestCase):
         self.assertTrue(isinstance(records[0], SeqRecord))
 
         #Check matches what we got earlier without the iterator:
-        self.assertEqual(records[0].seq.tostring(), seq_record.seq.tostring())
+        self.assertEqual(str(records[0].seq), str(seq_record.seq))
         self.assertEqual(records[0].description, seq_record.description)
         self.assertEqual(records[0].name, seq_record.name)
         self.assertEqual(records[0].id, seq_record.id)
@@ -632,7 +632,6 @@ class TestSwissProt(unittest.TestCase):
         self.assertEqual(records[0].description, record.description)
         self.assertEqual(records[0].entry_name, record.entry_name)
         self.assertEqual(records[0].accessions, record.accessions)
-
 
     def test_sp008(self):
         "Parsing SwissProt file sp008"
@@ -662,7 +661,7 @@ class TestSwissProt(unittest.TestCase):
         self.assertEqual(record.accessions, ['P01892', 'P06338', 'P30514', 'P30444', 'P30445', 'P30446', 'Q29680', 'Q29899', 'Q95352', 'Q29837', 'Q95380'])
         self.assertEqual(record.organism_classification, ['Eukaryota', 'Metazoa', 'Chordata', 'Craniata', 'Vertebrata', 'Mammalia', 'Eutheria', 'Primates', 'Catarrhini', 'Hominidae', 'Homo'])
         self.assertEqual(record.seqinfo, (365, 40922, 'B54A97B24B337C08'))
-    
+
         self.assertEqual(len(record.features), 71)
         self.assertEqual(record.features[0], ('SIGNAL', 1, 24, '', ''))
         self.assertEqual(record.features[1], ('CHAIN', 25, 365, 'HLA CLASS I HISTOCOMPATIBILITY ANTIGEN, A-2 ALPHA CHAIN.', ''))
@@ -844,7 +843,7 @@ class TestSwissProt(unittest.TestCase):
         self.assertEqual(record.references[26].references[0], ('MEDLINE', '91245570'))
 
         #Check the two parsers agree on the essentials
-        self.assertEqual(seq_record.seq.tostring(), record.sequence)
+        self.assertEqual(str(seq_record.seq), record.sequence)
         self.assertEqual(seq_record.description, record.description)
         self.assertEqual(seq_record.name, record.entry_name)
         self.assertTrue(seq_record.id in record.accessions)
@@ -861,7 +860,7 @@ class TestSwissProt(unittest.TestCase):
         self.assertTrue(isinstance(records[0], SeqRecord))
 
         #Check matches what we got earlier without the iterator:
-        self.assertEqual(records[0].seq.tostring(), seq_record.seq.tostring())
+        self.assertEqual(str(records[0].seq), str(seq_record.seq))
         self.assertEqual(records[0].description, seq_record.description)
         self.assertEqual(records[0].name, seq_record.name)
         self.assertEqual(records[0].id, seq_record.id)
@@ -908,7 +907,7 @@ class TestSwissProt(unittest.TestCase):
         self.assertEqual(record.accessions, ['O23729'])
         self.assertEqual(record.organism_classification, ['Eukaryota', 'Viridiplantae', 'Embryophyta', 'Tracheophyta', 'Spermatophyta', 'Magnoliophyta', 'Liliopsida', 'Asparagales', 'Orchidaceae', 'Bromheadia'])
         self.assertEqual(record.seqinfo, (394, 42941, '2F8D14AF4870BBB2'))
-    
+
         self.assertEqual(len(record.features), 1)
         self.assertEqual(record.features[0], ('ACT_SITE', 165, 165, 'BY SIMILARITY.', ''))
 
@@ -917,9 +916,8 @@ class TestSwissProt(unittest.TestCase):
         self.assertEqual(record.references[0].title, "Molecular cloning and sequence analysis of chalcone synthase cDNAs of Bromheadia finlaysoniana.")
         self.assertEqual(len(record.references[0].references), 0)
 
-
         #Check the two parsers agree on the essentials
-        self.assertEqual(seq_record.seq.tostring(), record.sequence)
+        self.assertEqual(str(seq_record.seq), record.sequence)
         self.assertEqual(seq_record.description, record.description)
         self.assertEqual(seq_record.name, record.entry_name)
         self.assertTrue(seq_record.id in record.accessions)
@@ -936,7 +934,7 @@ class TestSwissProt(unittest.TestCase):
         self.assertTrue(isinstance(records[0], SeqRecord))
 
         #Check matches what we got earlier without the iterator:
-        self.assertEqual(records[0].seq.tostring(), seq_record.seq.tostring())
+        self.assertEqual(str(records[0].seq), str(seq_record.seq))
         self.assertEqual(records[0].description, seq_record.description)
         self.assertEqual(records[0].name, seq_record.name)
         self.assertEqual(records[0].id, seq_record.id)
@@ -983,7 +981,7 @@ class TestSwissProt(unittest.TestCase):
         self.assertEqual(record.accessions, ['Q13639', 'Q9UBM6', 'Q9UQR6', 'Q9UE22', 'Q9UE23', 'Q9UBT4', 'Q9NY73'])
         self.assertEqual(record.organism_classification, ['Eukaryota', 'Metazoa', 'Chordata', 'Craniata', 'Vertebrata', 'Euteleostomi', 'Mammalia', 'Eutheria', 'Primates', 'Catarrhini', 'Hominidae', 'Homo'])
         self.assertEqual(record.seqinfo, (388, 43761, '7FCFEC60E7BDF560'))
-    
+
         self.assertEqual(len(record.features), 23)
         self.assertEqual(record.features[0], ('DOMAIN', 1, 19, 'EXTRACELLULAR (POTENTIAL).', ''))
         self.assertEqual(record.features[1], ('TRANSMEM', 20, 40, '1 (POTENTIAL).', ''))
@@ -1035,7 +1033,7 @@ class TestSwissProt(unittest.TestCase):
         self.assertEqual(record.references[5].references[1], ('PubMed', '7656980'))
 
         #Check the two parsers agree on the essentials
-        self.assertEqual(seq_record.seq.tostring(), record.sequence)
+        self.assertEqual(str(seq_record.seq), record.sequence)
         self.assertEqual(seq_record.description, record.description)
         self.assertEqual(seq_record.name, record.entry_name)
         self.assertTrue(seq_record.id in record.accessions)
@@ -1052,7 +1050,7 @@ class TestSwissProt(unittest.TestCase):
         self.assertTrue(isinstance(records[0], SeqRecord))
 
         #Check matches what we got earlier without the iterator:
-        self.assertEqual(records[0].seq.tostring(), seq_record.seq.tostring())
+        self.assertEqual(str(records[0].seq), str(seq_record.seq))
         self.assertEqual(records[0].description, seq_record.description)
         self.assertEqual(records[0].name, seq_record.name)
         self.assertEqual(records[0].id, seq_record.id)
@@ -1099,7 +1097,7 @@ class TestSwissProt(unittest.TestCase):
         self.assertEqual(record.accessions, ['P16235', 'P70646', 'Q63807', 'Q63808', 'Q63809'])
         self.assertEqual(record.organism_classification, ['Eukaryota', 'Metazoa', 'Chordata', 'Craniata', 'Vertebrata', 'Euteleostomi', 'Mammalia', 'Eutheria', 'Rodentia', 'Sciurognathi', 'Muridae', 'Murinae', 'Rattus'])
         self.assertEqual(record.seqinfo, (700, 78035, '31807E73BAC94F1F'))
-    
+
         self.assertEqual(len(record.features), 52)
         self.assertEqual(record.features[0], ('SIGNAL', 1, 26, '', ''))
         self.assertEqual(record.features[1], ('CHAIN', 27, 700, 'LUTROPIN-CHORIOGONADOTROPIC HORMONE RECEPTOR.', ''))
@@ -1197,7 +1195,7 @@ class TestSwissProt(unittest.TestCase):
         self.assertEqual(record.references[7].references[1], ('PubMed', '1714448'))
 
         #Check the two parsers agree on the essentials
-        self.assertEqual(seq_record.seq.tostring(), record.sequence)
+        self.assertEqual(str(seq_record.seq), record.sequence)
         self.assertEqual(seq_record.description, record.description)
         self.assertEqual(seq_record.name, record.entry_name)
         self.assertTrue(seq_record.id in record.accessions)
@@ -1214,7 +1212,7 @@ class TestSwissProt(unittest.TestCase):
         self.assertTrue(isinstance(records[0], SeqRecord))
 
         #Check matches what we got earlier without the iterator:
-        self.assertEqual(records[0].seq.tostring(), seq_record.seq.tostring())
+        self.assertEqual(str(records[0].seq), str(seq_record.seq))
         self.assertEqual(records[0].description, seq_record.description)
         self.assertEqual(records[0].name, seq_record.name)
         self.assertEqual(records[0].id, seq_record.id)
@@ -1232,7 +1230,6 @@ class TestSwissProt(unittest.TestCase):
         self.assertEqual(records[0].description, record.description)
         self.assertEqual(records[0].entry_name, record.entry_name)
         self.assertEqual(records[0].accessions, record.accessions)
-
 
     def test_sp012(self):
         "Parsing SwissProt file sp012"
@@ -1262,7 +1259,7 @@ class TestSwissProt(unittest.TestCase):
         self.assertEqual(record.accessions, ['Q9Y736'])
         self.assertEqual(record.organism_classification, ['Eukaryota', 'Fungi', 'Ascomycota', 'Pezizomycotina', 'Eurotiomycetes', 'Onygenales', 'Arthrodermataceae', 'mitosporic Arthrodermataceae', 'Trichophyton'])
         self.assertEqual(record.seqinfo, (153, 17238, '01153CF30C2DEDFF'))
-    
+
         self.assertEqual(len(record.features), 0)
 
         self.assertEqual(len(record.references), 2)
@@ -1274,7 +1271,7 @@ class TestSwissProt(unittest.TestCase):
         self.assertEqual(len(record.references[1].references), 0)
 
         #Check the two parsers agree on the essentials
-        self.assertEqual(seq_record.seq.tostring(), record.sequence)
+        self.assertEqual(str(seq_record.seq), record.sequence)
         self.assertEqual(seq_record.description, record.description)
         self.assertEqual(seq_record.name, record.entry_name)
         self.assertTrue(seq_record.id in record.accessions)
@@ -1291,7 +1288,7 @@ class TestSwissProt(unittest.TestCase):
         self.assertTrue(isinstance(records[0], SeqRecord))
 
         #Check matches what we got earlier without the iterator:
-        self.assertEqual(records[0].seq.tostring(), seq_record.seq.tostring())
+        self.assertEqual(str(records[0].seq), str(seq_record.seq))
         self.assertEqual(records[0].description, seq_record.description)
         self.assertEqual(records[0].name, seq_record.name)
         self.assertEqual(records[0].id, seq_record.id)
@@ -1309,7 +1306,6 @@ class TestSwissProt(unittest.TestCase):
         self.assertEqual(records[0].description, record.description)
         self.assertEqual(records[0].entry_name, record.entry_name)
         self.assertEqual(records[0].accessions, record.accessions)
-
 
     def test_sp013(self):
         "Parsing SwissProt file sp013"
@@ -1339,7 +1335,7 @@ class TestSwissProt(unittest.TestCase):
         self.assertEqual(record.accessions, ['P82909'])
         self.assertEqual(record.organism_classification, ['Eukaryota', 'Metazoa', 'Chordata', 'Craniata', 'Vertebrata', 'Euteleostomi', 'Mammalia', 'Eutheria', 'Primates', 'Catarrhini', 'Hominidae', 'Homo'])
         self.assertEqual(record.seqinfo, (102, 11335, '83EF107B42E2FCFD'))
-    
+
         self.assertEqual(len(record.features), 0)
 
         self.assertEqual(len(record.references), 2)
@@ -1351,7 +1347,7 @@ class TestSwissProt(unittest.TestCase):
         self.assertEqual(len(record.references[1].references), 0)
 
         #Check the two parsers agree on the essentials
-        self.assertEqual(seq_record.seq.tostring(), record.sequence)
+        self.assertEqual(str(seq_record.seq), record.sequence)
         self.assertEqual(seq_record.description, record.description)
         self.assertEqual(seq_record.name, record.entry_name)
         self.assertTrue(seq_record.id in record.accessions)
@@ -1368,7 +1364,7 @@ class TestSwissProt(unittest.TestCase):
         self.assertTrue(isinstance(records[0], SeqRecord))
 
         #Check matches what we got earlier without the iterator:
-        self.assertEqual(records[0].seq.tostring(), seq_record.seq.tostring())
+        self.assertEqual(str(records[0].seq), str(seq_record.seq))
         self.assertEqual(records[0].description, seq_record.description)
         self.assertEqual(records[0].name, seq_record.name)
         self.assertEqual(records[0].id, seq_record.id)
@@ -1386,7 +1382,6 @@ class TestSwissProt(unittest.TestCase):
         self.assertEqual(records[0].description, record.description)
         self.assertEqual(records[0].entry_name, record.entry_name)
         self.assertEqual(records[0].accessions, record.accessions)
-
 
     def test_sp014(self):
         "Parsing SwissProt file sp014"
@@ -1416,7 +1411,7 @@ class TestSwissProt(unittest.TestCase):
         self.assertEqual(record.accessions, ['P12166', 'P12167', 'Q34007'])
         self.assertEqual(record.organism_classification, ['Eukaryota', 'Viridiplantae', 'Embryophyta', 'Tracheophyta', 'Spermatophyta', 'Magnoliophyta', 'Liliopsida', 'Poales', 'Poaceae', 'Ehrhartoideae', 'Oryzeae', 'Oryza'])
         self.assertEqual(record.seqinfo, (37, 4366, 'CC537AEC50B2C784'))
-    
+
         self.assertEqual(len(record.features), 1)
         self.assertEqual(record.features[0], ('INIT_MET', 0, 0, '', ''))
 
@@ -1519,7 +1514,7 @@ class TestSwissProt(unittest.TestCase):
         self.assertEqual(record.references[21].references[1], ('PubMed', '9632665'))
 
         #Check the two parsers agree on the essentials
-        self.assertEqual(seq_record.seq.tostring(), record.sequence)
+        self.assertEqual(str(seq_record.seq), record.sequence)
         self.assertEqual(seq_record.description, record.description)
         self.assertEqual(seq_record.name, record.entry_name)
         self.assertTrue(seq_record.id in record.accessions)
@@ -1536,7 +1531,7 @@ class TestSwissProt(unittest.TestCase):
         self.assertTrue(isinstance(records[0], SeqRecord))
 
         #Check matches what we got earlier without the iterator:
-        self.assertEqual(records[0].seq.tostring(), seq_record.seq.tostring())
+        self.assertEqual(str(records[0].seq), str(seq_record.seq))
         self.assertEqual(records[0].description, seq_record.description)
         self.assertEqual(records[0].name, seq_record.name)
         self.assertEqual(records[0].id, seq_record.id)
@@ -1554,7 +1549,6 @@ class TestSwissProt(unittest.TestCase):
         self.assertEqual(records[0].description, record.description)
         self.assertEqual(records[0].entry_name, record.entry_name)
         self.assertEqual(records[0].accessions, record.accessions)
-
 
     def test_sp015(self):
         "Parsing SwissProt file sp015"
@@ -1584,12 +1578,12 @@ class TestSwissProt(unittest.TestCase):
         self.assertEqual(record.accessions, ['IPI00383150'])
         self.assertEqual(record.organism_classification, ['Eukaryota', 'Metazoa', 'Chordata', 'Craniata', 'Vertebrata', 'Euteleostomi', 'Mammalia', 'Eutheria', 'Primates', 'Catarrhini', 'Hominidae', 'Homo'])
         self.assertEqual(record.seqinfo, (457, 52856, '5C3151AAADBDE232'))
-    
+
         self.assertEqual(len(record.features), 0)
         self.assertEqual(len(record.references), 0)
 
         #Check the two parsers agree on the essentials
-        self.assertEqual(seq_record.seq.tostring(), record.sequence)
+        self.assertEqual(str(seq_record.seq), record.sequence)
         self.assertEqual(seq_record.description, record.description)
         self.assertEqual(seq_record.name, record.entry_name)
         self.assertTrue(seq_record.id in record.accessions)
@@ -1606,7 +1600,7 @@ class TestSwissProt(unittest.TestCase):
         self.assertTrue(isinstance(records[0], SeqRecord))
 
         #Check matches what we got earlier without the iterator:
-        self.assertEqual(records[0].seq.tostring(), seq_record.seq.tostring())
+        self.assertEqual(str(records[0].seq), str(seq_record.seq))
         self.assertEqual(records[0].description, seq_record.description)
         self.assertEqual(records[0].name, seq_record.name)
         self.assertEqual(records[0].id, seq_record.id)
@@ -1624,7 +1618,6 @@ class TestSwissProt(unittest.TestCase):
         self.assertEqual(records[0].description, record.description)
         self.assertEqual(records[0].entry_name, record.entry_name)
         self.assertEqual(records[0].accessions, record.accessions)
-
 
 
 if __name__ == "__main__":

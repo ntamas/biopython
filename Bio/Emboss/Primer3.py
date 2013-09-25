@@ -19,7 +19,8 @@ function to iterate over the retsults.
 
 # --- primer3
 
-class Record:
+
+class Record(object):
     """Represent information from a primer3 run finding primers.
 
     Members:
@@ -32,22 +33,32 @@ class Record:
         self.comments = ""
         self.primers = []
 
-class Primers:
+
+class Primers(object):
     """A primer set designed by Primer3.
 
     Members:
 
-    size
+    size - length of product, note you can use len(primer) as an
+           alternative to primer.size
+
     forward_seq
     forward_start
     forward_length
     forward_tm
     forward_gc
+
     reverse_seq
     reverse_start
     reverse_length
     reverse_tm
     reverse_gc
+
+    internal_seq
+    internal_start
+    internal_length
+    internal_tm
+    internal_gc
     """
     def __init__(self):
         self.size = 0
@@ -61,6 +72,15 @@ class Primers:
         self.reverse_length = 0
         self.reverse_tm = 0.0
         self.reverse_gc = 0.0
+        self.internal_seq = ""
+        self.internal_start = 0
+        self.internal_length = 0
+        self.internal_tm = 0.0
+        self.internal_gc = 0.0
+
+    def __len__(self):
+        """Length of the primer product (i.e. product size)."""
+        return self.size
 
 
 def parse(handle):
@@ -121,7 +141,10 @@ def parse(handle):
             primer.internal_length = int(words[3])
             primer.internal_tm = float(words[4])
             primer.internal_gc = float(words[5])
-            primer.internal_seq = words[6]
+            try:
+                primer.internal_seq = words[6]
+            except IndexError: # eprimer3 reports oligo without sequence
+                primer.internal_seq = ''
         try:
             line = handle.next()
         except StopIteration:

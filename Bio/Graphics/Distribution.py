@@ -11,7 +11,6 @@ Reportlab is used for producing the graphical output.
 import math
 
 # reportlab
-from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
 from reportlab.lib import colors
@@ -20,11 +19,11 @@ from reportlab.graphics.shapes import Drawing, String
 from reportlab.graphics.charts.barcharts import VerticalBarChart
 from reportlab.graphics.charts.barcharts import BarChartProperties
 from reportlab.graphics.widgetbase import TypedPropertyCollection
-from reportlab.graphics import renderPDF, renderPS
 
 from Bio.Graphics import _write
 
-class DistributionPage:
+
+class DistributionPage(object):
     """Display a grouping of distributions on a page.
 
     This organizes Distributions, and will display them nicely
@@ -65,7 +64,7 @@ class DistributionPage:
         num_y_rows = math.ceil(float(len(self.distributions))
                                / float(self.number_of_columns))
         y_pos_change = (cur_y_pos - end_y_pos) / num_y_rows
-        
+
         self._draw_distributions(cur_drawing, cur_x_pos, x_pos_change,
                                  cur_y_pos, y_pos_change, num_y_rows)
         self._draw_legend(cur_drawing, 2.5 * inch, width)
@@ -104,8 +103,8 @@ class DistributionPage:
         for y_drawing in range(int(num_y_drawings)):
             # if we are on the last y position, we may not be able
             # to fill all of the x columns
-            if ((y_drawing + 1) * self.number_of_columns >
-                len(self.distributions)):
+            if (y_drawing + 1) * self.number_of_columns > \
+               len(self.distributions):
                 num_x_drawings = len(self.distributions) - \
                                  y_drawing * self.number_of_columns
             else:
@@ -131,7 +130,8 @@ class DistributionPage:
         """
         pass
 
-class BarChartDistribution:
+
+class BarChartDistribution(object):
     """Display the distribution of values as a bunch of bars.
     """
     def __init__(self, display_info = []):
@@ -162,7 +162,7 @@ class BarChartDistribution:
         # set the position of the bar chart
         x_start, x_end, y_start, y_end = \
            self._determine_position(start_x, start_y, end_x, end_y)
-                                          
+
         bar_chart.x = x_start
         bar_chart.y = y_start
         bar_chart.width = abs(x_start - x_end)
@@ -187,7 +187,6 @@ class BarChartDistribution:
             style[0].fillColor = colors.green
 
             bar_chart.bars = style
-        
 
         # set the labels
         # XXX labels don't work yet
@@ -228,10 +227,11 @@ class BarChartDistribution:
             new_y_start = start_y - y_padding
 
         new_y_end = end_y + y_padding
-        
+
         return new_x_start, new_x_end, new_y_start, new_y_end
 
-class LineDistribution:
+
+class LineDistribution(object):
     """Display the distribution of values as connected lines.
 
     This distribution displays the change in values across the object as

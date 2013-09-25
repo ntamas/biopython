@@ -10,6 +10,8 @@ import unittest
 
 try:
     import numpy
+    from numpy import asarray
+    del asarray
 except ImportError:
     from Bio import MissingPythonDependencyError
     raise MissingPythonDependencyError(
@@ -52,6 +54,7 @@ ys = [1,
       0,
       0,
       0]
+
 
 class TestKNN(unittest.TestCase):
 

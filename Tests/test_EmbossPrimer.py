@@ -1,8 +1,14 @@
 #!/usr/bin/env python
+# Copyright 2001 by Brad Chapman.  All rights reserved.
+# Revisions copyright 2008-2009 by Michiel de Hoon. All rights reserved.
+# Revisions copyright 2010-2011 by Peter Cock. All rights reserved.
+# This code is part of the Biopython distribution and governed by its
+# license.  Please see the LICENSE file that should have been included
+# as part of this package.
+
 """Tests for Primer-based programs in the Emboss suite.
 """
 # standard library
-import sys
 import os
 import unittest
 
@@ -18,6 +24,7 @@ class Primer3ParseTest(unittest.TestCase):
            os.path.join("Emboss", "cds_reverse.primer3"),
            os.path.join("Emboss", "short.primer3"),
            os.path.join("Emboss", "internal_oligo.primer3"),
+           os.path.join("Emboss", "no_oligo.primer3"),
            ]
 
     def test_simple_parse(self):
@@ -49,6 +56,7 @@ class Primer3ParseTest(unittest.TestCase):
         self.assertEqual(primer_info.primers[2].reverse_seq,
                          "TCACATTCCCAAATGTAGATCG")
         self.assertEqual(primer_info.primers[0].size, 218)
+        self.assertEqual(len(primer_info.primers[0]), 218)
         self.assertEqual(primer_info.primers[3].forward_start, 112)
         self.assertEqual(primer_info.primers[3].forward_length, 20)
         self.assertEqual(primer_info.primers[3].forward_tm, 59.57)
@@ -70,7 +78,9 @@ class Primer3ParseTest(unittest.TestCase):
         self.assertEqual(primer_info.comments,
                          "# PRIMER3 RESULTS FOR 26964-28647#\n")
         self.assertEqual(primer_info.primers[1].reverse_seq, "")
+        self.assertEqual(primer_info.primers[1].internal_seq, "")
         self.assertEqual(primer_info.primers[3].forward_seq, "TGTGATTGCTTGAGCTGGAC")
+        self.assertEqual(primer_info.primers[3].internal_seq, "")
         self.assertEqual(primer_info.primers[3].forward_start, 253)
 
     def test_internal_oligo_single_parse(self):
@@ -133,7 +143,6 @@ class Primer3ParseTest(unittest.TestCase):
                          "CGATTACCCTCACCGTCACT")
         self.assertEqual(targets[15].primers[4].forward_seq,
                          "TATCGCAACCACTGAGCAAG")
-
 
     def test_mutli_record_full(self):
         """Test parsing multiple primer sets (NirK full)"""
@@ -213,6 +222,7 @@ class PrimersearchParseTest(unittest.TestCase):
           "0 mismatches\n"
           "\tTCACATTCCCAAATGTAGATCG hits reverse strand at [114] with "
           "0 mismatches")
+
 
 class PrimerSearchInputTest(unittest.TestCase):
     """Test creating input files for primersearch.

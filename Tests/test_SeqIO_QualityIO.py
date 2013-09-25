@@ -1,20 +1,20 @@
-# Copyright 2009-2010 by Peter Cock.  All rights reserved.
+# Copyright 2009-2013 by Peter Cock.  All rights reserved.
 # This code is part of the Biopython distribution and governed by its
 # license.  Please see the LICENSE file that should have been included
 # as part of this package.
 
 """Additional unit tests for Bio.SeqIO.QualityIO (covering FASTQ and QUAL)."""
+
+from __future__ import print_function
+
 import os
 import unittest
 import warnings
 
-from StringIO import StringIO
-try:
-    #This is in Python 2.6+, but we need it on Python 3
-    from io import BytesIO
-except ImportError:
-    BytesIO = StringIO
+from Bio._py3k import StringIO
+from io import BytesIO
 
+from Bio import BiopythonWarning
 from Bio.Alphabet import generic_dna
 from Bio.SeqIO import QualityIO
 from Bio import SeqIO
@@ -23,6 +23,7 @@ from Bio.SeqRecord import SeqRecord
 from Bio.Data.IUPACData import ambiguous_dna_letters, ambiguous_rna_letters
 
 BINARY_FORMATS = ["sff", "sff-trim"]
+
 
 def truncation_expected(format):
     if format in ["fastq-solexa", "fastq-illumina"] :
@@ -33,13 +34,15 @@ def truncation_expected(format):
         assert format in ["fasta", "qual", "phd", "sff"]
         return None
 
+
 #Top level function as this makes it easier to use for debugging:
 def write_read(filename, in_format, out_format):
     if in_format in BINARY_FORMATS:
         mode = "rb"
     else:
         mode = "r"
-    records = list(SeqIO.parse(open(filename, mode),in_format))
+    with open(filename, mode) as handle:
+        records = list(SeqIO.parse(handle, in_format))
     #Write it out...
     if out_format in BINARY_FORMATS:
         handle = BytesIO()
@@ -51,8 +54,9 @@ def write_read(filename, in_format, out_format):
     records2 = list(SeqIO.parse(handle,out_format))
     compare_records(records, records2, truncation_expected(out_format))
 
+
 def compare_record(old, new, truncate=None):
-    """Quality aware SeqRecord comparision.
+    """Quality aware SeqRecord comparison.
 
     This will check the mapping between Solexa and PHRED scores.
     It knows to ignore UnknownSeq objects for string matching (i.e. QUAL files).
@@ -91,30 +95,31 @@ def compare_record(old, new, truncate=None):
     and "solexa_quality" in new.letter_annotations:
         #Mapping from Solexa to PHRED is lossy, but so is PHRED to Solexa.
         #Assume "old" is the original, and "new" has been converted.
-        converted = [round(QualityIO.solexa_quality_from_phred(q)) \
+        converted = [round(QualityIO.solexa_quality_from_phred(q))
                      for q in old.letter_annotations["phred_quality"]]
         if truncate:
             converted = [min(q,truncate) for q in converted]
         if converted != new.letter_annotations["solexa_quality"]:
             print
-            print old.letter_annotations["phred_quality"]
-            print converted
-            print new.letter_annotations["solexa_quality"]
+            print(old.letter_annotations["phred_quality"])
+            print(converted)
+            print(new.letter_annotations["solexa_quality"])
             raise ValueError("Mismatch in phred_quality vs solexa_quality")
     if "solexa_quality" in old.letter_annotations \
     and "phred_quality" in new.letter_annotations:
         #Mapping from Solexa to PHRED is lossy, but so is PHRED to Solexa.
         #Assume "old" is the original, and "new" has been converted.
-        converted = [round(QualityIO.phred_quality_from_solexa(q)) \
+        converted = [round(QualityIO.phred_quality_from_solexa(q))
                      for q in old.letter_annotations["solexa_quality"]]
         if truncate:
             converted = [min(q,truncate) for q in converted]
         if converted != new.letter_annotations["phred_quality"]:
-            print old.letter_annotations["solexa_quality"]
-            print converted
-            print new.letter_annotations["phred_quality"]
+            print(old.letter_annotations["solexa_quality"])
+            print(converted)
+            print(new.letter_annotations["phred_quality"])
             raise ValueError("Mismatch in solexa_quality vs phred_quality")
     return True
+
 
 def compare_records(old_list, new_list, truncate_qual=None):
     """Check two lists of SeqRecords agree, raises a ValueError if mismatch."""
@@ -135,17 +140,17 @@ class TestFastqErrors(unittest.TestCase):
             handle = open(filename, "rU")
             records = SeqIO.parse(handle, format)
             for i in range(good_count):
-                record = records.next() #Make sure no errors!
+                record = next(records)  # Make sure no errors!
                 self.assertTrue(isinstance(record, SeqRecord))
-            self.assertRaises(ValueError, records.next)
+            self.assertRaises(ValueError, next, records)
             handle.close()
 
     def check_general_fails(self, filename, good_count):
         handle = open(filename, "rU")
         tuples = QualityIO.FastqGeneralIterator(handle)
         for i in range(good_count):
-            title, seq, qual = tuples.next() #Make sure no errors!
-        self.assertRaises(ValueError, tuples.next)
+            title, seq, qual = next(tuples)  # Make sure no errors!
+        self.assertRaises(ValueError, next, tuples)
         handle.close()
 
     def check_general_passes(self, filename, record_count):
@@ -192,7 +197,7 @@ for base_name, good_count in tests:
         return f
     setattr(TestFastqErrors, "test_%s" % (base_name),
             funct(base_name, good_count))
-    del funct        
+    del funct
 
 #Now add methods for FASTQ files which will be rejected by the high
 #level SeqRecord parser, but will be accepted by the low level parser:
@@ -210,12 +215,12 @@ for base_name, good_count, full_count in tests:
         return f
     setattr(TestFastqErrors, "test_qual_%s" % (base_name),
             funct(base_name, good_count, full_count))
-    del funct        
+    del funct
 
 
 class TestReferenceSffConversions(unittest.TestCase):
     def check(self, sff_name, sff_format, out_name, format) :
-        wanted = list(SeqIO.parse(open(out_name), format))
+        wanted = list(SeqIO.parse(out_name, format))
         data = StringIO()
         count = SeqIO.convert(sff_name, sff_format, data, format)
         self.assertEqual(count, len(wanted))
@@ -240,11 +245,11 @@ class TestReferenceSffConversions(unittest.TestCase):
     def test_original(self) :
         """Test converting E3MFGYR02_random_10_reads.sff into FASTA+QUAL"""
         self.check_sff("Roche/E3MFGYR02_random_10_reads.sff")
-        
+
     def test_no_manifest(self) :
         """Test converting E3MFGYR02_no_manifest.sff into FASTA+QUAL"""
         self.check_sff("Roche/E3MFGYR02_no_manifest.sff")
-        
+
     def test_alt_index_at_start(self) :
         """Test converting E3MFGYR02_alt_index_at_start into FASTA+QUAL"""
         self.check_sff("Roche/E3MFGYR02_alt_index_at_start.sff")
@@ -265,20 +270,21 @@ class TestReferenceSffConversions(unittest.TestCase):
         """Test converting E3MFGYR02_index_in_middle into FASTA+QUAL"""
         self.check_sff("Roche/E3MFGYR02_index_in_middle.sff")
 
+
 class TestReferenceFastqConversions(unittest.TestCase):
     """Tests where we have reference output."""
     def simple_check(self, base_name, in_variant):
         for out_variant in ["sanger", "solexa", "illumina"]:
             if out_variant != "sanger":
                 #Ignore data loss warnings from max qualities
-                warnings.simplefilter('ignore', UserWarning)
+                warnings.simplefilter('ignore', BiopythonWarning)
             in_filename = "Quality/%s_original_%s.fastq" \
                           % (base_name, in_variant)
             self.assertTrue(os.path.isfile(in_filename))
-            #Load the reference output...  
-            expected = open("Quality/%s_as_%s.fastq" \
-                            % (base_name, out_variant),
-                            "rU").read()
+            #Load the reference output...
+            with open("Quality/%s_as_%s.fastq"
+                      % (base_name, out_variant), "rU") as handle:
+                expected = handle.read()
             #Check matches using convert...
             handle = StringIO()
             SeqIO.convert(in_filename, "fastq-"+in_variant,
@@ -286,7 +292,7 @@ class TestReferenceFastqConversions(unittest.TestCase):
             self.assertEqual(expected, handle.getvalue())
             #Check matches using parse/write
             handle = StringIO()
-            SeqIO.write(SeqIO.parse(open(in_filename), "fastq-"+in_variant),
+            SeqIO.write(SeqIO.parse(in_filename, "fastq-"+in_variant),
                         handle, "fastq-"+out_variant)
             self.assertEqual(expected, handle.getvalue())
             if out_variant != "sanger":
@@ -302,50 +308,86 @@ tests = [("illumina_full_range", "illumina"),
          ("misc_rna", "sanger")]
 for base_name, variant in tests:
     assert variant in ["sanger", "solexa", "illumina"]
+
     def funct(bn,var):
         f = lambda x : x.simple_check(bn,var)
         f.__doc__ = "Reference conversions of %s file %s" % (var, bn)
         return f
+
     setattr(TestReferenceFastqConversions, "test_%s_%s" % (base_name, variant),
             funct(base_name, variant))
-    del funct        
+    del funct
+
 
 class TestQual(unittest.TestCase):
     """Tests with QUAL files."""
     def test_paired(self):
         """Check FASTQ parsing matches FASTA+QUAL parsing"""
-        records1 = list(\
-            QualityIO.PairedFastaQualIterator(open("Quality/example.fasta"),
-                                              open("Quality/example.qual")))
-        records2 = list(SeqIO.parse(open("Quality/example.fastq"),"fastq"))
+        with open("Quality/example.fasta") as f:
+            with open("Quality/example.qual") as q:
+                records1 = list(QualityIO.PairedFastaQualIterator(f,q ))
+        records2 = list(SeqIO.parse("Quality/example.fastq", "fastq"))
         self.assertTrue(compare_records(records1, records2))
 
     def test_qual(self):
         """Check FASTQ parsing matches QUAL parsing"""
-        records1 = list(SeqIO.parse(open("Quality/example.qual"),"qual"))
-        records2 = list(SeqIO.parse(open("Quality/example.fastq"),"fastq"))
+        records1 = list(SeqIO.parse("Quality/example.qual", "qual"))
+        records2 = list(SeqIO.parse("Quality/example.fastq", "fastq"))
         #Will ignore the unknown sequences :)
         self.assertTrue(compare_records(records1, records2))
 
     def test_qual_out(self):
         """Check FASTQ to QUAL output"""
-        records = SeqIO.parse(open("Quality/example.fastq"),"fastq")
-        h = StringIO("")
+        records = SeqIO.parse("Quality/example.fastq", "fastq")
+        h = StringIO()
         SeqIO.write(records, h, "qual")
-        self.assertEqual(h.getvalue(),open("Quality/example.qual").read())
+        with open("Quality/example.qual") as expected:
+            self.assertEqual(h.getvalue(), expected.read())
 
     def test_fasta(self):
         """Check FASTQ parsing matches FASTA parsing"""
-        records1 = list(SeqIO.parse(open("Quality/example.fasta"),"fasta"))
-        records2 = list(SeqIO.parse(open("Quality/example.fastq"),"fastq"))
+        records1 = list(SeqIO.parse("Quality/example.fasta", "fasta"))
+        records2 = list(SeqIO.parse("Quality/example.fastq", "fastq"))
         self.assertTrue(compare_records(records1, records2))
 
     def test_fasta_out(self):
         """Check FASTQ to FASTA output"""
-        records = SeqIO.parse(open("Quality/example.fastq"),"fastq")
-        h = StringIO("")
+        records = SeqIO.parse("Quality/example.fastq", "fastq")
+        h = StringIO()
         SeqIO.write(records, h, "fasta")
-        self.assertEqual(h.getvalue(),open("Quality/example.fasta").read())
+        with open("Quality/example.fasta") as expected:
+            self.assertEqual(h.getvalue(), expected.read())
+
+    def test_qual_negative(self):
+        """Check QUAL negative scores mapped to PHRED zero"""
+        data = """>1117_10_107_F3
+23 31 -1 -1 -1 29 -1 -1 20 32 -1 18 25 7 -1 6 -1 -1 -1 30 -1 20 13 7 -1 -1 21 30 -1 24 -1 22 -1 -1 22 14 -1 12 26 21 -1 5 -1 -1 -1 20 -1 -1 12 28 
+>1117_10_146_F3
+20 33 -1 -1 -1 29 -1 -1 28 28 -1 7 16 5 -1 30 -1 -1 -1 14 -1 4 13 4 -1 -1 11 13 -1 5 -1 7 -1 -1 10 16 -1 4 12 15 -1 8 -1 -1 -1 16 -1 -1 10 4 
+>1117_10_1017_F3
+33 33 -1 -1 -1 27 -1 -1 17 16 -1 28 24 11 -1 6 -1 -1 -1 29 -1 8 29 24 -1 -1 8 8 -1 20 -1 13 -1 -1 8 13 -1 28 10 24 -1 10 -1 -1 -1 4 -1 -1 7 6 
+>1117_11_136_F3
+16 22 -1 -1 -1 33 -1 -1 30 27 -1 27 28 32 -1 29 -1 -1 -1 27 -1 18 9 6 -1 -1 23 16 -1 26 -1 5 7 -1 22 7 -1 18 14 8 -1 8 -1 -1 -1 11 -1 -1 4 24"""
+        h = StringIO(data)
+        h2 = StringIO()
+        self.assertEqual(4, SeqIO.convert(h, "qual", h2, "fastq"))
+        self.assertEqual(h2.getvalue(), """@1117_10_107_F3
+??????????????????????????????????????????????????
++
+8@!!!>!!5A!3:(!'!!!?!5.(!!6?!9!7!!7/!-;6!&!!!5!!-=
+@1117_10_146_F3
+??????????????????????????????????????????????????
++
+5B!!!>!!==!(1&!?!!!/!%.%!!,.!&!(!!+1!%-0!)!!!1!!+%
+@1117_10_1017_F3
+??????????????????????????????????????????????????
++
+BB!!!<!!21!=9,!'!!!>!)>9!!))!5!.!!).!=+9!+!!!%!!('
+@1117_11_136_F3
+??????????????????????????????????????????????????
++
+17!!!B!!?<!<=A!>!!!<!3*'!!81!;!&(!7(!3/)!)!!!,!!%9
+""")
 
 
 class TestReadWrite(unittest.TestCase):
@@ -354,7 +396,7 @@ class TestReadWrite(unittest.TestCase):
         """Read and write back simple example with upper case 2000bp read"""
         data = "@%s\n%s\n+\n%s\n" \
                % ("id descr goes here", "ACGT"*500, "!@a~"*500)
-        handle = StringIO("")
+        handle = StringIO()
         self.assertEqual(1, SeqIO.write(SeqIO.parse(StringIO(data), "fastq"), handle, "fastq"))
         self.assertEqual(data, handle.getvalue())
 
@@ -362,18 +404,18 @@ class TestReadWrite(unittest.TestCase):
         """Read and write back simple example with mixed case 1000bp read"""
         data = "@%s\n%s\n+\n%s\n" \
                % ("id descr goes here", "ACGTNncgta"*100, "abcd!!efgh"*100)
-        handle = StringIO("")
+        handle = StringIO()
         self.assertEqual(1, SeqIO.write(SeqIO.parse(StringIO(data), "fastq"), handle, "fastq"))
         self.assertEqual(data, handle.getvalue())
 
     def test_fastq_dna(self):
         """Read and write back simple example with ambiguous DNA"""
-        #First in upper case...        
+        #First in upper case...
         data = "@%s\n%s\n+\n%s\n" \
                % ("id descr goes here",
                   ambiguous_dna_letters.upper(),
                   "".join(chr(33+q) for q in range(len(ambiguous_dna_letters))))
-        handle = StringIO("")
+        handle = StringIO()
         self.assertEqual(1, SeqIO.write(SeqIO.parse(StringIO(data), "fastq"), handle, "fastq"))
         self.assertEqual(data, handle.getvalue())
         #Now in lower case...
@@ -381,18 +423,18 @@ class TestReadWrite(unittest.TestCase):
                % ("id descr goes here",
                   ambiguous_dna_letters.lower(),
                   "".join(chr(33+q) for q in range(len(ambiguous_dna_letters))))
-        handle = StringIO("")
+        handle = StringIO()
         self.assertEqual(1, SeqIO.write(SeqIO.parse(StringIO(data), "fastq"), handle, "fastq"))
         self.assertEqual(data, handle.getvalue())
 
     def test_fastq_rna(self):
         """Read and write back simple example with ambiguous RNA"""
-        #First in upper case...        
+        #First in upper case...
         data = "@%s\n%s\n+\n%s\n" \
                % ("id descr goes here",
                   ambiguous_rna_letters.upper(),
                   "".join(chr(33+q) for q in range(len(ambiguous_rna_letters))))
-        handle = StringIO("")
+        handle = StringIO()
         self.assertEqual(1, SeqIO.write(SeqIO.parse(StringIO(data), "fastq"), handle, "fastq"))
         self.assertEqual(data, handle.getvalue())
         #Now in lower case...
@@ -400,7 +442,7 @@ class TestReadWrite(unittest.TestCase):
                % ("id descr goes here",
                   ambiguous_rna_letters.lower(),
                   "".join(chr(33+q) for q in range(len(ambiguous_rna_letters))))
-        handle = StringIO("")
+        handle = StringIO()
         self.assertEqual(1, SeqIO.write(SeqIO.parse(StringIO(data), "fastq"), handle, "fastq"))
         self.assertEqual(data, handle.getvalue())
 
@@ -428,7 +470,7 @@ class TestWriteRead(unittest.TestCase):
         #TODO - Record with no identifier?
         records = [record1, record2, record3, record4, record5, record6, record7, record8]
         #TODO - Have a Biopython defined "DataLossWarning?"
-        warnings.simplefilter('ignore', UserWarning)
+        warnings.simplefilter('ignore', BiopythonWarning)
         #TODO - Include phd output?
         for format in ["fasta", "fastq", "fastq-solexa", "fastq-illumina", "qual"]:
             handle = StringIO()
@@ -438,7 +480,7 @@ class TestWriteRead(unittest.TestCase):
                             list(SeqIO.parse(handle, format)),
                             truncation_expected(format))
         warnings.filters.pop()
-            
+
     def check(self, filename, format, out_formats):
         for f in out_formats:
             write_read(filename, format, f)
@@ -455,7 +497,7 @@ class TestWriteRead(unittest.TestCase):
                    ["fastq", "fastq-sanger", "fasta", "qual", "phd"])
         #TODO - Have a Biopython defined "DataLossWarning?"
         #TODO - On Python 2.6+ we can check this warning is really triggered
-        warnings.simplefilter('ignore', UserWarning)
+        warnings.simplefilter('ignore', BiopythonWarning)
         self.check(os.path.join("Quality", "sanger_93.fastq"), "fastq",
                    ["fastq-solexa","fastq-illumina"])
         warnings.filters.pop()
@@ -559,7 +601,7 @@ class TestWriteRead(unittest.TestCase):
         """Write and read back E3MFGYR02_random_10_reads.sff (trimmed)"""
         self.check(os.path.join("Roche", "E3MFGYR02_random_10_reads.sff"), "sff-trim",
                    ["fastq", "fastq-sanger", "fastq-illumina", "fastq-solexa",
-                    "fasta", "qual", "phd"]) #not sff as output
+                    "fasta", "qual", "phd"])  # not sff as output
 
 
 class MappingTests(unittest.TestCase):
@@ -577,7 +619,7 @@ class MappingTests(unittest.TestCase):
         self.assertEqual(8, round(QualityIO.solexa_quality_from_phred(9)))
         for i in range(10,100):
             self.assertEqual(i, round(QualityIO.solexa_quality_from_phred(i)))
-        
+
     def test_phred_quality_from_solexa(self):
         """Mapping check for function phred_quality_from_solexa"""
         self.assertEqual(1, round(QualityIO.phred_quality_from_solexa(-5)))
@@ -605,13 +647,13 @@ class MappingTests(unittest.TestCase):
         #cached dictionary of the mappings.
         seq = "N"*94
         qual = "".join(chr(33+q) for q in range(0,94))
-        expected_sol = [min(62,int(round(QualityIO.solexa_quality_from_phred(q)))) \
+        expected_sol = [min(62,int(round(QualityIO.solexa_quality_from_phred(q))))
                         for q in range(0,94)]
         in_handle = StringIO("@Test\n%s\n+\n%s" % (seq,qual))
-        out_handle = StringIO("")
+        out_handle = StringIO()
         #Want to ignore the data loss warning
         #(on Python 2.6 we could check for it!)
-        warnings.simplefilter('ignore', UserWarning)
+        warnings.simplefilter('ignore', BiopythonWarning)
         SeqIO.write(SeqIO.parse(in_handle, "fastq-sanger"),
                     out_handle, "fastq-solexa")
         warnings.filters.pop()
@@ -628,13 +670,13 @@ class MappingTests(unittest.TestCase):
         #cached dictionary of the mappings.
         seq = "N"*68
         qual = "".join(chr(64+q) for q in range(-5,63))
-        expected_phred = [round(QualityIO.phred_quality_from_solexa(q)) \
+        expected_phred = [round(QualityIO.phred_quality_from_solexa(q))
                           for q in range(-5,63)]
         in_handle = StringIO("@Test\n%s\n+\n%s" % (seq,qual))
-        out_handle = StringIO("")
+        out_handle = StringIO()
         #Want to ignore the data loss warning
         #(on Python 2.6 we could check for it!)
-        warnings.simplefilter('ignore', UserWarning)
+        warnings.simplefilter('ignore', BiopythonWarning)
         SeqIO.write(SeqIO.parse(in_handle, "fastq-solexa"),
                     out_handle, "fastq-sanger")
         warnings.filters.pop()
@@ -650,10 +692,10 @@ class MappingTests(unittest.TestCase):
         qual = "".join(chr(33+q) for q in range(0,94))
         expected_phred = [min(62,q) for q in range(0,94)]
         in_handle = StringIO("@Test\n%s\n+\n%s" % (seq,qual))
-        out_handle = StringIO("")
+        out_handle = StringIO()
         #Want to ignore the data loss warning
         #(on Python 2.6 we could check for it!)
-        warnings.simplefilter('ignore', UserWarning)
+        warnings.simplefilter('ignore', BiopythonWarning)
         SeqIO.write(SeqIO.parse(in_handle, "fastq-sanger"),
                     out_handle, "fastq-illumina")
         warnings.filters.pop()
@@ -669,7 +711,7 @@ class MappingTests(unittest.TestCase):
         qual = "".join(chr(64+q) for q in range(0,63))
         expected_phred = range(63)
         in_handle = StringIO("@Test\n%s\n+\n%s" % (seq,qual))
-        out_handle = StringIO("")
+        out_handle = StringIO()
         SeqIO.write(SeqIO.parse(in_handle, "fastq-illumina"),
                     out_handle, "fastq-sanger")
         out_handle.seek(0)

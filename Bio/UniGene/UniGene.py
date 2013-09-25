@@ -17,13 +17,21 @@
 # NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
 # WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+from __future__ import print_function
+
+import warnings
+from Bio import BiopythonDeprecationWarning
+
+warnings.warn("The module Bio.UniGene.UniGene is now deprecated, "
+              "and will be removed in a future release of Biopython."
+              "To parse UniGene flat files, please use the parser in "
+              "Bio.UniGene instead",
+              BiopythonDeprecationWarning)
+
 import string
-import operator
-import urllib
 import sgmllib
 import UserDict
 import Bio.File
-
 
 
 class UniGeneParser( sgmllib.SGMLParser ):
@@ -65,8 +73,6 @@ class UniGeneParser( sgmllib.SGMLParser ):
             text = text + ' ' + line
 
         sgmllib.SGMLParser.feed( self, text )
-
-
 
     def handle_data(self, newtext ):
         newtext = string.strip( newtext )
@@ -122,14 +128,12 @@ class UniGeneParser( sgmllib.SGMLParser ):
                     self.master_key = key
         elif( self.context == 'general_info' ):
             self.master_key = key
-            if( string.find( key, 'SEQUENCE' ) != -1 ):
+            if 'SEQUENCE' in key:
                 self.context = 'seq_info'
             self.queue[ key ] = UserDict.UserDict()
         elif( self.context == 'seq_info' ):
             self.queue[ key ] = UserDict.UserDict()
             self.master_key = key
-
-
 
     def start_table( self, attrs ):
         self.open_tag_stack.append( self.open_tag )
@@ -158,11 +162,11 @@ class UniGeneParser( sgmllib.SGMLParser ):
             if( text[ 0 ] == ':' ):
                 text = text[ 1: ]
             text = string.join( string.split( text ) )
-            if( ( self.context == 'general_info' ) or \
-                ( self.context == 'seq_info' ) ):
+            if self.context == 'general_info' or \
+               self.context == 'seq_info':
                 try:
                     contents = self.queue[ self.master_key ][ self.key_waiting ]
-                    if( type( contents ) == type( [] ) ):
+                    if isinstance(contents, list):
                         contents.append( text )
                     else:
                         self.queue[ self.master_key ][ self.key_waiting ] = \
@@ -170,10 +174,7 @@ class UniGeneParser( sgmllib.SGMLParser ):
                 except:
                     self.queue[ self.master_key ][ self.key_waiting ] = text
 
-
                 self.key_waiting = ''
-
-
 
     def start_td( self, attrs ):
         self.open_tag_stack.append( self.open_tag )
@@ -191,24 +192,23 @@ class UniGeneParser( sgmllib.SGMLParser ):
         indent = '    '
         for j in range( 0, level ):
             indent = indent + '    '
-        if( type( item ) == type( '' ) ):
+        if isinstance(item, str):
             if( item != '' ):
-                print '%s%s' % ( indent, item )
-        elif( type( item ) == type([])):
+                print('%s%s' % ( indent, item ))
+        elif isinstance(item, list):
             for subitem in item:
                 self.print_item( subitem, level + 1 )
         elif( isinstance( item, UserDict.UserDict ) ):
             for subitem in item:
-                print '%skey is %s' % ( indent, subitem )
+                print('%skey is %s' % ( indent, subitem ))
                 self.print_item( item[ subitem ], level + 1 )
         else:
-            print item
+            print(item)
 
     def print_tags( self ):
         for key in self.queue:
-            print 'key %s' % key
+            print('key %s' % key)
             self.print_item( self.queue[ key ] )
-
 
 
 if( __name__ == '__main__' ):
@@ -217,5 +217,3 @@ if( __name__ == '__main__' ):
     unigene_parser = UniGeneParser()
     unigene_parser.parse( handle )
     unigene_parser.print_tags()
-
-

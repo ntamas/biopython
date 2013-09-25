@@ -3,17 +3,15 @@
 # license.  Please see the LICENSE file that should have been included
 # as part of this package.
 
-
-"""
-This modules allows for asynchronous execution of Fdist and
-  spliting of loads.
+"""Asynchronous execution of Fdist and spliting of loads.
 
 FDistAsync Allows for the execution of FDist.
 
 SplitFDist splits a single Fdist execution in several, taking advantage
-    of multi-core architectures.
-
+of multi-core architectures.
 """
+
+from __future__ import print_function
 
 import os
 import shutil
@@ -21,6 +19,7 @@ import thread
 from time import sleep
 from Bio.PopGen.Async import Local
 from Bio.PopGen.FDist.Controller import FDistController
+
 
 class FDistAsync(FDistController):
     """Asynchronous FDist execution.
@@ -63,7 +62,8 @@ class FDistAsync(FDistController):
         output_files['out.dat'] = open(data_dir + os.sep + 'out.dat', 'r')
         return fst, output_files
 
-class SplitFDist:
+
+class SplitFDist(object):
     """Splits a FDist run.
 
        The idea is to split a certain number of simulations in smaller
@@ -75,7 +75,7 @@ class SplitFDist:
        simulation.
     """
     def __init__(self, report_fun = None,
-        num_thr = 2, split_size = 1000, fdist_dir = '', ext = None):
+                 num_thr = 2, split_size = 1000, fdist_dir = '', ext = None):
         """Constructor.
 
            Parameters:
@@ -106,7 +106,7 @@ class SplitFDist:
         while(True):
             sleep(1)
             self.async.access_ds.acquire()
-            keys =  self.async.done.keys()[:]
+            keys = self.async.done.keys()[:]
             self.async.access_ds.release()
             for done in keys:
                 self.async.access_ds.acquire()
@@ -119,7 +119,7 @@ class SplitFDist:
                 out_dat.close()
                 self.async.access_ds.release()
                 for file in os.listdir(self.parts[done]):
-                    os.remove (self.parts[done] + os.sep + file)
+                    os.remove(self.parts[done] + os.sep + file)
                 os.rmdir(self.parts[done])
                 #print fst, out_dat
                 if self.report_fun:
@@ -145,9 +145,9 @@ class SplitFDist:
 
     #You can only run a fdist case at a time
     def run_fdist(self, npops, nsamples, fst, sample_size,
-        mut = 0, num_sims = 20000, data_dir='.',
-        is_dominant = False, theta = 0.06, beta = (0.25, 0.25),
-        max_freq = 0.99):
+                  mut = 0, num_sims = 20000, data_dir='.',
+                  is_dominant = False, theta = 0.06, beta = (0.25, 0.25),
+                  max_freq = 0.99):
         """Runs FDist.
 
            Parameters can be seen on FDistController.run_fdist.
@@ -159,25 +159,25 @@ class SplitFDist:
         self.parts = {}
         self.data_dir = data_dir
         for directory in range(num_parts):
-           full_path = data_dir + os.sep + str(directory)
-           try:
-               os.mkdir(full_path)
-           except OSError:
-               pass #Its ok, if it is already there
-           if "ss_file" in os.listdir(data_dir):
-               shutil.copy(data_dir + os.sep + "ss_file", full_path)
-           id = self.async.run_program('fdist', {
-               'npops'       : npops,
-               'nsamples'    : nsamples,
-               'fst'         : fst,
-               'sample_size' : sample_size,
-               'mut'         : mut,
-               'num_sims'    : self.split_size,
-               'data_dir'    : full_path,
-               'is_dominant' : is_dominant,
-               'theta'       : theta,
-               'beta'        : beta,
-               'max_freq'    : max_freq 
-           }, {})
-           self.parts[id] = full_path
+            full_path = data_dir + os.sep + str(directory)
+            try:
+                os.mkdir(full_path)
+            except OSError:
+                pass  # Its ok, if it is already there
+            if "ss_file" in os.listdir(data_dir):
+                shutil.copy(data_dir + os.sep + "ss_file", full_path)
+            id = self.async.run_program('fdist', {
+                'npops'       : npops,
+                'nsamples'    : nsamples,
+                'fst'         : fst,
+                'sample_size' : sample_size,
+                'mut'         : mut,
+                'num_sims'    : self.split_size,
+                'data_dir'    : full_path,
+                'is_dominant' : is_dominant,
+                'theta'       : theta,
+                'beta'        : beta,
+                'max_freq'    : max_freq
+            }, {})
+            self.parts[id] = full_path
         thread.start_new_thread(self.monitor, ())

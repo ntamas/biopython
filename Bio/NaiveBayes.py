@@ -26,16 +26,20 @@ classify       Classify an observation into a class.
 
 """
 
+from __future__ import print_function
+
 import numpy
+
 
 def _contents(items):
     term = 1.0/len(items)
     counts = {}
     for item in items:
-        counts[item] = counts.get(item,0) + term
+        counts[item] = counts.get(item, 0) + term
     return counts
 
-class NaiveBayes:
+
+class NaiveBayes(object):
     """Holds information for a NaiveBayes classifier.
 
     Members:
@@ -50,6 +54,7 @@ class NaiveBayes:
         self.p_conditional = None
         self.p_prior = []
         self.dimensionality = None
+
 
 def calculate(nb, observation, scale=0):
     """calculate(nb, observation[, scale]) -> probability dict
@@ -68,11 +73,11 @@ def calculate(nb, observation, scale=0):
 
     # Make sure the observation has the right dimensionality.
     if len(observation) != nb.dimensionality:
-        raise ValueError("observation in %d dimension, but classifier in %d" \
+        raise ValueError("observation in %d dimension, but classifier in %d"
                          % (len(observation), nb.dimensionality))
 
     # Calculate log P(observation|class) for every class.
-    n  = len(nb.classes)
+    n = len(nb.classes)
     lp_observation_class = numpy.zeros(n)   # array of log P(observation|class)
     for i in range(n):
         # log P(observation|class) = SUM_i log P(observation_i|class)
@@ -89,7 +94,7 @@ def calculate(nb, observation, scale=0):
     lp_observation = 0.0          # P(observation)
     if scale:   # Only calculate this if requested.
         # log P(observation) = log SUM_i P(observation|class_i)P(class_i)
-        obs = numpy.exp(numpy.clip(lp_prior+lp_observation_class,-700,+700))
+        obs = numpy.exp(numpy.clip(lp_prior+lp_observation_class, -700, +700))
         lp_observation = numpy.log(sum(obs))
 
     # Calculate log P(class|observation).
@@ -99,6 +104,7 @@ def calculate(nb, observation, scale=0):
             lp_observation_class[i] + lp_prior[i] - lp_observation
 
     return lp_class_observation
+
 
 def classify(nb, observation):
     """classify(nb, observation) -> class
@@ -113,6 +119,7 @@ def classify(nb, observation):
         if max_prob is None or probs[klass] > max_prob:
             max_prob, max_class = probs[klass], klass
     return max_class
+
 
 def train(training_set, results, priors=None, typecode=None):
     """train(training_set, results[, priors]) -> NaiveBayes
@@ -143,7 +150,7 @@ def train(training_set, results, priors=None, typecode=None):
 
     nb = NaiveBayes()
     nb.dimensionality = dimensions[0]
-    
+
     # Get a list of all the classes, and
     # estimate the prior probabilities for the classes.
     if priors is not None:
@@ -189,7 +196,7 @@ def train(training_set, results, priors=None, typecode=None):
 
             # Add pseudocounts here.  This needs to be parameterized.
             #values = list(values) + range(len(nb.classes))  # XXX add 1
-            
+
             # Estimate P(value|class,dim)
             nb.p_conditional[i][j] = _contents(values)
     return nb
@@ -225,6 +232,6 @@ if __name__ == "__main__":
 
     carmodel = train(xcar, ycar)
     carresult = classify(carmodel, ['Red', 'Sports', 'Domestic'])
-    print 'Is Yes?', carresult
+    print('Is Yes? %s' % carresult)
     carresult = classify(carmodel, ['Red', 'SUV', 'Domestic'])
-    print 'Is No?', carresult
+    print('Is No? %s' % carresult)

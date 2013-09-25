@@ -30,28 +30,29 @@
 
 The Rebase files are in the emboss format:
 
-    emboss_e.###    -> contains informations about the restriction sites.
-    emboss_r.###    -> contains general informations about the enzymes.
-    emboss_s.###    -> contains informations about the suppliers.
-    
+    emboss_e.###    -> contains information about the restriction sites.
+    emboss_r.###    -> contains general information about the enzymes.
+    emboss_s.###    -> contains information about the suppliers.
+
 ### is a 3 digit number. The first digit is the year and the two last the month.
 """
 
-import sre
+from __future__ import print_function
+
 import os
 import itertools
 import time
 import sys
-import site
 import shutil
 
 from Bio.Seq import Seq
-from Bio.Alphabet import IUPAC
 
 import Bio.Restriction.Restriction
-from Bio.Restriction.Restriction import AbstractCut, RestrictionType, NoCut, OneCut,\
-TwoCuts, Meth_Dep, Meth_Undep, Palindromic, NonPalindromic, Unknown, Blunt,\
-Ov5, Ov3, NotDefined, Defined, Ambiguous, Commercially_available, Not_available 
+from Bio.Restriction.Restriction import AbstractCut, RestrictionType, NoCut, OneCut
+from Bio.Restriction.Restriction import TwoCuts, Meth_Dep, Meth_Undep, Palindromic
+from Bio.Restriction.Restriction import NonPalindromic, Unknown, Blunt, Ov5, Ov3
+from Bio.Restriction.Restriction import NotDefined, Defined, Ambiguous
+from Bio.Restriction.Restriction import Commercially_available, Not_available
 
 import Bio.Restriction.RanaConfig as config
 from Bio.Restriction._Update.Update import RebaseUpdate
@@ -83,7 +84,8 @@ typedict = {}
 class OverhangError(ValueError):
     """Exception for dealing with overhang."""
     pass
-          
+
+
 def BaseExpand(base):
     """BaseExpand(base) -> string.
 
@@ -95,6 +97,7 @@ def BaseExpand(base):
         etc..."""
     base = base.upper()
     return dna_alphabet[base]
+
 
 def regex(site):
     """regex(site) -> string.
@@ -114,12 +117,14 @@ def regex(site):
             reg_ex = expand.join(reg_ex.split(base))
     return reg_ex
 
+
 def Antiparallel(sequence):
     """Antiparallel(sequence) -> string.
 
     returns a string which represents the reverse complementary strand of
     a DNA sequence."""
-    return antiparallel(sequence.tostring())
+    return antiparallel(str(sequence))
+
 
 def is_palindrom(sequence):
     """is_palindrom(sequence) -> bool.
@@ -127,6 +132,7 @@ def is_palindrom(sequence):
     True is the sequence is a palindrom.
     sequence is a DNA object."""
     return sequence == DNA(Antiparallel(sequence))
+
 
 def LocalTime():
     """LocalTime() -> string.
@@ -136,9 +142,10 @@ def LocalTime():
     t = time.gmtime()
     year = str(t.tm_year)[-1]
     month = str(t.tm_mon)
-    if len(month) == 1 : month = '0'+month
+    if len(month) == 1:
+        month = '0' + month
     return year+month
-                
+
 
 class newenzyme(object):
     """construct the attributes of the enzyme corresponding to 'name'."""
@@ -161,8 +168,10 @@ class newenzyme(object):
         #   Non Palindromic needs to be search for on the reverse complement
         #   as well.
         #
-        if target[10] : cls.bases += ('Palindromic',)
-        else : cls.bases += ('NonPalindromic',)
+        if target[10]:
+            cls.bases += ('Palindromic',)
+        else:
+            cls.bases += ('NonPalindromic',)
         #
         #   Number of cut the enzyme produce.
         #   0 => unknown, the enzyme has not been fully characterised.
@@ -198,7 +207,7 @@ class newenzyme(object):
                 cls.scd5 = target[6]
                 cls.scd3 = target[7]
             #
-            #   Now, prepare the overhangs which will be added to the DNA 
+            #   Now, prepare the overhangs which will be added to the DNA
             #   after the cut.
             #   Undefined enzymes will not be allowed to catalyse,
             #   they are not available commercially anyway.
@@ -273,17 +282,16 @@ class newenzyme(object):
         cls.charac = (cls.fst5, cls.fst3, cls.scd5, cls.scd3, cls.site)
         if not target[2] and cls.suppl:
             supp = ', '.join([suppliersdict[s][0] for s in cls.suppl])
-            print 'WARNING : It seems that %s is both commercially available\
+            print('WARNING : It seems that %s is both commercially available\
             \n\tand its characteristics are unknown. \
             \n\tThis seems counter-intuitive.\
             \n\tThere is certainly an error either in ranacompiler or\
             \n\tin this REBASE release.\
-            \n\tThe supplier is : %s.' % (name, supp)
+            \n\tThe supplier is : %s.' % (name, supp))
         return
 
 
 class TypeCompiler(object):
-    
     """Build the different types possible for Restriction Enzymes"""
 
     def __init__(self):
@@ -332,11 +340,14 @@ class TypeCompiler(object):
                                 'ovhg':None,'ovhgseq':None})
                 elif t == OneCut:
                     dct.update({'scd5':None, 'scd3':None})
+
             class klass(type):
                 def __new__(cls):
                     return type.__new__(cls, 'type%i'%n,ty,dct)
+
                 def __init__(cls):
                     super(klass, cls).__init__('type%i'%n,ty,dct)
+
             yield klass()
             n+=1
 
@@ -359,6 +370,7 @@ start = '\n\
 # into steps, using temporary functions to avoid the JVM limits.\n\
 \n\n'
 
+
 class DictionaryBuilder(object):
 
     def __init__(self, e_mail='', ftp_proxy=''):
@@ -367,14 +379,14 @@ class DictionaryBuilder(object):
         If the emboss files used for the construction need to be updated this
         class will download them if the ftp connection is correctly set.
         either in RanaConfig.py or given at run time.
-        
+
         e_mail is the e-mail address used as password for the anonymous
         ftp connection.
 
         proxy is the ftp_proxy to use if any."""
         self.rebase_pass = e_mail or config.Rebase_password
         self.proxy = ftp_proxy or config.ftp_proxy
-    
+
     def build_dict(self):
         """DB.build_dict() -> None.
 
@@ -392,7 +404,7 @@ class DictionaryBuilder(object):
         emboss_e.close()
         emboss_s.close()
         #
-        #   we build all the possible type 
+        #   we build all the possible type
         #
         tdct = {}
         for klass in TypeCompiler().buildtype():
@@ -433,7 +445,7 @@ class DictionaryBuilder(object):
             del dct['__bases__']
             del dct['__name__']# no need to keep that, it's already in the type.
             classdict[name] = dct
-           
+
             commonattr = ['fst5', 'fst3', 'scd5', 'scd3', 'substrat',
                           'ovhg', 'ovhgseq','results', 'dna']
             if typename in typedict:
@@ -448,22 +460,22 @@ class DictionaryBuilder(object):
                 supplier = suppliersdict[letter]
                 suppliersdict[letter][1].append(name)
         if not classdict or not suppliersdict or not typedict:
-            print 'One of the new dictionaries is empty.'
-            print 'Check the integrity of the emboss file before continuing.'
-            print 'Update aborted.'
+            print('One of the new dictionaries is empty.')
+            print('Check the integrity of the emboss file before continuing.')
+            print('Update aborted.')
             sys.exit()
         #
         #   How many enzymes this time?
         #
-        print '\nThe new database contains %i enzymes.\n' % len(classdict)
+        print('\nThe new database contains %i enzymes.\n' % len(classdict))
         #
-        #   the dictionaries are done. Build the file 
+        #   the dictionaries are done. Build the file
         #
         #update = config.updatefolder
-        
+
         update = os.getcwd()
         results = open(os.path.join(update, 'Restriction_Dictionary.py'), 'w')
-        print 'Writing the dictionary containing the new Restriction classes.\t',
+        print('Writing the dictionary containing the new Restriction classes...')
         results.write(start)
         results.write('rest_dict = {}\n')
         for name in sorted(classdict) :
@@ -474,8 +486,8 @@ class DictionaryBuilder(object):
             results.write("    }\n")
             results.write("rest_dict[%s] = _temp()\n" % repr(name))
             results.write("\n")
-        print 'OK.\n'
-        print 'Writing the dictionary containing the suppliers datas.\t\t',
+        print('OK.\n')
+        print('Writing the dictionary containing the suppliers data...')
         results.write('suppliers = {}\n')
         for name in sorted(suppliersdict) :
             results.write("def _temp():\n")
@@ -485,8 +497,8 @@ class DictionaryBuilder(object):
             results.write("    )\n")
             results.write("suppliers[%s] = _temp()\n" % repr(name))
             results.write("\n")
-        print 'OK.\n'
-        print 'Writing the dictionary containing the Restriction types.\t',
+        print('OK.\n')
+        print('Writing the dictionary containing the Restriction types...')
         results.write('typedict = {}\n')
         for name in sorted(typedict) :
             results.write("def _temp():\n")
@@ -501,7 +513,7 @@ class DictionaryBuilder(object):
         #one the final "del _temp" to clean up the namespace.
         results.write("del _temp\n")
         results.write("\n")
-        print 'OK.\n'
+        print('OK.\n')
         results.close()
         return
 
@@ -511,14 +523,14 @@ class DictionaryBuilder(object):
         Install the newly created dictionary in the site-packages folder.
 
         May need super user privilege on some architectures."""
-        print '\n ' +'*'*78 + ' \n'
-        print '\n\t\tInstalling Restriction_Dictionary.py'
+        print('\n ' +'*'*78 + ' \n')
+        print('\n\t\tInstalling Restriction_Dictionary.py')
         try:
             import Bio.Restriction.Restriction_Dictionary as rd
         except ImportError:
-            print '\
+            print('\
             \n Unable to locate the previous Restriction_Dictionary.py module\
-            \n Aborting installation.'
+            \n Aborting installation.')
             sys.exit()
         #
         #   first save the old file in Updates
@@ -535,24 +547,24 @@ class DictionaryBuilder(object):
         new = os.path.join(update_folder, 'Restriction_Dictionary.py')
         try:
             execfile(new)
-            print '\
-            \n\tThe new file seems ok. Proceeding with the installation.'   
+            print('\
+            \n\tThe new file seems ok. Proceeding with the installation.')
         except SyntaxError:
-            print '\
-            \n The new dictionary file is corrupted. Aborting the installation.'
+            print('\
+            \n The new dictionary file is corrupted. Aborting the installation.')
             return
         try:
             shutil.copyfile(new, old)
-            print'\n\t Everything ok. If you need it a version of the old\
+            print('\n\t Everything ok. If you need it a version of the old\
             \n\t dictionary have been saved in the Updates folder under\
-            \n\t the name Restriction_Dictionary.old.'
-            print '\n ' +'*'*78 + ' \n'
+            \n\t the name Restriction_Dictionary.old.')
+            print('\n ' +'*'*78 + ' \n')
         except IOError:
-            print '\n ' +'*'*78 + ' \n'
-            print '\
+            print('\n ' +'*'*78 + ' \n')
+            print('\
             \n\t WARNING : Impossible to install the new dictionary.\
             \n\t Are you sure you have write permission to the folder :\n\
-            \n\t %s ?\n\n' % os.path.split(old)[0]
+            \n\t %s ?\n\n' % os.path.split(old)[0])
             return self.no_install()
         return
 
@@ -560,14 +572,14 @@ class DictionaryBuilder(object):
         """BD.no_install() -> None.
 
         build the new dictionary but do not install the dictionary."""
-        print '\n ' +'*'*78 + '\n'
+        print('\n ' +'*'*78 + '\n')
         #update = config.updatefolder
         try:
             import Bio.Restriction.Restriction_Dictionary as rd
         except ImportError:
-            print '\
+            print('\
             \n Unable to locate the previous Restriction_Dictionary.py module\
-            \n Aborting installation.'
+            \n Aborting installation.')
             sys.exit()
         #
         #   first save the old file in Updates
@@ -577,7 +589,7 @@ class DictionaryBuilder(object):
         update = os.getcwd()
         shutil.copyfile(old, os.path.join(update, 'Restriction_Dictionary.old'))
         places = update, os.path.split(Bio.Restriction.Restriction.__file__)[0]
-        print "\t\tCompilation of the new dictionary : OK.\
+        print("\t\tCompilation of the new dictionary : OK.\
         \n\t\tInstallation : No.\n\
         \n You will find the newly created 'Restriction_Dictionary.py' file\
         \n in the folder : \n\
@@ -586,10 +598,9 @@ class DictionaryBuilder(object):
         \n the other Restriction libraries.\n\
         \n note : \
         \n This folder should be :\n\
-        \n\t%s\n" % places
-        print '\n ' +'*'*78 + '\n'
+        \n\t%s\n" % places)
+        print('\n ' +'*'*78 + '\n')
         return
-        
 
     def lastrebasefile(self):
         """BD.lastrebasefile() -> None.
@@ -610,27 +621,27 @@ class DictionaryBuilder(object):
                 pass
             else:
                 update_needed = True
-                
+
         if not update_needed:
             #
             #   nothing to be done
             #
-            print '\n Using the files : %s'% ', '.join(emboss_now)
+            print('\n Using the files : %s'% ', '.join(emboss_now))
             return tuple([open(os.path.join(base, n)) for n in emboss_now])
         else:
             #
             #   may be download the files.
             #
-            print '\n The rebase files are more than one month old.\
-            \n Would you like to update them before proceeding?(y/n)'
+            print('\n The rebase files are more than one month old.\
+            \n Would you like to update them before proceeding?(y/n)')
             r = raw_input(' update [n] >>> ')
             if r in ['y', 'yes', 'Y', 'Yes']:
                 updt = RebaseUpdate(self.rebase_pass, self.proxy)
                 updt.openRebase()
                 updt.getfiles()
                 updt.close()
-                print '\n Update complete. Creating the dictionaries.\n'
-                print '\n Using the files : %s'% ', '.join(emboss_now)
+                print('\n Update complete. Creating the dictionaries.\n')
+                print('\n Using the files : %s'% ', '.join(emboss_now))
                 return tuple([open(os.path.join(base, n)) for n in emboss_now])
             else:
                 #
@@ -648,7 +659,7 @@ class DictionaryBuilder(object):
                             pass
                         raise NotFoundError
                     except NotFoundError:
-                        print "\nNo %s file found. Upgrade is impossible.\n"%name
+                        print("\nNo %s file found. Upgrade is impossible.\n"%name)
                         sys.exit()
                     continue
                 pass
@@ -660,15 +671,19 @@ class DictionaryBuilder(object):
             fs = file.split('.')
             try:
                 if fs[0] in embossnames and int(fs[1]) > int(last[-1]):
-                    if last[0] : last.append(fs[1])
-                    else : last[0] = fs[1]
+                    if last[0]:
+                        last.append(fs[1])
+                    else:
+                        last[0] = fs[1]
                 else:
                     continue
             except ValueError:
                 continue
         last.sort()
         last = last[::-1]
-        if int(last[-1]) < 100 : last[0], last[-1] = last[-1], last[0]
+        if int(last[-1]) < 100:
+            last[0], last[-1] = last[-1], last[0]
+
         for number in last:
             files = [(name, name+'.%s'%number) for name in embossnames]
             strmess = '\nLast EMBOSS files found are :\n'
@@ -678,7 +693,7 @@ class DictionaryBuilder(object):
                         strmess += '\t%s.\n'%file
                     else:
                         raise ValueError
-                print strmess
+                print(strmess)
                 emboss_e = open(os.path.join(base, 'emboss_e.%s'%number),'r')
                 emboss_r = open(os.path.join(base, 'emboss_r.%s'%number),'r')
                 emboss_s = open(os.path.join(base, 'emboss_s.%s'%number),'r')
@@ -689,33 +704,37 @@ class DictionaryBuilder(object):
     def parseline(self, line):
         line = [line[0]]+[line[1].upper()]+[int(i) for i in line[2:9]]+line[9:]
         name = line[0].replace("-","_")
-        site = line[1]          #   sequence of the recognition site
-        dna = DNA(site)  
-        size = line[2]          #   size of the recognition site
+        site = line[1]  # sequence of the recognition site
+        dna = DNA(site)
+        size = line[2]  # size of the recognition site
         #
         #   Calculate the overhang.
         #
-        fst5 = line[5]  #   first site sense strand 
-        fst3 = line[6]  #   first site antisense strand
-        scd5 = line[7]  #   second site sense strand
-        scd3 = line[8]  #   second site antisense strand
-        
+        fst5 = line[5]  # first site sense strand
+        fst3 = line[6]  # first site antisense strand
+        scd5 = line[7]  # second site sense strand
+        scd3 = line[8]  # second site antisense strand
+
         #
         #   the overhang is the difference between the two cut
         #
         ovhg1 = fst5 - fst3
         ovhg2 = scd5 - scd3
-        
+
         #
         #   0 has the meaning 'do not cut' in rebase. So we get short of 1
         #   for the negative numbers so we add 1 to negative sites for now.
         #   We will deal with the record later.
         #
-        
-        if fst5 < 0 : fst5 += 1
-        if fst3 < 0 : fst3 += 1
-        if scd5 < 0 : scd5 += 1
-        if scd3 < 0 : scd3 += 1
+
+        if fst5 < 0:
+            fst5 += 1
+        if fst3 < 0:
+            fst3 += 1
+        if scd5 < 0:
+            scd5 += 1
+        if scd3 < 0:
+            scd3 += 1
 
         if ovhg2 != 0 and ovhg1 != ovhg2:
             #
@@ -727,11 +746,11 @@ class DictionaryBuilder(object):
             #   Should HaeIV become commercially available or other similar
             #   new enzymes be added, this might be modified.
             #
-            print '\
+            print('\
             \nWARNING : %s cut twice with different overhang length each time.\
             \n\tUnable to deal with this behaviour. \
-            \n\tThis enzyme will not be included in the database. Sorry.' %name
-            print '\tChecking :',
+            \n\tThis enzyme will not be included in the database. Sorry.' %name)
+            print('\tChecking...')
             raise OverhangError
         if 0 <= fst5 <= size and 0 <= fst3 <= size:
             #
@@ -741,25 +760,27 @@ class DictionaryBuilder(object):
                 #
                 #  5' overhang
                 #
-                ovhg1 = ovhgseq = site[fst5:fst3]       
+                ovhg1 = ovhgseq = site[fst5:fst3]
             elif fst5 > fst3:
                 #
                 #  3' overhang
                 #
-                ovhg1 = ovhgseq = site[fst3:fst5]  
+                ovhg1 = ovhgseq = site[fst3:fst5]
             else:
                 #
                 #  blunt
                 #
-                ovhg1 = ovhgseq = ''            
+                ovhg1 = ovhgseq = ''
             for base in 'NRYWMSKHDBV':
                 if base in ovhg1:
                     #
                     #   site and overhang degenerated
                     #
                     ovhgseq = ovhg1
-                    if fst5 < fst3 :  ovhg1 = - len(ovhg1)
-                    else : ovhg1 = len(ovhg1)
+                    if fst5 < fst3:
+                        ovhg1 = - len(ovhg1)
+                    else:
+                        ovhg1 = len(ovhg1)
                     break
                 else:
                     continue
@@ -771,17 +792,17 @@ class DictionaryBuilder(object):
                 #
                 #   3' cut after the site
                 #
-                ovhgseq = site[fst5:] + (fst3 - size) * 'N' 
+                ovhgseq = site[fst5:] + (fst3 - size) * 'N'
             elif fst5 > fst3:
                 #
                 #   3' cut before the site
                 #
-                ovhgseq = abs(fst3) * 'N' + site[:fst5] 
+                ovhgseq = abs(fst3) * 'N' + site[:fst5]
             else:
                 #
                 #   blunt outside
                 #
-                ovhg1 = ovhgseq = '' 
+                ovhg1 = ovhgseq = ''
         elif 0 <= fst3 <= size:
             #
             #   3' cut inside the site, 5' outside
@@ -836,10 +857,13 @@ class DictionaryBuilder(object):
         #   length of the site to compensate (+1 if they are negative).
         #
         for x in (5, 7):
-            if line[x] < 0 : line[x] += 1
+            if line[x] < 0:
+                line[x] += 1
         for x in (6, 8):
-            if line[x] > 0 : line[x] -= size
-            elif line[x] < 0 : line[x] = line[x] - size + 1
+            if line[x] > 0:
+                line[x] -= size
+            elif line[x] < 0:
+                line[x] = line[x] - size + 1
         #
         #   now is the site palindromic?
         #   produce the regular expression which correspond to the site.
@@ -895,19 +919,20 @@ class DictionaryBuilder(object):
         #   block[3] => methylation (position and type)
         #   block[5] => suppliers (as a string of single letter)
         #
-        bl3 = block[3].strip() 
-        if not bl3 : bl3 = False #  site is not methylable
+        bl3 = block[3].strip()
+        if not bl3:
+            bl3 = False  # site is not methylable
         return (block[0].strip(), bl3, block[5].strip())
 
     def information_mixer(self, file1, file2, file3):
         #
         #   Mix all the information from the 3 files and produce a coherent
         #   restriction record.
-        #     
+        #
         methfile = self.removestart(file1)
         sitefile = self.removestart(file2)
         supplier = self.removestart(file3)
-        
+
         i1, i2= 0, 0
         try:
             while True:
@@ -916,8 +941,8 @@ class DictionaryBuilder(object):
                 line = (sitefile[i2].strip()).split()
                 name = line[0]
                 if name == bl[0]:
-                    line.append(bl[1])  #   -> methylation
-                    line.append(bl[2])  #   -> suppliers
+                    line.append(bl[1])  # -> methylation
+                    line.append(bl[2])  # -> suppliers
                 else:
                     bl = self.get(oldblock)
                     if line[0] == bl[0]:
@@ -925,19 +950,19 @@ class DictionaryBuilder(object):
                         line.append(bl[2])
                         i2 += 1
                     else:
-                        raise TypeError  
+                        raise TypeError
                 oldblock = block
                 i2 += 1
                 try:
                     line = self.parseline(line)
-                except OverhangError :          #   overhang error 
-                    n = name                    #   do not include the enzyme
+                except OverhangError:   # overhang error
+                    n = name            # do not include the enzyme
                     if not bl[2]:
-                        print 'Anyway, %s is not commercially available.\n' %n
+                        print('Anyway, %s is not commercially available.\n' %n)
                     else:
-                        print 'Unfortunately, %s is commercially available.\n'%n
+                        print('Unfortunately, %s is commercially available.\n'%n)
 
-                    continue 
+                    continue
                 #Hyphens can't be used as a Python name, nor as a
                 #group name in a regular expression.
                 name = name.replace("-","_")
@@ -945,25 +970,24 @@ class DictionaryBuilder(object):
                     #
                     #   deal with TaqII and its two sites.
                     #
-                    print '\nWARNING :',
-                    print name, 'has two different sites.\n'
+                    print('\nWARNING : %s has two different sites.\n' % name)
                     other = line[0].replace("-","_")
                     dna = DNA(line[1])
-                    sense1 = regex(dna.tostring())
+                    sense1 = regex(str(dna))
                     antisense1 = regex(Antiparallel(dna))
                     dna = DNA(enzymedict[other][0])
-                    sense2 = regex(dna.tostring())
+                    sense2 = regex(str(dna))
                     antisense2 = regex(Antiparallel(dna))
                     sense = '(?P<'+other+'>'+sense1+'|'+sense2+')'
                     antisense = '(?P<'+other+'_as>'+antisense1+'|'+antisense2 + ')'
-                    reg = sense + '|' + antisense 
+                    reg = sense + '|' + antisense
                     line[1] = line[1] + '|' + enzymedict[other][0]
                     line[-1] = reg
                 #
                 #   the data to produce the enzyme class are then stored in
                 #   enzymedict.
                 #
-                enzymedict[name] = line[1:] #element zero was the name
+                enzymedict[name] = line[1:]  # element zero was the name
         except IndexError:
             pass
         for i in supplier:
@@ -973,5 +997,3 @@ class DictionaryBuilder(object):
             t = i.strip().split(' ', 1)
             suppliersdict[t[0]] = (t[1], [])
         return
-
-    

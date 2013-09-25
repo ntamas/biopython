@@ -7,11 +7,11 @@
 # some of the models in the Wise2 package by Ewan Birney available from:
 # ftp://ftp.ebi.ac.uk/pub/software/unix/wise2/
 # http://www.ebi.ac.uk/Wise2/
-# 
+#
 # Bio.Wise.psw is for protein Smith-Waterman alignments
 # Bio.Wise.dnal is for Smith-Waterman DNA alignments
 
-__version__ = "$Revision: 1.17 $"
+from __future__ import print_function
 
 import os
 import sys
@@ -63,22 +63,23 @@ def _build_align_cmdline(cmdline, pair, output_filename, kbyte=None, force_type=
 
     return cmdline_str
 
+
 def align(cmdline, pair, kbyte=None, force_type=None, dry_run=False, quiet=False, debug=False):
     """
     Returns a filehandle
     """
     assert len(pair) == 2
-    
+
     output_file = tempfile.NamedTemporaryFile(mode='r')
     input_files = tempfile.NamedTemporaryFile(mode="w"), tempfile.NamedTemporaryFile(mode="w")
 
     if dry_run:
-        print _build_align_cmdline(cmdline,
+        print(_build_align_cmdline(cmdline,
                                    pair,
                                    output_file.name,
                                    kbyte,
                                    force_type,
-                                   quiet)
+                                   quiet))
         return
 
     for filename, input_file in zip(pair, input_files):
@@ -99,18 +100,19 @@ def align(cmdline, pair, kbyte=None, force_type=None, dry_run=False, quiet=False
                                        quiet)
 
     if debug:
-        print >>sys.stderr, cmdline_str
+        sys.stderr.write("%s\n" % cmdline_str)
 
     status = os.system(cmdline_str) >> 8
 
     if status > 1:
         if kbyte != 0: # possible memory problem; could be None
-            print >>sys.stderr, "INFO trying again with the linear model"
+            sys.stderr.write("INFO trying again with the linear model\n")
             return align(cmdline, pair, 0, force_type, dry_run, quiet, debug)
         else:
             raise OSError("%s returned %s" % (" ".join(cmdline), status))
-    
+
     return output_file
+
 
 def all_pairs(singles):
     """
@@ -128,11 +130,13 @@ def all_pairs(singles):
 
     return pairs
 
+
 def main():
     pass
 
+
 def _test(*args, **keywds):
-    import doctest, sys
+    import doctest
     doctest.testmod(sys.modules[__name__], *args, **keywds)
 
 if __name__ == "__main__":

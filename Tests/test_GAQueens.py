@@ -17,11 +17,12 @@ queens you want to try to calculate this for.
 When called as part of the Biopython unit test suite, 5 queens are used.
 """
 # standard library
+from __future__ import print_function
+
 import sys
-import math
 import random
-import copy
 import time
+import unittest
 
 # Biopython
 from Bio import Alphabet
@@ -39,16 +40,16 @@ VERBOSE = 0
 
 def main(num_queens):
 
-    print "Calculating for %s queens..." % num_queens
+    print("Calculating for %s queens..." % num_queens)
 
     num_orgs = 1000
-    print "Generating an initial population of %s organisms..." % num_orgs
+    print("Generating an initial population of %s organisms..." % num_orgs)
     queen_alphabet = QueensAlphabet(num_queens)
 
     start_population = Organism.random_population(queen_alphabet, num_queens,
                                                   num_orgs, queens_fitness)
 
-    print "Evolving the population and searching for a solution..."
+    print("Evolving the population and searching for a solution...")
 
     mutator = QueensMutation(mutation_rate = 0.05)
     crossover = QueensCrossover(queens_fitness, crossover_prob = .2,
@@ -63,17 +64,17 @@ def main(num_queens):
     end_time = time.ctime(time.time())
 
     unique_solutions = []
-    for organism in evolved_pop:
-        if organism.fitness == num_queens:
-            if organism not in unique_solutions:
-                unique_solutions.append(organism)
+    for org in evolved_pop:
+        if org.fitness == num_queens:
+            if org not in unique_solutions:
+                unique_solutions.append(org)
 
     if VERBOSE:
-        print "Search started at %s and ended at %s" % (start_time, end_time)
-        for organism in unique_solutions:
-            print "We did it!", organism
-            display_board(organism.genome)
-        
+        print("Search started at %s and ended at %s" % (start_time, end_time))
+        for orgm in unique_solutions:
+            print("We did it! %s" % org)
+            display_board(org.genome)
+
 
 def display_board(genome):
     """Display a genome in the N-queens problem.
@@ -81,18 +82,19 @@ def display_board(genome):
     Inspired by the display function in the queens.py solution to the N-queens
     problem in the Python demo scripts.
     """
-    print '+-' + '--'*len(genome) + '+'
+    print('+-' + '--'*len(genome) + '+')
 
     for row in range(len(genome)):
-        print '|',
+        elements = []
         for genome_item in genome:
             if genome_item == row:
-                print 'Q',
+                elements.append('Q')
             else:
-                print '.',
-        print '|'
+                elements.append('.')
+        print('|' + ''.join(elements) + '|')
 
-    print '+-' + '--'*len(genome) + '+'
+    print('+-' + '--'*len(genome) + '+')
+
 
 def queens_solved(organisms):
     """Determine if we have solved the problem.
@@ -107,7 +109,8 @@ def queens_solved(organisms):
 
     # if we got here we didn't do it
     return 0
-     
+
+
 def queens_fitness(genome):
     """Calculate the fitness of an organization of queens on the chessboard.
 
@@ -129,7 +132,7 @@ def queens_fitness(genome):
                 # get the row for the two queens we are comparing
                 check_queen_row = int(genome[check_queen_col])
                 other_queen_row = int(genome[other_queen_col])
-                
+
                 # a queen is attacked if it is in a row with another queen
                 if check_queen_row == other_queen_row:
                     is_attacked = 1
@@ -145,13 +148,15 @@ def queens_fitness(genome):
 
     return fitness
 
+
 class QueensAlphabet(Alphabet.Alphabet):
     def __init__(self, num_queens):
         """Initialize with the number of queens we are calculating for.
         """
         # set up the letters for the alphabet
-        assert 0 <= num_queens <= 9
+        assert 0 < num_queens <= 9
         self.letters = "".join(str(i) for i in range(num_queens))
+
 
 # --- Problem specific crossover, mutation and repair operations
 class QueensRepair:
@@ -232,7 +237,8 @@ class QueensRepair:
                 organism.genome[duplicated_pos] = new_item
 
         return organism
-        
+
+
 class QueensCrossover:
     """Crossover operation to help in solving the N-Queens problem.
 
@@ -268,7 +274,7 @@ class QueensCrossover:
         """
         new_org_1 = org_1.copy()
         new_org_2 = org_2.copy()
-        
+
         # determine if we have a crossover
         crossover_chance = random.random()
         if crossover_chance <= self._crossover_prob:
@@ -280,7 +286,7 @@ class QueensCrossover:
 
             assert len(best_1) + len(best_2) == len(rest_1) + len(rest_2), \
                    "Did not preserve genome length!"
-            
+
             new_org_1.genome = best_1 + best_2
             new_org_2.genome = rest_1 + rest_2
 
@@ -306,14 +312,14 @@ class QueensCrossover:
         """
         first_region = max(len(genome) / 2, self._max_crossover_size)
         second_region = len(genome) - first_region
-        
+
         if make_best_larger:
             region_size = max(first_region, second_region)
         else:
             region_size = min(first_region, second_region)
 
         # loop through all of the segments and find the best fitness segment
-        
+
         # represent best_fitness as a three tuple with the coordinates of
         # the start and end as the first two elements, and the fitness of
         # the region as the last element. Start with a value that
@@ -327,12 +333,12 @@ class QueensCrossover:
                 best_fitness = [start_index, start_index + region_size,
                                 region_fitness]
 
-        # get the the two regions and return 'em
+        # get the two regions and return 'em
         best_region = genome[best_fitness[0]:best_fitness[1]]
         rest_region = genome[0:best_fitness[0]] + genome[best_fitness[1]:]
 
         return best_region, rest_region
-            
+
 
 class QueensMutation:
     """Mutation operation to help in the N-Queens problem.
@@ -374,24 +380,34 @@ class QueensMutation:
                 # if there are no choices left, we are stuck going for random
                 if len(gene_choices) == 0:
                     gene_choices = list(new_org.genome.alphabet.letters)
-                
+
                 # get a new letter with the left-over choices
                 new_letter = random.choice(gene_choices)
                 new_org.genome[gene_index] = new_letter
 
         return new_org
- 
+
 num_queens = 5
 
-if __name__ == "__main__":
-    if len(sys.argv) == 2:
-        num_queens = int(sys.argv[1])
-    elif len(sys.argv) > 2:
-        print "Usage:"
-        print "python test_GAQueens.py <Number of Queens to place>\n"
-        print "where <Number of Queens to place> is an optional parameter"
-        print "specifying how many queens you want to try to calculate"
-        print "this for. The default number of queens to place is 5."
-        sys.exit(1)
 
-main(num_queens)
+#Class defined for use via run_tests.py
+class QueensTest(unittest.TestCase):
+    def test_queens(self):
+        """Place five queens with a GA"""
+        main(num_queens)
+
+if __name__ == "__main__":
+    if len(sys.argv) == 1:
+        #Run with defaults, for use as a unit test
+        main(num_queens)
+    elif len(sys.argv) == 2:
+        num_queens = int(sys.argv[1])
+        main(num_queens)
+    else:
+        print("Usage:")
+        print("python test_GAQueens.py <Number of Queens to place>\n")
+        print("where <Number of Queens to place> is an optional parameter")
+        print("specifying how many queens you want to try to calculate")
+        print("this for. The default number of queens to place is 5.")
+        print("Range 1 to 9 is supported.")
+        sys.exit(1)

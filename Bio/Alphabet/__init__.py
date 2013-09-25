@@ -10,7 +10,20 @@
 This is used by sequences which contain a finite number of similar words.
 """
 
-class Alphabet:
+
+class Alphabet(object):
+    """Generic alphabet base class.
+
+    This class is used as a base class for other types of alphabets.
+
+    Attributes:
+    letters -- list-like object containing the letters of the alphabet.
+               Usually it is a string when letters are single characters.
+    size    -- size of the alphabet's letters (e.g. 1 when letters are
+               single characters).
+
+    """
+
     size = None     # default to no fixed size for words
     letters = None  # default to no fixed alphabet
                     # In general, a list-like object. However,
@@ -31,13 +44,13 @@ class Alphabet:
         return isinstance(other, self.__class__)
 
     def _case_less(self):
-        """Return an case-less variant of the current alphabet (PRIVATE)."""
+        """Return a case-less variant of the current alphabet (PRIVATE)."""
         #TODO - remove this method by dealing with things in subclasses?
         if isinstance(self, ProteinAlphabet):
             return generic_protein
         elif isinstance(self, DNAAlphabet):
             return generic_dna
-        elif isinstance(self, NucleotideAlphabet):
+        elif isinstance(self, RNAAlphabet):
             return generic_rna
         elif isinstance(self, NucleotideAlphabet):
             return generic_nucleotide
@@ -66,7 +79,9 @@ class Alphabet:
 
 generic_alphabet = Alphabet()
 
+
 class SingleLetterAlphabet(Alphabet):
+    """Generic alphabet with letters of size one."""
     size = 1
     letters = None   # string of all letters in the alphabet
 
@@ -74,18 +89,25 @@ single_letter_alphabet = SingleLetterAlphabet()
 
 ########### Protein
 
+
 class ProteinAlphabet(SingleLetterAlphabet):
+    """Generic single letter protein alphabet."""
     pass
 
 generic_protein = ProteinAlphabet()
 
 ########### DNA
+
+
 class NucleotideAlphabet(SingleLetterAlphabet):
+    """Generic single letter nucleotide alphabet."""
     pass
 
 generic_nucleotide = NucleotideAlphabet()
 
+
 class DNAAlphabet(NucleotideAlphabet):
+    """Generic single letter DNA alphabet."""
     pass
 
 generic_dna = DNAAlphabet()
@@ -93,31 +115,39 @@ generic_dna = DNAAlphabet()
 
 ########### RNA
 
+
 class RNAAlphabet(NucleotideAlphabet):
+    """Generic single letter RNA alphabet."""
     pass
 
 generic_rna = RNAAlphabet()
 
-
-
 ########### Other per-sequence encodings
 
+
 class SecondaryStructure(SingleLetterAlphabet):
+    """Alphabet used to describe secondary structure.
+
+    Letters are 'H' (helix), 'S' (strand), 'T' (turn) and 'C' (coil).
+    """
     letters = "HSTC"
 
+
 class ThreeLetterProtein(Alphabet):
+    """Three letter protein alphabet."""
     size = 3
     letters = [
         "Ala", "Asx", "Cys", "Asp", "Glu", "Phe", "Gly", "His", "Ile",
         "Lys", "Leu", "Met", "Asn", "Pro", "Gln", "Arg", "Ser", "Thr",
         "Sec", "Val", "Trp", "Xaa", "Tyr", "Glx",
         ]
-        
+
 ###### Non per-sequence modifications
 
 # (These are Decorator classes)
 
-class AlphabetEncoder:
+
+class AlphabetEncoder(object):
     def __init__(self, alphabet, new_letters):
         self.alphabet = alphabet
         self.new_letters = new_letters
@@ -125,6 +155,7 @@ class AlphabetEncoder:
             self.letters = alphabet.letters + new_letters
         else:
             self.letters = None
+
     def __getattr__(self, key):
         if key[:2] == "__" and key[-2:] == "__":
             raise AttributeError(key)
@@ -149,7 +180,7 @@ class AlphabetEncoder:
         """Return a lower case variant of the current alphabet (PRIVATE)."""
         return AlphabetEncoder(self.alphabet._lower(), self.new_letters.lower())
 
-    
+
 class Gapped(AlphabetEncoder):
     def __init__(self, alphabet, gap_char = "-"):
         AlphabetEncoder.__init__(self, alphabet, gap_char)
@@ -173,12 +204,12 @@ class Gapped(AlphabetEncoder):
         """Return a lower case variant of the current alphabet (PRIVATE)."""
         return Gapped(self.alphabet._lower(), self.gap_char.lower())
 
-            
+
 class HasStopCodon(AlphabetEncoder):
     def __init__(self, alphabet, stop_symbol = "*"):
         AlphabetEncoder.__init__(self, alphabet, stop_symbol)
         self.stop_symbol = stop_symbol
-        
+
     def __cmp__(self, other):
         x = cmp(self.alphabet, other.alphabet)
         if x == 0:
@@ -213,6 +244,7 @@ def _get_base_alphabet(alphabet):
            "Invalid alphabet found, %s" % repr(a)
     return a
 
+
 def _ungap(alphabet):
     """Returns the alphabet without any gap encoder (PRIVATE)."""
     #TODO - Handle via method of the objects?
@@ -226,7 +258,8 @@ def _ungap(alphabet):
         return AlphabetEncoder(_ungap(alphabet.alphabet), letters=alphabet.letters)
     else:
         raise NotImplementedError
-    
+
+
 def _consensus_base_alphabet(alphabets):
     """Returns a common but often generic base alphabet object (PRIVATE).
 
@@ -261,6 +294,7 @@ def _consensus_base_alphabet(alphabets):
         return generic_alphabet
     return common
 
+
 def _consensus_alphabet(alphabets):
     """Returns a common but often generic alphabet object (PRIVATE).
 
@@ -281,7 +315,7 @@ def _consensus_alphabet(alphabets):
     SingleLetterAlphabet()
     >>> _consensus_alphabet([single_letter_alphabet, generic_protein])
     SingleLetterAlphabet()
-    
+
     This is aware of Gapped and HasStopCodon and new letters added by
     other AlphabetEncoders.  This WILL raise an exception if more than
     one gap character or stop symbol is present.
@@ -337,6 +371,7 @@ def _consensus_alphabet(alphabets):
         alpha = HasStopCodon(alpha, stop_symbol=stop)
     return alpha
 
+
 def _check_type_compatible(alphabets):
     """Returns True except for DNA+RNA or Nucleotide+Protein (PRIVATE).
 
@@ -357,18 +392,23 @@ def _check_type_compatible(alphabets):
         if isinstance(a, DNAAlphabet):
             dna = True
             nucl = True
-            if rna or protein : return False
+            if rna or protein:
+                return False
         elif isinstance(a, RNAAlphabet):
             rna = True
             nucl = True
-            if dna or protein : return False
+            if dna or protein:
+                return False
         elif isinstance(a, NucleotideAlphabet):
             nucl = True
-            if protein : return False
+            if protein:
+                return False
         elif isinstance(a, ProteinAlphabet):
             protein = True
-            if nucl : return False
+            if nucl:
+                return False
     return True
+
 
 def _verify_alphabet(sequence):
     """Check all letters in sequence are in the alphabet (PRIVATE).
@@ -400,4 +440,3 @@ def _verify_alphabet(sequence):
         if letter not in letters:
             return False
     return True
-

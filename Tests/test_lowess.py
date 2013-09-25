@@ -3,7 +3,7 @@
 # as part of this package.
 
 try:
-    from numpy import array
+    from numpy import array, median
 except ImportError:
     from Bio import MissingExternalDependencyError
     raise MissingExternalDependencyError(
@@ -11,6 +11,7 @@ except ImportError:
 
 from Bio.Statistics.lowess import lowess
 import unittest
+
 
 class test_lowess(unittest.TestCase):
 

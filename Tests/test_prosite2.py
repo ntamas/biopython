@@ -10,6 +10,7 @@ import unittest
 
 from Bio.ExPASy import Prosite
 
+
 class TestPrositeRead(unittest.TestCase):
 
     def test_read4(self):
@@ -17,6 +18,7 @@ class TestPrositeRead(unittest.TestCase):
         filename = os.path.join('Prosite', 'ps00432.txt')
         handle = open(filename)
         record = Prosite.read(handle)
+        handle.close()
         self.assertEqual(record.name, "ACTINS_2")
         self.assertEqual(record.type, "PATTERN")
         self.assertEqual(record.accession, "PS00432")
@@ -455,6 +457,7 @@ class TestPrositeRead(unittest.TestCase):
         filename = os.path.join('Prosite', 'ps00488.txt')
         handle = open(filename)
         record = Prosite.read(handle)
+        handle.close()
         self.assertEqual(record.name, "PAL_HISTIDASE")
         self.assertEqual(record.type, "PATTERN")
         self.assertEqual(record.accession, "PS00488")
@@ -622,6 +625,7 @@ class TestPrositeRead(unittest.TestCase):
         filename = os.path.join('Prosite', 'ps00546.txt')
         handle = open(filename)
         record = Prosite.read(handle)
+        handle.close()
         self.assertEqual(record.name, "CYSTEINE_SWITCH")
         self.assertEqual(record.type, "PATTERN")
         self.assertEqual(record.accession, "PS00546")
@@ -775,7 +779,6 @@ class TestPrositeRead(unittest.TestCase):
         self.assertEqual(record.pdb_structs[5], "1SLM")
         self.assertEqual(record.pdb_structs[6], "1SU3")
         self.assertEqual(record.pdb_structs[7], "1UC1")
-
 
 
 if __name__ == "__main__":

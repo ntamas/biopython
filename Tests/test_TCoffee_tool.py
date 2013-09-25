@@ -7,8 +7,6 @@
 import sys
 import os
 import unittest
-import subprocess
-from cStringIO import StringIO
 from Bio import AlignIO, SeqIO, MissingExternalDependencyError
 from Bio.Align.Applications import TCoffeeCommandline
 
@@ -17,25 +15,26 @@ os.environ['LANG'] = 'C'
 
 t_coffee_exe = None
 if sys.platform=="win32":
-    raise MissingExternalDependencyError(\
+    raise MissingExternalDependencyError(
         "Testing TCOFFEE on Windows not supported yet")
 else:
-    import commands
-    output = commands.getoutput("t_coffee -version")
+    from Bio._py3k import getoutput
+    output = getoutput("t_coffee -version")
     if "not found" not in output \
     and ("t_coffee" in output.lower() or "t-coffee" in output.lower()):
         t_coffee_exe = "t_coffee"
 
 if not t_coffee_exe:
-    raise MissingExternalDependencyError(\
+    raise MissingExternalDependencyError(
         "Install TCOFFEE if you want to use the Bio.Align.Applications wrapper.")
+
 
 class TCoffeeApplication(unittest.TestCase):
 
     def setUp(self):
         self.infile1 = "Fasta/fa01"
         self.outfile1 = "fa01.aln"
-        self.outfile2 = "fa01.html" #Written by default when no output set
+        self.outfile2 = "fa01.html"  # Written by default when no output set
         self.outfile3 = "Fasta/tc_out.pir"
         self.outfile4 = "Fasta/tc_out.phy"
 
@@ -56,8 +55,8 @@ class TCoffeeApplication(unittest.TestCase):
         self.assertEqual(str(cmdline), t_coffee_exe + " -infile Fasta/fa01")
         stdout, stderr = cmdline()
         self.assertTrue(stderr.strip().startswith("PROGRAM: T-COFFEE"))
-        align = AlignIO.read(open(self.outfile1), "clustal")
-        records = list(SeqIO.parse(open(self.infile1),"fasta"))
+        align = AlignIO.read(self.outfile1, "clustal")
+        records = list(SeqIO.parse(self.infile1, "fasta"))
         self.assertEqual(len(records),len(align))
         for old, new in zip(records, align):
             self.assertEqual(old.id, new.id)
@@ -75,8 +74,8 @@ class TCoffeeApplication(unittest.TestCase):
         stdout, stderr = cmdline()
         #Can get warnings in stderr output
         self.assertTrue("error" not in stderr.lower(), stderr)
-        align = AlignIO.read(open(self.outfile3), "pir")
-        records = list(SeqIO.parse(open(self.infile1),"fasta"))
+        align = AlignIO.read(self.outfile3, "pir")
+        records = list(SeqIO.parse(self.infile1,"fasta"))
         self.assertEqual(len(records),len(align))
         for old, new in zip(records, align):
             self.assertEqual(old.id, new.id)
@@ -97,8 +96,8 @@ class TCoffeeApplication(unittest.TestCase):
                          "-type protein -outorder input -gapopen -2 -gapext -5")
         stdout, stderr = cmdline()
         self.assertTrue(stderr.strip().startswith("PROGRAM: T-COFFEE"))
-        align = AlignIO.read(open(self.outfile4), "clustal")
-        records = list(SeqIO.parse(open(self.infile1),"fasta"))
+        align = AlignIO.read(self.outfile4, "clustal")
+        records = list(SeqIO.parse(self.infile1, "fasta"))
         self.assertEqual(len(records),len(align))
         for old, new in zip(records, align):
             self.assertEqual(old.id, new.id)

@@ -3,8 +3,6 @@
 # license.  Please see the LICENSE file that should have been included
 # as part of this package.
 
-
-
 """
 This module allows to control GenePop.
 
@@ -13,11 +11,9 @@ This module allows to control GenePop.
 import os
 import re
 import shutil
-import subprocess
-import sys
-import tempfile
 
-from Bio.Application import AbstractCommandline, _Argument, _Option
+from Bio.Application import AbstractCommandline, _Argument
+
 
 def _gp_float(tok):
     """Gets a float from a token, if it fails, returns the string.
@@ -27,6 +23,7 @@ def _gp_float(tok):
     except ValueError:
         return str(tok)
 
+
 def _gp_int(tok):
     """Gets a int from a token, if it fails, returns the string.
     """
@@ -34,13 +31,15 @@ def _gp_int(tok):
         return int(tok)
     except ValueError:
         return str(tok)
-    
-    
+
+
 def _read_allele_freq_table(f):
     l = f.readline()
-    while l.find(" --")==-1:
+    while ' --' not in l:
         if l == "":
             raise StopIteration
+        if 'No data' in l:
+            return None, None
         l = f.readline()
     alleles = filter(lambda x: x != '', f.readline().rstrip().split(" "))
     alleles = map(lambda x: _gp_int(x), alleles)
@@ -61,14 +60,15 @@ def _read_allele_freq_table(f):
         l = f.readline().rstrip()
     return alleles, table
 
+
 def _read_table(f, funs):
     table = []
     l = f.readline().rstrip()
-    while l.find("---")==-1:
+    while '---' not in l:
         l = f.readline().rstrip()
     l = f.readline().rstrip()
-    while l.find("===")==-1 and l.find("---")==-1 and l != "":
-        toks = filter(lambda x: x != "", l.split(" ")) 
+    while '===' not in l and '---' not in l and l != "":
+        toks = filter(lambda x: x != "", l.split(" "))
         line = []
         for i in range(len(toks)):
             try:
@@ -78,6 +78,7 @@ def _read_table(f, funs):
         table.append(tuple(line))
         l = f.readline().rstrip()
     return table
+
 
 def _read_triangle_matrix(f):
     matrix = []
@@ -89,10 +90,11 @@ def _read_triangle_matrix(f):
         l = f.readline().rstrip()
     return matrix
 
+
 def _read_headed_triangle_matrix(f):
     matrix = {}
     header = f.readline().rstrip()
-    if header.find("---")>-1 or header.find("===")>-1:
+    if '---' in header or '===' in header:
         header = f.readline().rstrip()
     nlines = len(filter(lambda x:x != '', header.split(' '))) - 1
     for line_pop in range(nlines):
@@ -108,7 +110,8 @@ def _read_headed_triangle_matrix(f):
             matrix[(line_pop+1, col_pop)] = clean_vals[col_pop]
     return matrix
 
-def _hw_func(stream, is_locus, has_fisher = False): 
+
+def _hw_func(stream, is_locus, has_fisher = False):
     l = stream.readline()
     if is_locus:
         hook = "Locus "
@@ -127,12 +130,14 @@ def _hw_func(stream, is_locus, has_fisher = False):
                     loci[entry[0]] = None
                 else:
                     locus, p, se, fis_wc, fis_rh, steps = entry[:-1]
-                    if se == "-": se = None
+                    if se == "-":
+                        se = None
                     loci[locus] = p, se, fis_wc, fis_rh, steps
             return loci
         l = stream.readline()
     #self.done = True
     raise StopIteration
+
 
 class _FileIterator:
     """Iterator which crawls over a stream of lines with a function.
@@ -163,60 +168,34 @@ class _FileIterator:
             #Jython seems to call the iterator twice
             pass
 
+
 class _GenePopCommandline(AbstractCommandline):
     """ Command Line Wrapper for GenePop.
     """
     def __init__(self, genepop_dir=None, cmd='Genepop', **kwargs):
         self.parameters = [
                 _Argument(["command"],
-                    ["INTEGER(.INTEGER)*"],
-                    None,
-                    True,
-                    "GenePop option to be called"),
+                    "GenePop option to be called",
+                    is_required=True),
                 _Argument(["mode"],
-                    ["Dont touch this"],
-                    None,
-                    True,
-                    "Should allways be batch"),
+                    "Should allways be batch",
+                    is_required=True),
                 _Argument(["input"],
-                    ["input"],
-                    None,
-                    True,
-                    "Input file"),
+                    "Input file",
+                    is_required=True),
                 _Argument(["Dememorization"],
-                    ["input"],
-                    None,
-                    False,
                     "Dememorization step"),
                 _Argument(["BatchNumber"],
-                    ["input"],
-                    None,
-                    False,
                     "Number of MCMC batches"),
                 _Argument(["BatchLength"],
-                    ["input"],
-                    None,
-                    False,
                     "Length of MCMC chains"),
                 _Argument(["HWtests"],
-                    ["input"],
-                    None,
-                    False,
                     "Enumeration or MCMC"),
                 _Argument(["IsolBDstatistic"],
-                    ["input"],
-                    None,
-                    False,
                     "IBD statistic (a or e)"),
                 _Argument(["MinimalDistance"],
-                    ["input"],
-                    None,
-                    False,
                     "Minimal IBD distance"),
                 _Argument(["GeographicScale"],
-                    ["input"],
-                    None,
-                    False,
                     "Log or Linear"),
         ]
         AbstractCommandline.__init__(self, cmd, **kwargs)
@@ -235,20 +214,21 @@ class _GenePopCommandline(AbstractCommandline):
         """
         self.set_parameter("input", "InputFile="+fname)
 
-class GenePopController:
+
+class GenePopController(object):
     def __init__(self, genepop_dir = None):
         """Initializes the controller.
-        
+
         genepop_dir is the directory where GenePop is.
 
         The binary should be called Genepop (capital G)
-        
         """
         self.controller = _GenePopCommandline(genepop_dir)
 
     def _remove_garbage(self, fname_out):
         try:
-            if fname_out != None: os.remove(fname_out)
+            if fname_out is not None:
+                os.remove(fname_out)
         except OSError:
             pass # safe
         try:
@@ -269,8 +249,8 @@ class GenePopController:
         opts["Dememorization"]=dememorization
         opts["BatchNumber"]=batches
         opts["BatchLength"]=iterations
-        if enum_test != None:
-            if enum_test == True:
+        if enum_test is not None:
+            if enum_test is True:
                 opts["HWtests"]="Enumeration"
             else:
                 opts["HWtests"]="MCMC"
@@ -283,13 +263,13 @@ class GenePopController:
         self.controller.set_input(fname)
         for opt in opts:
             self.controller.set_parameter(opt, opt+"="+str(opts[opt]))
-        self.controller() #checks error level is zero
+        self.controller()  # checks error level is zero
         self._remove_garbage(None)
         return
 
-
     def _test_pop_hz_both(self, fname, type, ext, enum_test = True,
-        dememorization = 10000, batches = 20, iterations = 5000):
+                          dememorization = 10000, batches = 20,
+                          iterations = 5000):
         """Hardy-Weinberg test for heterozygote deficiency/excess.
 
            Returns a population iterator containg
@@ -300,12 +280,15 @@ class GenePopController:
         opts = self._get_opts(dememorization, batches, iterations, enum_test)
         self._run_genepop([ext], [1, type], fname, opts)
         f = open(fname + ext)
+
         def hw_func(self):
             return _hw_func(self.stream, False)
+
         return _FileIterator(hw_func, f, fname + ext)
 
     def _test_global_hz_both(self, fname, type, ext, enum_test = True,
-        dememorization = 10000, batches = 20, iterations = 5000):
+                             dememorization = 10000, batches = 20,
+                             iterations = 5000):
         """Global Hardy-Weinberg test for heterozygote deficiency/excess.
 
            Returns a triple with:
@@ -322,21 +305,23 @@ class GenePopController:
         """
         opts = self._get_opts(dememorization, batches, iterations, enum_test)
         self._run_genepop([ext], [1, type], fname, opts)
+
         def hw_pop_func(self):
             return _read_table(self.stream, [str, _gp_float, _gp_float, _gp_float])
+
         f1 = open(fname + ext)
         l = f1.readline()
-        while l.find("by population") == -1:
+        while "by population" not in l:
             l = f1.readline()
         pop_p = _read_table(f1, [str, _gp_float, _gp_float, _gp_float])
         f2 = open(fname + ext)
         l = f2.readline()
-        while l.find("by locus") == -1:
+        while "by locus" not in l:
             l = f2.readline()
         loc_p = _read_table(f2, [str, _gp_float, _gp_float, _gp_float])
         f = open(fname + ext)
         l = f.readline()
-        while l.find("all locus") == -1:
+        while "all locus" not in l:
             l = f.readline()
         f.readline()
         f.readline()
@@ -350,7 +335,8 @@ class GenePopController:
 
     #1.1
     def test_pop_hz_deficiency(self, fname, enum_test = True,
-        dememorization = 10000, batches = 20, iterations = 5000):
+                               dememorization = 10000, batches = 20,
+                               iterations = 5000):
         """Hardy-Weinberg test for heterozygote deficiency.
 
            Returns a population iterator containg
@@ -363,7 +349,8 @@ class GenePopController:
 
     #1.2
     def test_pop_hz_excess(self, fname, enum_test = True,
-        dememorization = 10000, batches = 20, iterations = 5000):
+                           dememorization = 10000, batches = 20,
+                           iterations = 5000):
         """Hardy-Weinberg test for heterozygote deficiency.
 
            Returns a population iterator containg
@@ -376,7 +363,8 @@ class GenePopController:
 
     #1.3 P file
     def test_pop_hz_prob(self, fname, ext, enum_test = False,
-        dememorization = 10000, batches = 20, iterations = 5000):
+                         dememorization = 10000, batches = 20,
+                         iterations = 5000):
         """Hardy-Weinberg test based on probability.
 
            Returns 2 iterators and a final tuple:
@@ -395,10 +383,13 @@ class GenePopController:
         """
         opts = self._get_opts(dememorization, batches, iterations, enum_test)
         self._run_genepop([ext], [1, 3], fname, opts)
-        def hw_prob_loci_func(self): 
+
+        def hw_prob_loci_func(self):
             return  _hw_func(self.stream, True, True)
-        def hw_prob_pop_func(self): 
+
+        def hw_prob_pop_func(self):
             return _hw_func(self.stream, False, True)
+
         shutil.copyfile(fname+".P", fname+".P2")
         f1 = open(fname + ".P")
         f2 = open(fname + ".P2")
@@ -406,7 +397,8 @@ class GenePopController:
 
     #1.4
     def test_global_hz_deficiency(self, fname, enum_test = True,
-        dememorization = 10000, batches = 20, iterations = 5000):
+                                  dememorization = 10000, batches = 20,
+                                  iterations = 5000):
         """Global Hardy-Weinberg test for heterozygote deficiency.
 
            Returns a triple with:
@@ -423,10 +415,10 @@ class GenePopController:
         return self._test_global_hz_both(fname, 4, ".DG", enum_test,
             dememorization, batches, iterations)
 
-
     #1.5
     def test_global_hz_excess(self, fname, enum_test = True,
-        dememorization = 10000, batches = 20, iterations = 5000):
+                              dememorization = 10000, batches = 20,
+                              iterations = 5000):
         """Global Hardy-Weinberg test for heterozygote excess.
 
            Returns a triple with:
@@ -445,9 +437,10 @@ class GenePopController:
 
     #2.1
     def test_ld(self, fname,
-        dememorization = 10000, batches = 20, iterations = 5000):
+                dememorization = 10000, batches = 20, iterations = 5000):
         opts = self._get_opts(dememorization, batches, iterations)
         self._run_genepop([".DIS"], [2, 1], fname, opts)
+
         def ld_pop_func(self):
             current_pop = None
             l = self.stream.readline().rstrip()
@@ -465,6 +458,7 @@ class GenePopController:
                 return current_pop, pop, (locus1, locus2), None
             p, se, switches = _gp_float(toks[3]), _gp_float(toks[4]), _gp_int(toks[5])
             return current_pop, pop, (locus1, locus2), (p, se, switches)
+
         def ld_func(self):
             l = self.stream.readline().rstrip()
             if l == "":
@@ -477,16 +471,17 @@ class GenePopController:
             except ValueError:
                 return (locus1, locus2), None
             return (locus1, locus2), (chi2, df, p)
+
         f1 = open(fname + ".DIS")
         l = f1.readline()
-        while l.find("----")==-1:
+        while "----" not in l:
             l = f1.readline()
         shutil.copyfile(fname + ".DIS", fname + ".DI2")
         f2 = open(fname + ".DI2")
         l = f2.readline()
-        while l.find("Locus pair")==-1:
+        while "Locus pair" not in l:
             l = f2.readline()
-        while l.find("----")==-1:
+        while "----" not in l:
             l = f2.readline()
         return _FileIterator(ld_pop_func, f1, fname+".DIS"), _FileIterator(ld_func, f2, fname + ".DI2")
 
@@ -496,22 +491,22 @@ class GenePopController:
 
     #3.1 PR/GE files
     def test_genic_diff_all(self, fname,
-        dememorization = 10000, batches = 20, iterations = 5000):
+            dememorization = 10000, batches = 20, iterations = 5000):
         raise NotImplementedError
 
     #3.2 PR2/GE2 files
     def test_genic_diff_pair(self, fname,
-        dememorization = 10000, batches = 20, iterations = 5000):
+            dememorization = 10000, batches = 20, iterations = 5000):
         raise NotImplementedError
 
     #3.3 G files
     def test_genotypic_diff_all(self, fname,
-        dememorization = 10000, batches = 20, iterations = 5000):
+            dememorization = 10000, batches = 20, iterations = 5000):
         raise NotImplementedError
 
     #3.4 2G2 files
     def test_genotypic_diff_pair(self, fname,
-        dememorization = 10000, batches = 20, iterations = 5000):
+            dememorization = 10000, batches = 20, iterations = 5000):
         raise NotImplementedError
 
     #4
@@ -522,30 +517,30 @@ class GenePopController:
         f.close()
         for line in lines:
             m = re.search("Mean sample size: ([.0-9]+)", line)
-            if m != None:
+            if m is not None:
                 mean_sample_size = _gp_float(m.group(1))
             m = re.search("Mean frequency of private alleles p\(1\)= ([.0-9]+)", line)
-            if m != None:
+            if m is not None:
                 mean_priv_alleles = _gp_float(m.group(1))
             m = re.search("N=10: ([.0-9]+)", line)
-            if m != None:
+            if m is not None:
                 mig10 = _gp_float(m.group(1))
             m = re.search("N=25: ([.0-9]+)", line)
-            if m != None:
-                 mig25 = _gp_float(m.group(1))
+            if m is not None:
+                mig25 = _gp_float(m.group(1))
             m = re.search("N=50: ([.0-9]+)", line)
-            if m != None:
-                 mig50 = _gp_float(m.group(1))
+            if m is not None:
+                mig50 = _gp_float(m.group(1))
             m = re.search("for size= ([.0-9]+)", line)
-            if m != None:
-                 mig_corrected = _gp_float(m.group(1))
+            if m is not None:
+                mig_corrected = _gp_float(m.group(1))
         os.remove(fname + ".PRI")
         return mean_sample_size, mean_priv_alleles, mig10, mig25, mig50, mig_corrected
 
     #5.1
     def calc_allele_genotype_freqs(self, fname):
         """Calculates allele and genotype frequencies per locus and per sample.
-        
+
         Parameters:
         fname - file name
 
@@ -555,7 +550,7 @@ class GenePopController:
             Locus dictionary with key = locus name and content tuple as
               Genotype List with
                 (Allele1, Allele2, observed, expected)
-              (expected homozygotes, observed hm, 
+              (expected homozygotes, observed hm,
               expected heterozygotes, observed ht)
               Allele frequency/Fis dictionary with allele as key and
                 (count, frequency, Fis Weir & Cockerham)
@@ -571,7 +566,6 @@ class GenePopController:
                list of allele frequencies in the same order as allele list above
                number of genes
 
-        
         Will create a file called fname.INF
         """
         self._run_genepop(["INF"], [5,1], fname)
@@ -580,15 +574,16 @@ class GenePopController:
         #num_pops = None
         #f = open(fname + ".INF")
         #l = f.readline()
-        #while (num_loci == None or num_pops == None) and l != '':
+        #while (num_loci is None or num_pops is None) and l != '':
         #    m = re.search("Number of populations detected : ([0-9+])", l)
-        #    if m != None:
+        #    if m is not None:
         #        num_pops = _gp_int(m.group(1))
         #    m = re.search("Number of loci detected        : ([0-9+])", l)
-        #    if m != None:
+        #    if m is not None:
         #        num_loci = _gp_int(m.group(1))
         #    l = f.readline()
         #f.close()
+
         def pop_parser(self):
             if hasattr(self, "old_line"):
                 l = self.old_line
@@ -598,10 +593,10 @@ class GenePopController:
             loci_content = {}
             while l != '':
                 l = l.rstrip()
-                if l.find("Tables of allelic frequencies for each locus")>-1:
+                if "Tables of allelic frequencies for each locus" in l:
                     return self.curr_pop, loci_content
                 match = re.match(".*Pop: (.+) Locus: (.+)", l)
-                if match != None:
+                if match is not None:
                     pop = match.group(1)
                     locus = match.group(2)
                     if not hasattr(self, "first_locus"):
@@ -620,14 +615,15 @@ class GenePopController:
                     continue
                 geno_list = []
                 l = self.stream.readline()
-                if l.find("No data")>-1: continue
+                if "No data" in l:
+                    continue
 
-                while l.find("Genotypes  Obs.")==-1:
+                while "Genotypes  Obs." not in l:
                     l = self.stream.readline()
 
                 while l != "\n":
                     m2 = re.match(" +([0-9]+) , ([0-9]+) *([0-9]+) *(.+)",l)
-                    if m2 != None:
+                    if m2 is not None:
                         geno_list.append((_gp_int(m2.group(1)), _gp_int(m2.group(2)),
                             _gp_int(m2.group(3)), _gp_float(m2.group(4))))
                     else:
@@ -635,23 +631,23 @@ class GenePopController:
                         continue
                     l = self.stream.readline()
 
-                while l.find("Expected number of ho")==-1:
+                while "Expected number of ho" not in l:
                     l = self.stream.readline()
-                expHo =  _gp_float(l[38:])
+                expHo = _gp_float(l[38:])
                 l = self.stream.readline()
-                obsHo =  _gp_int(l[38:])
+                obsHo = _gp_int(l[38:])
                 l = self.stream.readline()
-                expHe =  _gp_float(l[38:])
+                expHe = _gp_float(l[38:])
                 l = self.stream.readline()
-                obsHe =  _gp_int(l[38:])
+                obsHe = _gp_int(l[38:])
                 l = self.stream.readline()
 
-                while l.find("Sample count")==-1:
+                while "Sample count" not in l:
                     l = self.stream.readline()
                 l = self.stream.readline()
                 freq_fis={}
                 overall_fis = None
-                while l.find("----")==-1:
+                while "----" not in l:
                     vals = filter(lambda x: x!='',
                             l.rstrip().split(' '))
                     if vals[0]=="Tot":
@@ -666,12 +662,13 @@ class GenePopController:
                         freq_fis, overall_fis
             self.done = True
             raise StopIteration
+
         def locus_parser(self):
             l = self.stream.readline()
             while l != "":
                 l = l.rstrip()
                 match = re.match(" Locus: (.+)", l)
-                if match != None:
+                if match is not None:
                     locus = match.group(1)
                     alleles, table = _read_allele_freq_table(self.stream)
                     return locus, alleles, table
@@ -697,24 +694,27 @@ class GenePopController:
                 avg_Qintra = _read_table(f, [str, _gp_float])
             l = f.readline()
         f.close()
-        def fis_func(self): 
+
+        def fis_func(self):
             l = self.stream.readline()
             while l != "":
                 l = l.rstrip()
                 m = re.search("Locus: (.+)", l)
-                if m != None:
+                if m is not None:
                     locus = m.group(1)
                     self.stream.readline()
-                    if self.stream.readline().find("No complete")>-1: return locus, None
+                    if "No complete" in self.stream.readline():
+                        return locus, None
                     self.stream.readline()
                     fis_table = _read_table(self.stream, [str, _gp_float, _gp_float, _gp_float])
                     self.stream.readline()
-                    avg_qinter, avg_fis = tuple(map (lambda x: _gp_float(x),
+                    avg_qinter, avg_fis = tuple(map(lambda x: _gp_float(x),
                         filter(lambda y:y != "", self.stream.readline().split(" "))))
                     return locus, fis_table, avg_qinter, avg_fis
                 l = self.stream.readline()
             self.done = True
             raise StopIteration
+
         dvf = open(fname + ext)
         return _FileIterator(fis_func, dvf, fname + ext), avg_fis, avg_Qintra
 
@@ -729,7 +729,7 @@ class GenePopController:
     #6.1 Less genotype frequencies
     def calc_fst_all(self, fname):
         """Executes GenePop and gets Fst/Fis/Fit (all populations)
-        
+
         Parameters:
         fname - file name
 
@@ -741,7 +741,6 @@ class GenePopController:
         Will create a file called fname.FST .
 
         This does not return the genotype frequencies.
-        
         """
         self._run_genepop([".FST"], [6,1], fname)
         f = open(fname + ".FST")
@@ -764,7 +763,8 @@ class GenePopController:
             l = f.readline()
         f.close()
         f = open(fname + ".FST")
-        def proc(self): 
+
+        def proc(self):
             if hasattr(self, "last_line"):
                 l = self.last_line
                 del self.last_line
@@ -779,7 +779,7 @@ class GenePopController:
             while l != '':
                 l = l.rstrip()
                 if l.startswith('  Locus:'):
-                    if locus != None:
+                    if locus is not None:
                         self.last_line = l
                         return locus, fis, fst, fit, qintra, qinter
                     else:
@@ -796,7 +796,7 @@ class GenePopController:
                     qinter = _gp_float(l.split(' ')[1])
                     return locus, fis, fst, fit, qintra, qinter
                 l = self.stream.readline()
-            if locus != None:
+            if locus is not None:
                 return locus, fis, fst, fit, qintra, qinter
             self.stream.close()
             self.done = True
@@ -814,18 +814,20 @@ class GenePopController:
                 avg_fst = _read_headed_triangle_matrix(f)
             l = f.readline()
         f.close()
-        def loci_func(self): 
+
+        def loci_func(self):
             l = self.stream.readline()
             while l != "":
                 l = l.rstrip()
                 m = re.search(" Locus: (.+)", l)
-                if m != None:
+                if m is not None:
                     locus = m.group(1)
                     matrix = _read_headed_triangle_matrix(self.stream)
                     return locus, matrix
                 l = self.stream.readline()
             self.done = True
             raise StopIteration
+
         stf = open(fname + ".ST2")
         os.remove(fname + ".MIG")
         return _FileIterator(loci_func, stf, fname + ".ST2"), avg_fst
@@ -892,5 +894,3 @@ class GenePopController:
            the individual name has to be the sample coordinates.
         """
         return self._calc_ibd(fname, 6, stat, scale, min_dist)
-
-

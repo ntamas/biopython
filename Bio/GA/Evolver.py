@@ -4,9 +4,12 @@ Evolver classes manage a population of individuals, and are responsible
 for taking care of the transition from one generation to the next.
 """
 # standard modules
+from __future__ import print_function
+
 import sys
 
-class SteadyStateEvolver:
+
+class SteadyStateEvolver(object):
     """Evolve a population in place.
 
     This implements a Steady State GA, where the population of individuals
@@ -14,8 +17,9 @@ class SteadyStateEvolver:
     """
     def __init__(self):
         raise NotImplementedError("Need to code this.")
-        
-class GenerationEvolver:
+
+
+class GenerationEvolver(object):
     """Evolve a population from generation to generation.
 
     This implements a Generational GA, in which the population moves from
@@ -65,7 +69,7 @@ class GenerationEvolver:
                 # sort the population so we can look at duplicates
                 self._population.sort()
                 for org in self._population:
-                    print org
+                    print(org)
                 sys.exit()
-            
+
         return self._population

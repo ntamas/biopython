@@ -1,6 +1,7 @@
 import numpy
 
-from cluster import *
+from Bio.Cluster.cluster import *
+
 
 def _treesort(order, nodeorder, nodecounts, tree):
     # Find the order of the nodes consistent with the hierarchical clustering
@@ -8,7 +9,7 @@ def _treesort(order, nodeorder, nodecounts, tree):
     nNodes = len(tree)
     nElements = nNodes + 1
     neworder = numpy.zeros(nElements)
-    clusterids = range(nElements)
+    clusterids = numpy.arange(nElements)
     for i in range(nNodes):
         i1 = tree[i].left
         i2 = tree[i].right
@@ -82,7 +83,7 @@ def _savetree(jobname, tree, order, transpose):
             order1 = nodeorder[index1]
             counts1 = nodecounts[index1]
             outputfile.write(nodeID[index1]+"\t")
-            nodedist[nodeindex] = max(nodedist[nodeindex],nodedist[index1])
+            nodedist[nodeindex] = max(nodedist[nodeindex], nodedist[index1])
         else:
             order1 = order[min1]
             counts1 = 1
@@ -92,7 +93,7 @@ def _savetree(jobname, tree, order, transpose):
             order2 = nodeorder[index2]
             counts2 = nodecounts[index2]
             outputfile.write(nodeID[index2]+"\t")
-            nodedist[nodeindex] = max(nodedist[nodeindex],nodedist[index2])
+            nodedist[nodeindex] = max(nodedist[nodeindex], nodedist[index2])
         else:
             order2 = order[min2]
             counts2 = 1
@@ -108,7 +109,7 @@ def _savetree(jobname, tree, order, transpose):
     return index
 
 
-class Record:
+class Record(object):
     """Store gene expression data.
 
 A Record stores the gene expression data and related information contained
@@ -184,11 +185,11 @@ Cluster/TreeView program.
                                  (len(line), n))
             if line[0] == "EWEIGHT":
                 i = max(cols) + 1
-                self.eweight = map(float, line[i:])
+                self.eweight = numpy.array(line[i:], float)
                 continue
             if line[0] == "EORDER":
                 i = max(cols) + 1
-                self.eorder = map(float, line[i:])
+                self.eorder = numpy.array(line[i:], float)
                 continue
             rowdata = []
             rowmask = []
@@ -492,16 +493,16 @@ expclusters=None:  For hierarchical clustering results, expclusters
            calculated by kcluster.
 
 """
-        (ngenes,nexps) = numpy.shape(self.data)
-        if self.gorder == None:
+        (ngenes, nexps) = numpy.shape(self.data)
+        if self.gorder is None:
             gorder = numpy.arange(ngenes)
         else:
             gorder = self.gorder
-        if self.eorder == None:
+        if self.eorder is None:
             eorder = numpy.arange(nexps)
         else:
             eorder = self.eorder
-        if geneclusters!=None and expclusters!=None and \
+        if geneclusters is not None and expclusters is not None and \
            type(geneclusters) != type(expclusters):
             raise ValueError("found one k-means and one hierarchical "
                            + "clustering solution in geneclusters and "
@@ -514,10 +515,10 @@ expclusters=None:  For hierarchical clustering results, expclusters
             # This is a hierarchical clustering result.
             geneindex = _savetree(jobname, geneclusters, gorder, 0)
             gid = 1
-        elif geneclusters!=None:
+        elif geneclusters is not None:
             # This is a k-means clustering result.
             filename = jobname + "_K"
-            k = max(geneclusters+1)
+            k = max(geneclusters) + 1
             kggfilename = "%s_K_G%d.kgg" % (jobname, k)
             geneindex = self._savekmeans(kggfilename, geneclusters, gorder, 0)
             postfix = "_G%d" % k
@@ -527,17 +528,17 @@ expclusters=None:  For hierarchical clustering results, expclusters
             # This is a hierarchical clustering result.
             expindex = _savetree(jobname, expclusters, eorder, 1)
             aid = 1
-        elif expclusters!=None:
+        elif expclusters is not None:
             # This is a k-means clustering result.
             filename = jobname + "_K"
-            k = max(expclusters+1)
+            k = max(expclusters) + 1
             kagfilename = "%s_K_A%d.kag" % (jobname, k)
             expindex = self._savekmeans(kagfilename, expclusters, eorder, 1)
             postfix += "_A%d" % k
         else:
             expindex = numpy.argsort(eorder)
         filename = filename + postfix
-        self._savedata(filename,gid,aid,geneindex,expindex)
+        self._savedata(filename, gid, aid, geneindex, expindex)
 
     def _savekmeans(self, filename, clusterids, order, transpose):
         # Save a k-means clustering solution
@@ -569,7 +570,7 @@ expclusters=None:  For hierarchical clustering results, expclusters
 
     def _savedata(self, jobname, gid, aid, geneindex, expindex):
         # Save the clustered data.
-        if self.genename == None:
+        if self.genename is None:
             genename = self.geneid
         else:
             genename = self.genename
@@ -578,15 +579,15 @@ expclusters=None:  For hierarchical clustering results, expclusters
             outputfile = open(jobname+'.cdt', 'w')
         except IOError:
             raise IOError("Unable to open output file")
-        if self.mask!=None:
+        if self.mask is not None:
             mask = self.mask
         else:
-            mask = numpy.ones((ngenes,nexps), int)
-        if self.gweight!=None:
+            mask = numpy.ones((ngenes, nexps), int)
+        if self.gweight is not None:
             gweight = self.gweight
         else:
             gweight = numpy.ones(ngenes)
-        if self.eweight!=None:
+        if self.eweight is not None:
             eweight = self.eweight
         else:
             eweight = numpy.ones(nexps)
@@ -620,8 +621,8 @@ expclusters=None:  For hierarchical clustering results, expclusters
                              (self.geneid[i], genename[i], gweight[i]))
             for j in expindex:
                 outputfile.write('\t')
-                if mask[i,j]:
-                    outputfile.write(str(self.data[i,j]))
+                if mask[i, j]:
+                    outputfile.write(str(self.data[i, j]))
             outputfile.write('\n')
         outputfile.close()
 

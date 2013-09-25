@@ -1,4 +1,4 @@
-# Copyright 2009-2010 by Peter Cock.  All rights reserved.
+# Copyright 2009-2013 by Peter Cock.  All rights reserved.
 # This code is part of the Biopython distribution and governed by its
 # license.  Please see the LICENSE file that should have been included
 # as part of this package.
@@ -7,15 +7,20 @@
 # database, and if it finds them then do some standalone blast searches
 # using Bio.Blast.NCBIStandalone to call the command line tool.
 
-import os, sys
+from __future__ import print_function
+
+import os
+import sys
 import subprocess
 import unittest
 
+from Bio.Application import _escape_filename
 from Bio import MissingExternalDependencyError
 from Bio.Blast import Applications
 
 # TODO - On windows, can we use the ncbi.ini file?
 wanted = ["blastx", "blastp", "blastn", "tblastn", "tblastx",
+          "rpsblast+", #For Debian
           "rpsblast", "rpstblastn", "psiblast", "blast_formatter"]
 exe_names = {}
 
@@ -31,8 +36,9 @@ else :
     likely_dirs = os.environ.get("PATH", "").split(":")
 
 for folder in likely_dirs:
-    if not os.path.isdir(folder): continue
-    for name in wanted :
+    if not os.path.isdir(folder):
+        continue
+    for name in wanted:
         if sys.platform=="win32":
             exe_name = os.path.join(folder, name+".exe")
         else:
@@ -54,9 +60,15 @@ for folder in likely_dirs:
             if name == "blast_formatter" and " -archive " not in output:
                 continue
             exe_names[name] = exe_name
-        #else :
-        #    print "Rejecting", exe_name
+        #else:
+        #    print("Rejecting %r" % exe_name)
         del exe_name, name
+
+#To avoid the name clash with legacy BLAST, Debian introduced rpsblast+ alias
+wanted.remove("rpsblast+")
+if "rpsblast+" in exe_names:
+    exe_names["rpsblast"] = exe_names["rpsblast+"]
+    del exe_names["rpsblast+"]
 
 #We can cope with blast_formatter being missing, only added in BLAST 2.2.24+
 if len(set(exe_names).difference(["blast_formatter"])) < len(wanted)-1 :
@@ -73,8 +85,8 @@ class Pairwise(unittest.TestCase):
                         query="Fasta/rose.pro",
                         subject="GenBank/NC_005816.faa",
                         evalue=1)
-        self.assertEqual(str(cline), exe_names["blastp"] \
-                         + " -query Fasta/rose.pro -evalue 1" \
+        self.assertEqual(str(cline), _escape_filename(exe_names["blastp"])
+                         + " -query Fasta/rose.pro -evalue 1"
                          + " -subject GenBank/NC_005816.faa")
         child = subprocess.Popen(str(cline),
                                  stdout=subprocess.PIPE,
@@ -86,11 +98,15 @@ class Pairwise(unittest.TestCase):
         self.assertEqual(return_code, 0, "Got error code %i back from:\n%s"
                          % (return_code, cline))
         self.assertEqual(10, stdoutdata.count("Query= "))
-        self.assertEqual(9, stdoutdata.count("***** No hits found *****"))
-        
+        if stdoutdata.count("***** No hits found *****")==7:
+            #This happens with BLAST 2.2.26+ which is potentially a bug
+            pass
+        else:
+            self.assertEqual(9, stdoutdata.count("***** No hits found *****"))
+
         #TODO - Parse it? I think we'd need to update this obsole code :(
         #records = list(NCBIStandalone.Iterator(StringIO(stdoutdata),
-        #                                       NCBIStandalone.BlastParser()))   
+        #                                       NCBIStandalone.BlastParser()))
 
     def test_blastn(self):
         """Pairwise BLASTN search"""
@@ -99,8 +115,8 @@ class Pairwise(unittest.TestCase):
                         query="GenBank/NC_005816.ffn",
                         subject="GenBank/NC_005816.fna",
                         evalue="0.000001")
-        self.assertEqual(str(cline), exe_names["blastn"] \
-                         + " -query GenBank/NC_005816.ffn -evalue 0.000001" \
+        self.assertEqual(str(cline), _escape_filename(exe_names["blastn"])
+                         + " -query GenBank/NC_005816.ffn -evalue 0.000001"
                          + " -subject GenBank/NC_005816.fna")
         child = subprocess.Popen(str(cline),
                                  stdout=subprocess.PIPE,
@@ -122,8 +138,8 @@ class Pairwise(unittest.TestCase):
                         query="GenBank/NC_005816.faa",
                         subject="GenBank/NC_005816.fna",
                         evalue="1e-6")
-        self.assertEqual(str(cline), exe_names["tblastn"] \
-                         + " -query GenBank/NC_005816.faa -evalue 1e-6" \
+        self.assertEqual(str(cline), _escape_filename(exe_names["tblastn"])
+                         + " -query GenBank/NC_005816.faa -evalue 1e-6"
                          + " -subject GenBank/NC_005816.fna")
         child = subprocess.Popen(str(cline),
                                  stdout=subprocess.PIPE,
@@ -138,16 +154,16 @@ class Pairwise(unittest.TestCase):
         self.assertEqual(0, stdoutdata.count("***** No hits found *****"))
         #TODO - Parse it?
 
-   
+
 class CheckCompleteArgList(unittest.TestCase):
     def check(self, exe_name, wrapper) :
         global exe_names
         exe = exe_names[exe_name]
         cline = wrapper(exe, h=True)
 
-        names = set(parameter.names[0] \
+        names = set(parameter.names[0]
                     for parameter in cline.parameters)
-        
+
         child = subprocess.Popen(str(cline),
                                  stdout=subprocess.PIPE,
                                  stderr=subprocess.PIPE,
@@ -159,15 +175,17 @@ class CheckCompleteArgList(unittest.TestCase):
         names_in_tool = set()
         while stdoutdata :
             index = stdoutdata.find("[")
-            if index == -1 : break
+            if index == -1:
+                break
             stdoutdata = stdoutdata[index+1:]
             index = stdoutdata.find("]")
             assert index != -1
             name = stdoutdata[:index]
-            if " " in name : name = name.split(None,1)[0]
+            if " " in name:
+                name = name.split(None,1)[0]
             names_in_tool.add(name)
             stdoutdata = stdoutdata[index+1:]
-                
+
         extra = names.difference(names_in_tool)
         missing = names_in_tool.difference(names)
         if "-soft_masking" in missing :
@@ -204,16 +222,43 @@ class CheckCompleteArgList(unittest.TestCase):
         #will be seen as an extra argument on older versions:
         if "-seqidlist" in extra:
             extra.remove("-seqidlist")
+        if "-db_hard_mask" in extra \
+        and exe_name in ["blastn", "blastp", "blastx", "tblastx", "tblastn"]:
+            #New in BLAST 2.2.25+ so will look like an extra arg on old BLAST
+            extra.remove("-db_hard_mask")
+        if "-msa_master_idx" in extra and exe_name=="psiblast":
+            #New in BLAST 2.2.25+ so will look like an extra arg on old BLAST
+            extra.remove("-msa_master_idx")
+        if exe_name == "rpsblast":
+            #New in BLAST 2.2.25+ so will look like an extra arg on old BLAST
+            extra = extra.difference(["-best_hit_overhang",
+                                      "-best_hit_score_edge",
+                                      "-culling_limit"])
+        if "-max_hsps_per_subject" in extra:
+            #New in BLAST 2.2.26+ so will look like an extra arg on old BLAST
+            extra.remove("-max_hsps_per_subject")
+        if "-ignore_msa_master" in extra and exe_name=="psiblast":
+            #New in BLAST 2.2.26+ so will look like an extra arg on old BLAST
+            extra.remove("-ignore_msa_master")                                        
+        if exe_name == "blastx":
+            #New in BLAST 2.2.27+ so will look like an extra arg on old BLAST
+            extra = extra.difference(["-comp_based_stats",
+                                      "-use_sw_tback"])
+        if exe_name in ["blastx", "tblastn"]:
+            #Removed in BLAST 2.2.27+ so will look like extra arg on new BLAST
+            extra = extra.difference(["-frame_shift_penalty"])
+        if exe_name == "rpsblast":
+            #New in BLAST 2.2.28+ so will look like extra args on old BLAST:
+            extra = extra.difference(["-comp_based_stats", "-use_sw_tback"])
 
         if extra or missing:
-            raise MissingExternalDependencyError("BLAST+ and Biopython out "
-                  "of sync. Your version of the NCBI BLAST+ tool %s does not "
-                  "match what we are expecting. Please update your copy of "
-                  "Biopython, or report this issue if you are already using "
-                  "the latest version. (Exta args: %s; Missing: %s)" \
-                  % (exe_name,
-                     ",".join(sorted(extra)),
-                     ",".join(sorted(missing))))
+            import warnings
+            warnings.warn("NCBI BLAST+ %s and Biopython out sync. Please "
+                          "update Biopython, or report this issue if you are "
+                          "already using the latest version. (Extra args: %s; "
+                          "Missing: %s)" % (exe_name,
+                          ",".join(sorted(extra)),
+                          ",".join(sorted(missing))))
 
         #An almost trivial example to test any validation
         if "-query" in names:
@@ -225,7 +270,7 @@ class CheckCompleteArgList(unittest.TestCase):
     def test_blastx(self):
         """Check all blastx arguments are supported"""
         self.check("blastx", Applications.NcbiblastxCommandline)
-        
+
     def test_blastp(self):
         """Check all blastp arguments are supported"""
         self.check("blastp", Applications.NcbiblastpCommandline)
@@ -237,11 +282,11 @@ class CheckCompleteArgList(unittest.TestCase):
     def test_tblastx(self):
         """Check all tblastx arguments are supported"""
         self.check("tblastx", Applications.NcbitblastxCommandline)
-        
+
     def test_tblastn(self):
         """Check all tblastn arguments are supported"""
         self.check("tblastn", Applications.NcbitblastnCommandline)
-        
+
     def test_psiblast(self):
         """Check all psiblast arguments are supported"""
         self.check("psiblast", Applications.NcbipsiblastCommandline)

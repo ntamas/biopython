@@ -2,8 +2,7 @@
 # This code is part of the Biopython distribution and governed by its
 # license.  Please see the LICENSE file that should have been included
 # as part of this package.
-"""
-This module provides code for doing logistic regressions.
+"""Code for doing logistic regressions.
 
 
 Classes:
@@ -16,10 +15,13 @@ calculate    Calculate the probabilities of each class, given an observation.
 classify     Classify an observation into a class.
 """
 
+from __future__ import print_function
+
 import numpy
 import numpy.linalg
 
-class LogisticRegression:
+
+class LogisticRegression(object):
     """Holds information necessary to do logistic regression
     classification.
 
@@ -31,15 +33,16 @@ class LogisticRegression:
         """LogisticRegression()"""
         self.beta = []
 
+
 def train(xs, ys, update_fn=None, typecode=None):
     """train(xs, ys[, update_fn]) -> LogisticRegression
-    
+
     Train a logistic regression classifier on a training set.  xs is a
     list of observations and ys is a list of the class assignments,
     which should be 0 or 1.  xs and ys should contain the same number
     of elements.  update_fn is an optional callback function that
     takes as parameters that iteration number and log likelihood.
-    
+
     """
     if len(xs) != len(ys):
         raise ValueError("xs and ys should be the same length.")
@@ -75,7 +78,7 @@ def train(xs, ys, update_fn=None, typecode=None):
         # Calculate the probabilities.  p = e^(beta X) / (1+e^(beta X))
         ebetaX = numpy.exp(numpy.dot(beta, Xt))
         p = ebetaX / (1+ebetaX)
-        
+
         # Find the log likelihood score and see if I've converged.
         logp = y*numpy.log(p) + (1-y)*numpy.log(1-p)
         llik = sum(logp)
@@ -97,8 +100,8 @@ def train(xs, ys, update_fn=None, typecode=None):
         Xtyp = numpy.dot(Xt, y-p)         # Calculate the first derivative.
         XtWX = numpy.dot(numpy.dot(Xt, W), X)   # Calculate the second derivative.
         #u, s, vt = singular_value_decomposition(XtWX)
-        #print "U", u
-        #print "S", s
+        #print("U %s" % u)
+        #print("S %s" % s)
         delta = numpy.linalg.solve(XtWX, Xtyp)
         if numpy.fabs(stepsize-1.0) > 0.001:
             delta = delta * stepsize
@@ -109,6 +112,7 @@ def train(xs, ys, update_fn=None, typecode=None):
     lr = LogisticRegression()
     lr.beta = map(float, beta)   # Convert back to regular array.
     return lr
+
 
 def calculate(lr, x):
     """calculate(lr, x) -> list of probabilities
@@ -124,6 +128,7 @@ def calculate(lr, x):
     ebetaX = numpy.exp(numpy.dot(lr.beta, x))
     p = ebetaX / (1+ebetaX)
     return [1-p, p]
+
 
 def classify(lr, x):
     """classify(lr, x) -> 1 or 0

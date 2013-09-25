@@ -11,13 +11,66 @@
 
 You are expected to use this module via the Bio.SeqIO functions."""
 
+from __future__ import print_function
+
 from Bio.Alphabet import single_letter_alphabet
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.SeqIO.Interfaces import SequentialSequenceWriter
 
-#This is a generator function!
-def FastaIterator(handle, alphabet = single_letter_alphabet, title2ids = None):
+
+def SimpleFastaParser(handle):
+    """Generator function to iterator over Fasta records (as string tuples).
+
+    For each record a tuple of two strings is returned, the FASTA title
+    line (without the leading '>' character), and the sequence (with any
+    whitespace removed). The title line is not divided up into an
+    identifier (the first word) and comment or description.
+
+    >>> for values in SimpleFastaParser(open("Fasta/dups.fasta")):
+    ...     print(values)
+    ('alpha', 'ACGTA')
+    ('beta', 'CGTC')
+    ('gamma', 'CCGCC')
+    ('alpha (again - this is a duplicate entry to test the indexing code)', 'ACGTA')
+    ('delta', 'CGCGC')
+
+    """
+    #Skip any text before the first record (e.g. blank lines, comments)
+    while True:
+        line = handle.readline()
+        if line == "":
+            return  # Premature end of file, or just empty?
+        if line[0] == ">":
+            break
+
+    while True:
+        if line[0] != ">":
+            raise ValueError(
+                "Records in Fasta files should start with '>' character")
+        title = line[1:].rstrip()
+        lines = []
+        line = handle.readline()
+        while True:
+            if not line:
+                break
+            if line[0] == ">":
+                break
+            lines.append(line.rstrip())
+            line = handle.readline()
+
+        #Remove trailing whitespace, and any internal spaces
+        #(and any embedded \r which are possible in mangled files
+        #when not opened in universal read lines mode)
+        yield title, "".join(lines).replace(" ", "").replace("\r", "")
+
+        if not line:
+            return  # StopIteration
+
+    assert False, "Should not reach this line"
+
+
+def FastaIterator(handle, alphabet=single_letter_alphabet, title2ids=None):
     """Generator function to iterate over Fasta records (as SeqRecord objects).
 
     handle - input file
@@ -29,43 +82,46 @@ def FastaIterator(handle, alphabet = single_letter_alphabet, title2ids = None):
     If this is not given, then the entire title line will be used
     as the description, and the first word as the id and name.
 
-    Note that use of title2ids matches that of Bio.Fasta.SequenceParser
-    but the defaults are slightly different.
+    By default this will act like calling Bio.SeqIO.parse(handle, "fasta")
+    with no custom handling of the title lines:
+
+    >>> for record in FastaIterator(open("Fasta/dups.fasta")):
+    ...     print(record.id)
+    alpha
+    beta
+    gamma
+    alpha
+    delta
+
+    However, you can supply a title2ids function to alter this:
+
+    >>> def take_upper(title):
+    ...     return title.split(None,1)[0].upper(), "", title
+    >>> for record in FastaIterator(open("Fasta/dups.fasta"), title2ids=take_upper):
+    ...     print(record.id)
+    ALPHA
+    BETA
+    GAMMA
+    ALPHA
+    DELTA
+
     """
-    #Skip any text before the first record (e.g. blank lines, comments)
-    while True:
-        line = handle.readline()
-        if line == "" : return #Premature end of file, or just empty?
-        if line[0] == ">":
-            break
+    if title2ids:
+        for title, sequence in SimpleFastaParser(handle):
+            id, name, descr = title2ids(title)
+            yield SeqRecord(Seq(sequence, alphabet),
+                            id=id, name=name, description=descr)
+    else:
+        for title, sequence in SimpleFastaParser(handle):
+            try:
+                first_word = title.split(None, 1)[0]
+            except IndexError:
+                assert not title, repr(title)
+                #Should we use SeqRecord default for no ID?
+                first_word = ""
+            yield SeqRecord(Seq(sequence, alphabet),
+                            id=first_word, name=first_word, description=title)
 
-    while True:
-        if line[0]!=">":
-            raise ValueError("Records in Fasta files should start with '>' character")
-        if title2ids:
-            id, name, descr = title2ids(line[1:].rstrip())
-        else:
-            descr = line[1:].rstrip()
-            id   = descr.split()[0]
-            name = id
-
-        lines = []
-        line = handle.readline()
-        while True:
-            if not line : break
-            if line[0] == ">": break
-            #Remove trailing whitespace, and any internal spaces
-            #(and any embedded \r which are possible in mangled files
-            #when not opened in universal read lines mode)
-            lines.append(line.rstrip().replace(" ","").replace("\r",""))
-            line = handle.readline()
-
-        #Return the record and then continue...
-        yield SeqRecord(Seq("".join(lines), alphabet),
-                         id = id, name = name, description = descr)
-
-        if not line : return #StopIteration
-    assert False, "Should not reach this line"
 
 class FastaWriter(SequentialSequenceWriter):
     """Class to write Fasta format files."""
@@ -97,7 +153,6 @@ class FastaWriter(SequentialSequenceWriter):
         Multiple calls to writer.write_record() and/or writer.write_records()
         ...
         writer.write_footer() # does nothing for Fasta files
-        writer.close()
         """
         SequentialSequenceWriter.__init__(self, handle)
         #self.handle = handle
@@ -115,13 +170,13 @@ class FastaWriter(SequentialSequenceWriter):
         self._record_written = True
 
         if self.record2title:
-            title=self.clean(self.record2title(record))
+            title = self.clean(self.record2title(record))
         else:
             id = self.clean(record.id)
             description = self.clean(record.description)
 
             #if description[:len(id)]==id:
-            if description and description.split(None,1)[0]==id:
+            if description and description.split(None, 1)[0] == id:
                 #The description includes the id at the start
                 title = description
             elif description:
@@ -133,19 +188,19 @@ class FastaWriter(SequentialSequenceWriter):
         assert "\r" not in title
         self.handle.write(">%s\n" % title)
 
-        data = self._get_seq_string(record) #Catches sequence being None
+        data = self._get_seq_string(record)  # Catches sequence being None
 
         assert "\n" not in data
         assert "\r" not in data
 
         if self.wrap:
             for i in range(0, len(data), self.wrap):
-                self.handle.write(data[i:i+self.wrap] + "\n")
+                self.handle.write(data[i:i + self.wrap] + "\n")
         else:
             self.handle.write(data + "\n")
 
 if __name__ == "__main__":
-    print "Running quick self test"
+    print("Running quick self test")
 
     import os
     from Bio.Alphabet import generic_protein, generic_nucleotide
@@ -156,55 +211,56 @@ if __name__ == "__main__":
     faa_filename = "NC_005213.faa"
 
     def genbank_name_function(text):
-        text, descr = text.split(None,1)
+        text, descr = text.split(None, 1)
         id = text.split("|")[3]
-        name = id.split(".",1)[0]
+        name = id.split(".", 1)[0]
         return id, name, descr
 
     def print_record(record):
         #See also bug 2057
         #http://bugzilla.open-bio.org/show_bug.cgi?id=2057
-        print "ID:" + record.id
-        print "Name:" + record.name
-        print "Descr:" + record.description
-        print record.seq
+        print("ID:" + record.id)
+        print("Name:" + record.name)
+        print("Descr:" + record.description)
+        print(record.seq)
         for feature in record.annotations:
-            print '/%s=%s' % (feature, record.annotations[feature])
+            print('/%s=%s' % (feature, record.annotations[feature]))
         if record.dbxrefs:
-            print "Database cross references:"
-            for x in record.dbxrefs : print " - %s" % x
+            print("Database cross references:")
+            for x in record.dbxrefs:
+                print(" - %s" % x)
 
     if os.path.isfile(fna_filename):
-        print "--------"
-        print "FastaIterator (single sequence)"
+        print("--------")
+        print("FastaIterator (single sequence)")
         iterator = FastaIterator(open(fna_filename, "r"), alphabet=generic_nucleotide, title2ids=genbank_name_function)
-        count=0
+        count = 0
         for record in iterator:
-            count=count+1
+            count += 1
             print_record(record)
         assert count == 1
-        print str(record.__class__)
+        print(str(record.__class__))
 
     if os.path.isfile(faa_filename):
-        print "--------"
-        print "FastaIterator (multiple sequences)"
+        print("--------")
+        print("FastaIterator (multiple sequences)")
         iterator = FastaIterator(open(faa_filename, "r"), alphabet=generic_protein, title2ids=genbank_name_function)
-        count=0
+        count = 0
         for record in iterator:
-            count=count+1
+            count += 1
             print_record(record)
             break
-        assert count>0
-        print str(record.__class__)
+        assert count > 0
+        print(str(record.__class__))
 
-    from cStringIO import StringIO
-    print "--------"
-    print "FastaIterator (empty input file)"
+    from Bio._py3k import StringIO
+    print("--------")
+    print("FastaIterator (empty input file)")
     #Just to make sure no errors happen
     iterator = FastaIterator(StringIO(""))
     count = 0
     for record in iterator:
-        count = count+1
-    assert count==0
+        count += 1
+    assert count == 0
 
-    print "Done"
+    print("Done")

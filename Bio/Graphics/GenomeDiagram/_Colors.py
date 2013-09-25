@@ -21,9 +21,12 @@
 """
 
 # ReportLab imports
+from __future__ import print_function
+
 from reportlab.lib import colors
 
-class ColorTranslator:
+
+class ColorTranslator(object):
     """ Class providing methods for translating representations of color into
     """
     def __init__(self, filename=None):
@@ -32,7 +35,7 @@ class ColorTranslator:
             o filename      Location of a file containing colorscheme
                             information
 
-            Optional parameters set the color scheme 
+            Optional parameters set the color scheme
         """
         self._artemis_colorscheme = {0: (colors.Color(1, 1, 1,), "pathogenicity, adaptation, chaperones"),
                1: (colors.Color(0.39, 0.39, 0.39), "energy metabolism"),
@@ -52,20 +55,20 @@ class ColorTranslator:
                15: (colors.Color(1, 0.25, 0.25), "secondary metabolism"),
                16: (colors.Color(1, 0.5, 0.5), ""),
                17: (colors.Color(1, 0.75, 0.75), "")
-                }      # Hardwired Artemis color scheme                                                                        
+                }      # Hardwired Artemis color scheme
         self._colorscheme = {}
         if filename is not None:
             self.read_colorscheme(filename)# Imported color scheme
         else:
             self._colorscheme = self._artemis_colorscheme
 
-
     def translate(self, color=None, colour=None):
         """ translate(self, color)
 
             o color    Color defined as an int, a tuple of three ints 0->255
                        or a tuple of three floats 0 -> 1, or a string giving
-                       one of the named colors defined by ReportLab.
+                       one of the named colors defined by ReportLab, or a
+                       ReportLab color object (returned as is).
 
                        (This argument is overridden by a backwards compatible
                        argument with UK spelling, colour).
@@ -76,20 +79,21 @@ class ColorTranslator:
         #Let the UK spelling (colour) override the USA spelling (color)
         if colour is not None:
             color = colour
-        
+
         if color is None:
-            raise ValueError, "Passed color (or colour) must be a valid color type"
-        if type(color) == type(1):
+            raise ValueError("Passed color (or colour) must be a valid color type")
+        elif isinstance(color, int):
             color = self.scheme_color(color)
+        elif isinstance(color, colors.Color):
+            return color
         elif isinstance(color, basestring):
             #Assume its a named reportlab color like "red".
             color = colors.toColor(color)
-        elif type(color) == type((1., 2., 3.)) and type(color[0]) == type(1.):
-            color = self.float1_color(color)        
-        elif type(color) == type((1, 2, 3)) and type(color[0]) == type(1):
+        elif isinstance(color, tuple) and isinstance(color[0], float):
+            color = self.float1_color(color)
+        elif isinstance(color, tuple) and isinstance(color[0], int):
             color = self.int255_color(color)
         return color
-        
 
     def read_colorscheme(self, filename):
         """ read_colorscheme(self, filename)
@@ -118,7 +122,7 @@ class ColorTranslator:
                 self._colorscheme[label] = (self.int255_color((red, green, blue)),
                                              comment)
             except:
-                raise IOError, "Expected INT \t INT \t INT \t INT \t string input"
+                raise ValueError("Expected INT \t INT \t INT \t INT \t string input")
 
     def get_artemis_colorscheme(self):
         """ get_artemis_colorscheme(self)
@@ -126,23 +130,30 @@ class ColorTranslator:
             Return the Artemis color scheme as a dictionary
         """
         return self._artemis_colorscheme
-        
 
     def artemis_color(self, value):
         """ artemis_color(self, value)
 
             o value     An int representing a functional class in the Artemis
-                        color scheme (see www.sanger.ac.uk for a description)
+                        color scheme (see www.sanger.ac.uk for a description),
+                        or a string from a GenBank feature annotation for the
+                        color which may be dot delimited (in which case the
+                        first value is used).
 
             Takes an int representing a functional class in the Artemis color
             scheme, and returns the appropriate colors.Color object
         """
-        value = int(value)
+        try:
+            value = int(value)
+        except ValueError:
+            if value.count('.'):                           # dot-delimited
+                value = int(artemis_color.split('.',1)[0]) # Use only first integer
+            else:
+                raise
         if value in self._artemis_colorscheme:
             return self._artemis_colorscheme[value][0]
         else:
-            raise ValueError, "Artemis color out of range: %d" % value
-
+            raise ValueError("Artemis color out of range: %d" % value)
 
     def get_colorscheme(self):
         """ get_colorscheme(self)
@@ -150,7 +161,6 @@ class ColorTranslator:
             Return the user-defined color scheme as a dictionary
         """
         return self._colorscheme
-
 
     def scheme_color(self, value):
         """ scheme_color(self, value)
@@ -164,8 +174,7 @@ class ColorTranslator:
         if value in self._colorscheme:
             return self._colorscheme[value][0]
         else:
-            raise ValueError, "Scheme color out of range: %d" % value
-
+            raise ValueError("Scheme color out of range: %d" % value)
 
     def int255_color(self, values):
         """ int255_color(self, values)
@@ -180,7 +189,6 @@ class ColorTranslator:
         factor = 1/255.
         red, green, blue = red * factor, green * factor, blue * factor
         return colors.Color(red, green, blue)
-
 
     def float1_color(self, values):
         """ float1_color(self, values)
@@ -203,16 +211,12 @@ if __name__ == '__main__':
 
     # Test code
     gdct = ColorTranslator()
-    print gdct.float1_color((0.5, 0.5, 0.5))
-    print gdct.int255_color((1, 75, 240))
-    print gdct.artemis_color(7)
-    print gdct.scheme_color(2)
+    print(gdct.float1_color((0.5, 0.5, 0.5)))
+    print(gdct.int255_color((1, 75, 240)))
+    print(gdct.artemis_color(7))
+    print(gdct.scheme_color(2))
 
-    print gdct.translate((0.5, 0.5, 0.5))
-    print gdct.translate((1, 75, 240))
-    print gdct.translate(7)
-    print gdct.translate(2)
-
-                
-                        
-
+    print(gdct.translate((0.5, 0.5, 0.5)))
+    print(gdct.translate((1, 75, 240)))
+    print(gdct.translate(7))
+    print(gdct.translate(2))

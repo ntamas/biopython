@@ -3,7 +3,8 @@
 # license.  Please see the LICENSE file that should have been included
 # as part of this package.
 
-import commands
+from __future__ import print_function
+
 import os
 import shutil
 import tempfile
@@ -15,20 +16,35 @@ from Bio import MissingExternalDependencyError
 #Tests FDist2 related code. Note: this case requires fdist2 (four binaries)
 #test_PopGen_FDist_nodepend tests code that does not require fdist2 or Dfdist
 
+def is_pypy():
+    import platform
+    try:
+        if platform.python_implementation() == 'PyPy':
+            return True
+    except AttributeError:
+        #New in Python 2.6, not in Jython yet either
+        pass
+    return False
+
 wanted = dict()
 for path in os.environ['PATH'].split(os.pathsep):
     try:
         list = os.listdir(path)
         for file in os.listdir(path):
-            for f in ['fdist2', 'datacal', 'pv', 'cplot2']:
+            for f in ['fdist2', 'datacal', 'pv', 'cplot']:
                 if file == f or file.lower() == f.lower()+".exe":
                     wanted[f] = file
     except os.error:
-        pass #Path doesn't exist - correct to pass
+        pass  # Path doesn't exist - correct to pass
 if len(wanted) != 4:
-    raise MissingExternalDependencyError(\
+    raise MissingExternalDependencyError(
         "Install fdist2, datacal, pv and cplot if you want to use FDist2 with Bio.PopGen.FDist.")
 del wanted
+
+import sys
+if not is_pypy() and sys.version_info[0] == 3 and sys.version_info < (3, 2, 4):
+    raise MissingExternalDependencyError("Under Python 3, please use Python 3.2.4"
+                                         " onwards for this test - see http://bugs.python.org/issue16903")
 
 
 class AppTest(unittest.TestCase):
@@ -70,7 +86,8 @@ class AppTest(unittest.TestCase):
         fst = self.ctrl.run_fdist(npops = 15, nsamples = 10, fst = 0.1,
                 sample_size = 20, mut = 0, num_sims = 100,
                 data_dir = self.dirname)
-        self.assertTrue(abs(fst - 0.1) < 0.02) #Stochastic result...
+        self.assertTrue(abs(fst - 0.1) < 0.025,
+                        "Stochastic result, expected %f close to 0.1" % fst)
 
     def test_fdist_force_fst(self):
         """Test fdist execution approximating Fst.
@@ -81,7 +98,8 @@ class AppTest(unittest.TestCase):
                 fst = 0.1,
                 sample_size = 20, mut = 0, num_sims = 100,
                 data_dir = self.dirname)
-        self.assertTrue(abs(fst - 0.09) < 0.05) #Stochastic result...
+        self.assertTrue(abs(fst - 0.09) < 0.05,
+                        "Stochastic result, expected %f close to 0.09" % fst)
 
     def test_cplot(self):
         """Test cplot execution.
@@ -97,6 +115,6 @@ class AppTest(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    print "Running fdist tests, which might take some time, please wait"
+    print("Running fdist tests, which might take some time, please wait")
     runner = unittest.TextTestRunner(verbosity = 2)
     unittest.main(testRunner=runner)

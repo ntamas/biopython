@@ -5,7 +5,7 @@
 
 """Unit tests for Bio.SeqIO.convert(...) function."""
 import unittest
-from StringIO import StringIO
+from Bio._py3k import StringIO
 
 from Bio import AlignIO
 from Bio.Alphabet import generic_protein, generic_nucleotide, generic_dna
@@ -38,6 +38,7 @@ def check_convert(in_filename, in_format, out_format, alphabet=None):
     assert handle.getvalue() == handle2.getvalue()
     #TODO - convert passing an output filename?
 
+
 class ConvertTests(unittest.TestCase):
     """Cunning unit test where methods are added at run time."""
     def simple_check(self, filename, in_format, out_format, alphabet):
@@ -62,7 +63,7 @@ for filename, in_format, alphabet in tests:
             f = lambda x : x.simple_check(fn, fmt1, fmt2, alpha)
             f.__doc__ = "Convert %s from %s to %s" % (fn, fmt1, fmt2)
             return f
-        setattr(ConvertTests, "test_%s_%s_to_%s" \
+        setattr(ConvertTests, "test_%s_%s_to_%s"
                 % (filename.replace("/","_").replace(".","_"), in_format, out_format),
                 funct(filename, in_format, out_format, alphabet))
     del funct

@@ -7,27 +7,27 @@
 file.
 """
 
-from Bio.SCOP.Raf import to_one_letter_code
+from __future__ import print_function
+
+from Bio.Data import SCOPData
 
 from Bio.PDB import Selection
 from Bio.PDB.Polypeptide import is_aa
 
 
-class StructureAlignment:
+class StructureAlignment(object):
     """
     This class aligns two structures based on an alignment of their
     sequences.
     """
     def __init__(self, fasta_align, m1, m2, si=0, sj=1):
         """
-        fasta_align --- Alignment object 
+        fasta_align --- Alignment object
         m1, m2 --- two models
         si, sj --- the sequences in the Alignment object that
                 correspond to the structures
         """
         l=fasta_align.get_alignment_length()
-        s1=fasta_align.get_seq_by_num(si)
-        s2=fasta_align.get_seq_by_num(sj)
         # Get the residues in the models
         rl1=Selection.unfold_entities(m1, 'R')
         rl2=Selection.unfold_entities(m2, 'R')
@@ -80,12 +80,12 @@ class StructureAlignment:
     def _test_equivalence(self, r1, aa1):
         "Test if aa in sequence fits aa in structure."
         resname=r1.get_resname()
-        resname=to_one_letter_code[resname]
+        resname=SCOPData.protein_letters_3to1[resname]
         assert(aa1==resname)
 
     def get_maps(self):
         """
-        Return two dictionaries that map a residue in one structure to 
+        Return two dictionaries that map a residue in one structure to
         the equivealent residue in the other structure.
         """
         return self.map12, self.map21
@@ -105,10 +105,10 @@ if __name__=="__main__":
     from Bio.PDB import PDBParser
 
     if len(sys.argv) != 4:
-        print "Expects three arguments,"
-        print " - FASTA alignment filename (expect two sequences)"
-        print " - PDB file one"
-        print " - PDB file two"
+        print("Expects three arguments,")
+        print(" - FASTA alignment filename (expect two sequences)")
+        print(" - PDB file one")
+        print(" - PDB file two")
         sys.exit()
 
     # The alignment
@@ -131,5 +131,4 @@ if __name__=="__main__":
 
     # Print aligned pairs (r is None if gap)
     for (r1,r2) in al.get_iterator():
-        print r1, r2
-
+        print("%s %s" % (r1, r2))

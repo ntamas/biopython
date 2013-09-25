@@ -1,5 +1,5 @@
 # Copyright 2003-2008 by Leighton Pritchard.  All rights reserved.
-# Revisions copyright 2008-2009 by Peter Cock.
+# Revisions copyright 2008-2012 by Peter Cock.
 # This code is part of the Biopython distribution and governed by its
 # license.  Please see the LICENSE file that should have been included
 # as part of this package.
@@ -9,24 +9,11 @@
 #                L.Pritchard@scri.ac.uk
 ################################################################################
 
-""" CircularDrawer module
-
-    Provides:
-
-    o CircularDrawer -  Drawing object for circular diagrams
-
-    For drawing capabilities, this module uses reportlab to draw and write
-    the diagram:
-
-    http://www.reportlab.com
-
-    For dealing with biological information, the package expects BioPython
-    objects:
-
-    http://www.biopython.org
-"""
+"""CircularDrawer module for GenomeDiagram."""
 
 # ReportLab imports
+from __future__ import print_function
+
 from reportlab.graphics.shapes import *
 from reportlab.lib import colors
 from reportlab.pdfbase import _fontdata
@@ -34,26 +21,17 @@ from reportlab.graphics.shapes import ArcPath
 
 # GenomeDiagram imports
 from _AbstractDrawer import AbstractDrawer, draw_polygon, intermediate_points
+from _AbstractDrawer import _stroke_and_fill_colors
 from _FeatureSet import FeatureSet
 from _GraphSet import GraphSet
 
 from math import ceil, pi, cos, sin, asin
 
+
 class CircularDrawer(AbstractDrawer):
-    """ CircularDrawer(AbstractDrawer)
+    """Object for drawing circular diagrams.
 
-        Inherits from:
-
-        o AbstractDrawer
-
-        Provides:
-
-        Methods:
-
-        o __init__(self, parent=None, pagesize='A3', orientation='landscape',
-                 x=0.05, y=0.05, xl=None, xr=None, yt=None, yb=None,
-                 start=None, end=None, tracklines=0, track_size=0.75,
-                 circular=1) Called on instantiation
+        o __init__(self, ...) Called on instantiation
 
         o set_page_size(self, pagesize, orientation)    Set the page size to the
                                                     passed size and orientation
@@ -77,7 +55,7 @@ class CircularDrawer(AbstractDrawer):
 
         o set_track_heights(self)   Calculate information about the offset of
                                     each track from the fragment base
-                                    
+
         o draw_test_tracks(self)    Add lines demarcating each track to the
                                     drawing
 
@@ -164,15 +142,14 @@ class CircularDrawer(AbstractDrawer):
         o sweep     Float (0->1) the proportion of the circle circumference to
                     use for the diagram
 
+        o cross_track_links List of tuples each with four entries (track A,
+                            feature A, track B, feature B) to be linked.
     """
     def __init__(self, parent=None, pagesize='A3', orientation='landscape',
                  x=0.05, y=0.05, xl=None, xr=None, yt=None, yb=None,
                  start=None, end=None, tracklines=0, track_size=0.75,
-                 circular=1):
-        """ __init__(self, parent, pagesize='A3', orientation='landscape',
-                     x=0.05, y=0.05, xl=None, xr=None, yt=None, yb=None,
-                     start=None, end=None, tracklines=0, track_size=0.75,
-                     circular=1)
+                 circular=1, circle_core=0.0, cross_track_links=None):
+        """Create CircularDrawer object.
 
             o parent    Diagram object containing the data that the drawer
                         draws
@@ -209,63 +186,70 @@ class CircularDrawer(AbstractDrawer):
             o end       Int, the position to stop drawing the diagram at
 
             o tracklines    Boolean flag to show (or not) lines delineating tracks
-                            on the diagram            
-                            
+                            on the diagram
+
             o track_size    The proportion of the available track height that
                             should be taken up in drawing
 
             o circular      Boolean flaw to show whether the passed sequence is
                             circular or not
+
+            o circle_core   The proportion of the available radius to leave
+                            empty at the center of a circular diagram (0 to 1).
+
+            o cross_track_links List of tuples each with four entries (track A,
+                                feature A, track B, feature B) to be linked.
         """
         # Use the superclass' instantiation method
         AbstractDrawer.__init__(self, parent, pagesize, orientation,
                                   x, y, xl, xr, yt, yb, start, end,
-                                  tracklines)
+                                  tracklines, cross_track_links)
 
         # Useful measurements on the page
         self.track_size = track_size
-        if circular == False:   # Determine the proportion of the circumference
+        self.circle_core = circle_core
+        if not circular:   # Determine the proportion of the circumference
             self.sweep = 0.9    # around which information will be drawn
         else:
             self.sweep = 1
 
-
     def set_track_heights(self):
-        """ set_track_heights(self)
+        """Initialise track heights.
 
-            Since tracks may not be of identical heights, the bottom and top
-            radius for each track is stored in a dictionary - self.track_radii,
-            keyed by track number
+        Since tracks may not be of identical heights, the bottom and top
+        radius for each track is stored in a dictionary - self.track_radii,
+        keyed by track number
         """
-        top_track = max(self.drawn_tracks)     # The 'highest' track to draw
+        bot_track = min(min(self.drawn_tracks), 1)
+        top_track = max(self.drawn_tracks) # The 'highest' track to draw
 
-        trackunit_sum = 0           # Holds total number of 'units' taken up by all tracks
-        trackunits = {}             # Holds start and end units for each track keyed by track number
-        heightholder = 0            # placeholder variable
-        for track in range(1, top_track+1):    # track numbers to 'draw'
+        trackunit_sum = 0 # Total number of 'units' taken up by all tracks
+        trackunits = {} # Start and & units for each track keyed by track number
+        heightholder = 0  # placeholder variable
+        for track in range(bot_track, top_track+1): # track numbers to 'draw'
             try:
-                trackheight = self._parent[track].height    # Get track height
+                trackheight = self._parent[track].height # Get track height
             except:
-                trackheight = 1                             # ...or default to 1
-            trackunit_sum += trackheight    # increment total track unit height
+                trackheight = 1
+            trackunit_sum += trackheight # increment total track unit height
             trackunits[track] = (heightholder, heightholder+trackheight)
-            heightholder += trackheight     # move to next height
-        trackunit_height = 0.5*min(self.pagewidth, self.pageheight)/trackunit_sum
+            heightholder += trackheight # move to next height
+
+        max_radius = 0.5*min(self.pagewidth, self.pageheight)
+        trackunit_height = max_radius * (1 - self.circle_core) / trackunit_sum
+        track_core = max_radius * self.circle_core
 
         # Calculate top and bottom radii for each track
-        self.track_radii = {}      # The inner, outer and center radii for each track
-        track_crop = trackunit_height*(1-self.track_size)/2.    # 'step back' in pixels
+        self.track_radii = {} # The inner, outer and center radii for each track
+        track_crop = trackunit_height*(1-self.track_size)/2. # 'step back' in pixels
         for track in trackunits:
-            top = trackunits[track][1]*trackunit_height-track_crop
-            btm = trackunits[track][0]*trackunit_height+track_crop
+            top = trackunits[track][1]*trackunit_height - track_crop + track_core
+            btm = trackunits[track][0]*trackunit_height + track_crop + track_core
             ctr = btm+(top-btm)/2.
             self.track_radii[track] = (btm, ctr, top)
 
     def draw(self):
-        """ draw(self)
-
-            Draw a circular diagram of the stored data
-        """
+        """Draw a circular diagram of the stored data."""
         # Instantiate the drawing canvas
         self.drawing = Drawing(self.pagesize[0], self.pagesize[1])
 
@@ -277,7 +261,7 @@ class CircularDrawer(AbstractDrawer):
         scale_labels = []               # holds scale axis labels
 
         # Get tracks to be drawn and set track sizes
-        self.drawn_tracks = self._parent.get_drawn_levels()        
+        self.drawn_tracks = self._parent.get_drawn_levels()
         self.set_track_heights()
 
         # Go through each track in the parent (if it is to be drawn) one by
@@ -296,58 +280,54 @@ class CircularDrawer(AbstractDrawer):
                 scale_axes.append(axes)
                 scale_labels.append(slabels)
 
+        feature_cross_links = []
+        for cross_link_obj in self.cross_track_links:
+            cross_link_elements = self.draw_cross_link(cross_link_obj)
+            if cross_link_elements:
+                feature_cross_links.append(cross_link_elements)
+
         # Groups listed in order of addition to page (from back to front)
         # Draw track backgrounds
+        # Draw feature cross track links
         # Draw features and graphs
         # Draw scale axes
         # Draw scale labels
         # Draw feature labels
         # Draw track labels
-        element_groups = [greytrack_bgs, feature_elements,
+        element_groups = [greytrack_bgs, feature_cross_links,
+                          feature_elements,
                           scale_axes, scale_labels,
                           feature_labels, greytrack_labels
                           ]
         for element_group in element_groups:
             for element_list in element_group:
                 [self.drawing.add(element) for element in element_list]
-            
-        if self.tracklines:             # Draw test tracks over top of diagram
+
+        if self.tracklines:
+            # Draw test tracks over top of diagram
             self.draw_test_tracks()
 
-
     def draw_track(self, track):
-        """ draw_track(self, track) -> ([element, element,...], [element, element,...])
-
-            o track     Track object
-
-            Return tuple of (list of track elements, list of track labels)           
-        """
+        """Returns list of track elements and list of track labels."""
         track_elements = [] # Holds elements for features and graphs
         track_labels = []   # Holds labels for features and graphs
-        
+
         # Distribution dictionary for dealing with different set types
         set_methods = {FeatureSet: self.draw_feature_set,
                        GraphSet: self.draw_graph_set
                        }
-        
-        for set in track.get_sets():        # Draw the feature or graph sets
+
+        for set in track.get_sets(): # Draw the feature or graph sets
             elements, labels = set_methods[set.__class__](set)
             track_elements += elements
             track_labels += labels
         return track_elements, track_labels
 
-
     def draw_feature_set(self, set):
-        """ draw_feature_set(self, set) -> ([element, element,...], [element, element,...])
-
-            o set       FeatureSet object
-
-            Returns a tuple (list of elements describing features, list of
-            labels for elements)
-        """
+        """Returns list of feature elements and list of labels for them."""
         #print 'draw feature set'
-        feature_elements = []   # Holds diagram elements belonging to the features
-        label_elements = []     # Holds diagram elements belonging to feature labels 
+        feature_elements = [] # Holds diagram elements belonging to the features
+        label_elements = []   # Holds diagram elements belonging to feature labels
 
         # Collect all the elements for the feature set
         for feature in set.get_features():
@@ -357,24 +337,24 @@ class CircularDrawer(AbstractDrawer):
                 label_elements += labels
 
         return feature_elements, label_elements
-        
 
     def draw_feature(self, feature):
-        """ draw_feature(self, feature, parent_feature=None) -> ([element, element,...], [element, element,...])
-
-            o feature           Feature containing location info
-
-            Returns tuple of (list of elements describing single feature, list
-            of labels for those elements)
-        """        
-        feature_elements = []   # Holds drawable elements for a single feature
-        label_elements = []     # Holds labels for a single feature
+        """Returns list of feature elements and list of labels for them."""
+        feature_elements = [] # Holds drawable elements for a single feature
+        label_elements = []   # Holds labels for a single feature
 
         if feature.hide:    # Don't show feature: return early
             return feature_elements, label_elements
 
+        start, end = self._current_track_start_end()
         # A single feature may be split into subfeatures, so loop over them
         for locstart, locend in feature.locations:
+            if locend < start:
+                continue
+            locstart = max(locstart, start)
+            if end < locstart:
+                continue
+            locend = min(locend, end)
             # Get sigil for the feature/ each subfeature
             feature_sigil, label = self.get_feature_sigil(feature, locstart, locend)
             feature_elements.append(feature_sigil)
@@ -383,21 +363,18 @@ class CircularDrawer(AbstractDrawer):
 
         return feature_elements, label_elements
 
-
     def get_feature_sigil(self, feature, locstart, locend, **kwargs):
-        """ get_feature_sigil(self, feature, x0, x1, fragment) -> (element, element)
+        """Returns graphics for feature, and any required label for it.
 
             o feature       Feature object
 
             o locstart      The start position of the feature
 
             o locend        The end position of the feature
-
-            Returns a drawable indicator of the feature, and any required label
-            for it
         """
         # Establish the co-ordinates for the sigil
         btm, ctr, top = self.track_radii[self.current_track_level]
+
         startangle, startcos, startsin = self.canvas_angle(locstart)
         endangle, endcos, endsin = self.canvas_angle(locend)
         midangle, midcos, midsin = self.canvas_angle(float(locend+locstart)/2)
@@ -405,86 +382,177 @@ class CircularDrawer(AbstractDrawer):
         # Distribution dictionary for various ways of drawing the feature
         # Each method takes the inner and outer radii, the start and end angle
         # subtended at the diagram center, and the color as arguments
-        draw_methods = {'BOX': self._draw_arc,
-                        'ARROW': self._draw_arc_arrow,
+        draw_methods = {'BOX': self._draw_sigil_box,
+                        'OCTO': self._draw_sigil_cut_corner_box,
+                        'JAGGY': self._draw_sigil_jaggy,
+                        'ARROW': self._draw_sigil_arrow,
+                        'BIGARROW': self._draw_sigil_big_arrow,
                         }
 
-        # Get sigil for the feature, location dependent on the feature strand        
+        # Get sigil for the feature, location dependent on the feature strand
         method = draw_methods[feature.sigil]
         kwargs['head_length_ratio'] = feature.arrowhead_length
         kwargs['shaft_height_ratio'] = feature.arrowshaft_height
-        
+
         #Support for clickable links... needs ReportLab 2.4 or later
         #which added support for links in SVG output.
         if hasattr(feature, "url") :
             kwargs["hrefURL"] = feature.url
             kwargs["hrefTitle"] = feature.name
 
-        if feature.color == colors.white:
-            border = colors.black
-        else:
-            border = feature.color
-
-        if feature.strand == 1:
-            sigil = method(ctr, top, startangle, endangle, feature.color,
-                           border, orientation='right', **kwargs)
-        elif feature.strand == -1:
-            sigil = method(btm, ctr, startangle, endangle, feature.color,
-                           border, orientation='left', **kwargs)
-        else:
-            sigil = method(btm, top, startangle, endangle, feature.color,
-                           border, **kwargs)
+        sigil = method(btm, ctr, top, startangle, endangle, feature.strand,
+                       color=feature.color, border=feature.border, **kwargs)
 
         if feature.label:   # Feature needs a label
-            label = String(0, 0, feature.name.strip(),
+            #The spaces are a hack to force a little space between the label
+            #and the edge of the feature
+            label = String(0, 0, " %s " % feature.name.strip(),
                            fontName=feature.label_font,
                            fontSize=feature.label_size,
                            fillColor=feature.label_color)
             labelgroup = Group(label)
-            label_angle = startangle + 0.5 * pi     # Make text radial
-            sinval, cosval = startsin, startcos
-            if feature.strand != -1:
-                # Feature is on top, or covers both strands
-                if startangle < pi: # Turn text round and anchor end to inner radius
-                    sinval, cosval = endsin, endcos
-                    label_angle = endangle - 0.5 * pi
-                    labelgroup.contents[0].textAnchor = 'end'
-                pos = self.xcenter+top*sinval
-                coslabel = cos(label_angle)
-                sinlabel = sin(label_angle)    
-                labelgroup.transform = (coslabel,-sinlabel,sinlabel,coslabel,
-                                        pos, self.ycenter+top*cosval)
+            if feature.label_strand:
+                strand = feature.label_strand
             else:
-                # Feature on bottom strand
-                if startangle < pi: # Turn text round and anchor end to inner radius
+                strand = feature.strand
+            if feature.label_position in ('start', "5'", 'left'):
+                # Position the label at the feature's start
+                if strand != -1:
+                    label_angle = startangle + 0.5 * pi # Make text radial
+                    sinval, cosval = startsin, startcos
+                else:
+                    label_angle = endangle + 0.5 * pi # Make text radial
                     sinval, cosval = endsin, endcos
-                    label_angle = endangle - 0.5 * pi
+            elif feature.label_position in ('middle', 'center', 'centre'):
+                # Position the label at the feature's midpoint
+                label_angle = midangle + 0.5 * pi # Make text radial
+                sinval, cosval = midsin, midcos
+            elif feature.label_position in ('end', "3'", 'right'):
+                # Position the label at the feature's end
+                if strand != -1:
+                    label_angle = endangle + 0.5 * pi # Make text radial
+                    sinval, cosval = endsin, endcos
+                else:
+                    label_angle = startangle + 0.5 * pi # Make text radial
+                    sinval, cosval = startsin, startcos
+            elif startangle < pi:
+                # Default to placing the label the bottom of the feature
+                # as drawn on the page, meaning feature end on left half
+                label_angle = endangle + 0.5 * pi # Make text radial
+                sinval, cosval = endsin,endcos
+            else:
+                # Default to placing the label on the bottom of the feature,
+                # which means the feature end when on right hand half
+                label_angle = startangle + 0.5 * pi # Make text radial
+                sinval, cosval = startsin, startcos
+            if strand != -1:
+                # Feature label on top
+                radius = top
+                if startangle < pi: # Turn text round
+                    label_angle -= pi
                 else:
                     labelgroup.contents[0].textAnchor = 'end'
-                pos = self.xcenter+btm*sinval
-                coslabel = cos(label_angle)
-                sinlabel = sin(label_angle)
-                labelgroup.transform = (coslabel,-sinlabel,sinlabel,coslabel,
-                                        pos, self.ycenter+btm*cosval)
-
+            else:
+                # Feature label on bottom
+                radius = btm
+                if startangle < pi: # Turn text round and anchor end
+                    label_angle -= pi
+                    labelgroup.contents[0].textAnchor = 'end'
+            x_pos = self.xcenter + radius*sinval
+            y_pos = self.ycenter + radius*cosval
+            coslabel = cos(label_angle)
+            sinlabel = sin(label_angle)
+            labelgroup.transform = (coslabel, -sinlabel, sinlabel, coslabel,
+                                    x_pos, y_pos)
         else:
+            # No label required
             labelgroup = None
         #if locstart > locend:
         #    print locstart, locend, feature.strand, sigil, feature.name
         #print locstart, locend, feature.name
         return sigil, labelgroup
 
+    def draw_cross_link(self, cross_link):
+        startA = cross_link.startA
+        startB = cross_link.startB
+        endA = cross_link.endA
+        endB = cross_link.endB
 
+        if not self.is_in_bounds(startA) \
+        and not self.is_in_bounds(endA):
+            return None
+        if not self.is_in_bounds(startB) \
+        and not self.is_in_bounds(endB):
+            return None
+
+        if startA < self.start:
+            startA = self.start
+        if startB < self.start:
+            startB = self.start
+        if self.end < endA:
+            endA = self.end
+        if self.end < endB:
+            endB = self.end
+
+        trackobjA = cross_link._trackA(self._parent.tracks.values())
+        trackobjB = cross_link._trackB(self._parent.tracks.values())
+        assert trackobjA is not None
+        assert trackobjB is not None
+        if trackobjA == trackobjB:
+            raise NotImplementedError()
+
+        if trackobjA.start is not None:
+            if endA < trackobjA.start:
+                return
+            startA = max(startA, trackobjA.start)
+        if trackobjA.end is not None:
+            if trackobjA.end < startA:
+                return
+            endA = min(endA, trackobjA.end)
+        if trackobjB.start is not None:
+            if endB < trackobjB.start:
+                return
+            startB = max(startB, trackobjB.start)
+        if trackobjB.end is not None:
+            if trackobjB.end < startB:
+                return
+            endB = min(endB, trackobjB.end)
+
+        for track_level in self._parent.get_drawn_levels():
+            track = self._parent[track_level]
+            if track == trackobjA:
+                trackA = track_level
+            if track == trackobjB:
+                trackB = track_level
+        if trackA == trackB:
+            raise NotImplementedError()
+
+        startangleA, startcosA, startsinA = self.canvas_angle(startA)
+        startangleB, startcosB, startsinB = self.canvas_angle(startB)
+        endangleA, endcosA, endsinA = self.canvas_angle(endA)
+        endangleB, endcosB, endsinB = self.canvas_angle(endB)
+
+        btmA, ctrA, topA = self.track_radii[trackA]
+        btmB, ctrB, topB = self.track_radii[trackB]
+
+        if ctrA < ctrB:
+            return [self._draw_arc_poly(topA, btmB,
+                           startangleA, endangleA,
+                           startangleB, endangleB,
+                           cross_link.color, cross_link.border, cross_link.flip)]
+        else:
+            return [self._draw_arc_poly(btmA, topB,
+                           startangleA, endangleA,
+                           startangleB, endangleB,
+                           cross_link.color, cross_link.border, cross_link.flip)]
 
     def draw_graph_set(self, set):
-        """ draw_graph_set(self, set) -> ([element, element,...], [element, element,...])
-        
-            o set       GraphSet object
+        """Returns list of graph elements and list of their labels.
 
-            Returns tuple (list of graph elements, list of graph labels)
+            o set       GraphSet object
         """
         #print 'draw graph set'
-        elements = []   # Holds graph elements
+        elements = [] # Holds graph elements
 
         # Distribution dictionary for how to draw the graph
         style_methods = {'line': self.draw_line_graph,
@@ -493,21 +561,16 @@ class CircularDrawer(AbstractDrawer):
                          }
 
         for graph in set.get_graphs():
-            #print graph.name
             elements += style_methods[graph.style](graph)
 
         return elements, []
 
-
     def draw_line_graph(self, graph):
-        """ draw_line_graph(self, graph, center) -> [element, element,...]
+        """Returns line graph as list of drawable elements.
 
             o graph     GraphData object
-
-            Returns a line graph as a list of drawable elements
         """
-        #print '\tdraw_line_graph'
-        line_elements = []  # holds drawable elements
+        line_elements = [] # holds drawable elements
 
         # Get graph data
         data_quartiles = graph.quartiles()
@@ -517,12 +580,17 @@ class CircularDrawer(AbstractDrawer):
         datarange = maxval - minval
         if datarange == 0:
             datarange = trackheight
-        data = graph[self.start:self.end]
+
+        start, end = self._current_track_start_end()
+        data = graph[start:end]
+
+        if not data:
+            return []
 
         # midval is the value at which the x-axis is plotted, and is the
         # central ring in the track
         if graph.center is None:
-            midval = (maxval + minval)/2.    
+            midval = (maxval + minval)/2.
         else:
             midval = graph.center
         # Whichever is the greatest difference: max-midval or min-midval, is
@@ -547,23 +615,18 @@ class CircularDrawer(AbstractDrawer):
                                       strokeWidth = graph.linewidth))
             lastx, lasty, = x, y
         return line_elements
-        
 
     def draw_bar_graph(self, graph):
-        """ draw_bar_graph(self, graph) -> [element, element,...]
+        """Returns list of drawable elements for a bar graph.
 
             o graph     Graph object
-
-            Returns a list of drawable elements for a bar graph of the passed
-            Graph object
         """
-        #print '\tdraw_bar_graph'
         # At each point contained in the graph data, we draw a vertical bar
         # from the track center to the height of the datapoint value (positive
         # values go up in one color, negative go down in the alternative
         # color).
         bar_elements = []
-        
+
         # Set the number of pixels per unit for the data
         data_quartiles = graph.quartiles()
         minval, maxval = data_quartiles[0],data_quartiles[4]
@@ -576,15 +639,18 @@ class CircularDrawer(AbstractDrawer):
         # midval is the value at which the x-axis is plotted, and is the
         # central ring in the track
         if graph.center is None:
-            midval = (maxval + minval)/2.    
+            midval = (maxval + minval)/2.
         else:
             midval = graph.center
 
         # Convert data into 'binned' blocks, covering half the distance to the
         # next data point on either side, accounting for the ends of fragments
         # and tracks
-        newdata = intermediate_points(self.start, self.end,
-                                      graph[self.start:self.end])
+        start, end = self._current_track_start_end()
+        data = intermediate_points(start, end, graph[start:end])
+
+        if not data:
+            return []
 
         # Whichever is the greatest difference: max-midval or min-midval, is
         # taken to specify the number of pixel units resolved along the
@@ -594,7 +660,7 @@ class CircularDrawer(AbstractDrawer):
             resolution = trackheight
 
         # Create elements for the bar graph based on newdata
-        for pos0, pos1, val in newdata:
+        for pos0, pos1, val in data:
             pos0angle, pos0cos, pos0sin = self.canvas_angle(pos0)
             pos1angle, pos1cos, pos1sin = self.canvas_angle(pos1)
 
@@ -609,36 +675,31 @@ class CircularDrawer(AbstractDrawer):
                                               pos1angle, barcolor))
         return bar_elements
 
-    
-
-
     def draw_heat_graph(self, graph):
-        """ draw_heat_graph(self, graph) -> [element, element,...]
+        """Returns list of drawable elements for the heat graph.
 
             o graph     Graph object
-
-            Returns a list of drawable elements for the heat graph
         """
-        #print '\tdraw_heat_graph'
         # At each point contained in the graph data, we draw a box that is the
         # full height of the track, extending from the midpoint between the
         # previous and current data points to the midpoint between the current
         # and next data points
-        heat_elements = []      # holds drawable elements
+        heat_elements = [] # holds drawable elements
 
         # Get graph data
         data_quartiles = graph.quartiles()
         minval, maxval = data_quartiles[0],data_quartiles[4]
-        midval = (maxval + minval)/2.    # mid is the value at the X-axis
+        midval = (maxval + minval)/2. # mid is the value at the X-axis
         btm, ctr, top = self.track_radii[self.current_track_level]
         trackheight = (top-btm)
-        newdata = intermediate_points(self.start, self.end,
-                                      graph[self.start:self.end])
+
+        start, end = self._current_track_start_end()
+        data = intermediate_points(start, end, graph[start:end])
 
         # Create elements on the graph, indicating a large positive value by
         # the graph's poscolor, and a large negative value by the graph's
         # negcolor attributes
-        for pos0, pos1, val in newdata:
+        for pos0, pos1, val in data:
             pos0angle, pos0cos, pos0sin = self.canvas_angle(pos0)
             pos1angle, pos1cos, pos1sin = self.canvas_angle(pos1)
 
@@ -647,98 +708,124 @@ class CircularDrawer(AbstractDrawer):
             heat = colors.linearlyInterpolatedColor(graph.poscolor,
                                                     graph.negcolor,
                                                     maxval, minval, val)
-            
+
             # Draw heat box
             heat_elements.append(self._draw_arc(btm, top, pos0angle, pos1angle,
-                                               heat, border=heat))
+                                                heat, border=heat))
         return heat_elements
 
-
     def draw_scale(self, track):
-        """ draw_scale(self, track) -> ([element, element,...], [element, element,...])
+        """Returns list of elements in the scale and list of their labels.
 
             o track     Track object
-
-            Returns a tuple of (list of elements in the scale, list of labels
-            in the scale)
         """
-        scale_elements = []     # holds axes and ticks
-        scale_labels = []       # holds labels
+        scale_elements = [] # holds axes and ticks
+        scale_labels = [] # holds labels
 
-        if not track.scale:     # no scale required, exit early
+        if not track.scale:
+            # no scale required, exit early
             return [], []
 
         # Get track locations
         btm, ctr, top = self.track_radii[self.current_track_level]
         trackheight = (top-ctr)
-        
+
         # X-axis
-        if self.sweep < 1:
-            #Draw an arc, leaving out the wedge
+        start, end = self._current_track_start_end()
+        if track.start is not None or track.end is not None:
+            # Draw an arc, leaving out the wedge
             p = ArcPath(strokeColor=track.scale_color, fillColor=None)
-            #Note reportlab counts angles anti-clockwise from the horizontal
-            #(as in mathematics, e.g. complex numbers and polar coordinates)
-            #in degrees.
+            startangle, startcos, startsin = self.canvas_angle(start)
+            endangle, endcos, endsin = self.canvas_angle(end)
+            p.addArc(self.xcenter, self.ycenter, ctr,
+                     90 - (endangle * 180 / pi),
+                     90 - (startangle * 180 / pi))
+            scale_elements.append(p)
+            del p
+            # Y-axis start marker
+            x0, y0 = self.xcenter+btm*startsin, self.ycenter+btm*startcos
+            x1, y1 = self.xcenter+top*startsin, self.ycenter+top*startcos
+            scale_elements.append(Line(x0, y0, x1, y1, strokeColor=track.scale_color))
+            # Y-axis end marker
+            x0, y0 = self.xcenter+btm*endsin, self.ycenter+btm*endcos
+            x1, y1 = self.xcenter+top*endsin, self.ycenter+top*endcos
+            scale_elements.append(Line(x0, y0, x1, y1, strokeColor=track.scale_color))
+        elif self.sweep < 1:
+            # Draw an arc, leaving out the wedge
+            p = ArcPath(strokeColor=track.scale_color, fillColor=None)
+            # Note reportlab counts angles anti-clockwise from the horizontal
+            # (as in mathematics, e.g. complex numbers and polar coordinates)
+            # in degrees.
             p.addArc(self.xcenter, self.ycenter, ctr,
                      startangledegrees=90-360*self.sweep,
                      endangledegrees=90)
             scale_elements.append(p)
             del p
+            # Y-axis start marker
+            x0, y0 = self.xcenter, self.ycenter+btm
+            x1, y1 = self.xcenter, self.ycenter+top
+            scale_elements.append(Line(x0, y0, x1, y1, strokeColor=track.scale_color))
+            # Y-axis end marker
+            alpha = 2*pi*self.sweep
+            x0, y0 = self.xcenter+btm*sin(alpha), self.ycenter+btm*cos(alpha)
+            x1, y1 = self.xcenter+top*sin(alpha), self.ycenter+top*cos(alpha)
+            scale_elements.append(Line(x0, y0, x1, y1, strokeColor=track.scale_color))
         else:
-            #Draw a full circle
+            # Draw a full circle
             scale_elements.append(Circle(self.xcenter, self.ycenter, ctr,
                                          strokeColor=track.scale_color,
                                          fillColor=None))
 
-        if track.scale_ticks:   # Ticks are required on the scale
-            # Draw large ticks 
-            #I want the ticks to be consistently positioned relative to
-            #the start of the sequence (position 0), not relative to the
-            #current viewpoint (self.start and self.end)
+        start, end = self._current_track_start_end()
+        if track.scale_ticks: # Ticks are required on the scale
+            # Draw large ticks
+            # I want the ticks to be consistently positioned relative to
+            # the start of the sequence (position 0), not relative to the
+            # current viewpoint (self.start and self.end)
 
             ticklen = track.scale_largeticks * trackheight
             tickiterval = int(track.scale_largetick_interval)
-            #Note that we could just start the list of ticks using
-            #range(0,self.end,tickinterval) and the filter out the
-            #ones before self.start - but this seems wasteful.
-            #Using tickiterval * (self.start/tickiterval) is a shortcut.
-            largeticks = [pos for pos \
-                          in range(tickiterval * (self.start//tickiterval),
-                                   int(self.end),
-                                   tickiterval) \
-                          if pos >= self.start]
-            for tickpos in largeticks:
+            # Note that we could just start the list of ticks using
+            # range(0,self.end,tickinterval) and the filter out the
+            # ones before self.start - but this seems wasteful.
+            # Using tickiterval * (self.start/tickiterval) is a shortcut.
+            for tickpos in range(tickiterval * (self.start//tickiterval),
+                                 int(self.end), tickiterval):
+                if tickpos <= start or end <= tickpos:
+                    continue
                 tick, label = self.draw_tick(tickpos, ctr, ticklen,
                                              track,
                                              track.scale_largetick_labels)
                 scale_elements.append(tick)
-                if label is not None:   # If there's a label, add it
+                if label is not None: # If there's a label, add it
                     scale_labels.append(label)
             # Draw small ticks
             ticklen = track.scale_smallticks * trackheight
             tickiterval = int(track.scale_smalltick_interval)
-            smallticks = [pos for pos \
-                          in range(tickiterval * (self.start//tickiterval),
-                                   int(self.end),
-                                   tickiterval) \
-                          if pos >= self.start]
-            for tickpos in smallticks:
+            for tickpos in range(tickiterval * (self.start//tickiterval),
+                                 int(self.end), tickiterval):
+                if tickpos <= start or end <= tickpos:
+                    continue
                 tick, label = self.draw_tick(tickpos, ctr, ticklen,
                                              track,
                                              track.scale_smalltick_labels)
                 scale_elements.append(tick)
-                if label is not None:   # If there's a label, add it
+                if label is not None: # If there's a label, add it
                     scale_labels.append(label)
-        
+
         # Check to see if the track contains a graph - if it does, get the
         # minimum and maximum values, and put them on the scale Y-axis
         # at 60 degree intervals, ordering the labels by graph_id
+        startangle, startcos, startsin = self.canvas_angle(start)
+        endangle, endcos, endsin = self.canvas_angle(end)
         if track.axis_labels:
             for set in track.get_sets():
                 if set.__class__ is GraphSet:
                     # Y-axis
                     for n in xrange(7):
                         angle = n * 1.0471975511965976
+                        if angle < startangle or endangle < angle:
+                            continue
                         ticksin, tickcos = sin(angle), cos(angle)
                         x0, y0 = self.xcenter+btm*ticksin, self.ycenter+btm*tickcos
                         x1, y1 = self.xcenter+top*ticksin, self.ycenter+top*tickcos
@@ -748,7 +835,7 @@ class CircularDrawer(AbstractDrawer):
                         graph_label_min = []
                         graph_label_max = []
                         graph_label_mid = []
-                        for graph in set.get_graphs():                        
+                        for graph in set.get_graphs():
                             quartiles = graph.quartiles()
                             minval, maxval = quartiles[0], quartiles[4]
                             if graph.center is None:
@@ -782,9 +869,8 @@ class CircularDrawer(AbstractDrawer):
 
         return scale_elements, scale_labels
 
-
     def draw_tick(self, tickpos, ctr, ticklen, track, draw_label):
-        """ draw_tick(self, tickpos, ctr, ticklen) -> (element, element)
+        """Returns drawing element for a tick on the scale.
 
             o tickpos   Int, position of the tick on the sequence
 
@@ -795,8 +881,6 @@ class CircularDrawer(AbstractDrawer):
             o track     Track, the track the tick is drawn on
 
             o draw_label    Boolean, write the tick label?
-
-            Returns a drawing element that is the tick on the scale
         """
         # Calculate tick co-ordinates
         tickangle, tickcos, ticksin = self.canvas_angle(tickpos)
@@ -808,7 +892,8 @@ class CircularDrawer(AbstractDrawer):
         #label_offset = _fontdata.ascent_descent[track.scale_font][0]*\
         #               track.scale_fontsize/1000.
         tick = Line(x0, y0, x1, y1, strokeColor=track.scale_color)
-        if draw_label:                          # Put tick position on as label
+        if draw_label:
+            # Put tick position on as label
             if track.scale_format == 'SInt':
                 if tickpos >= 1000000:
                     tickstring = str(tickpos//1000000) + " Mbp"
@@ -818,13 +903,13 @@ class CircularDrawer(AbstractDrawer):
                     tickstring = str(tickpos)
             else:
                 tickstring = str(tickpos)
-            label = String(0, 0, tickstring,  # Make label string
+            label = String(0, 0, tickstring, # Make label string
                            fontName=track.scale_font,
                            fontSize=track.scale_fontsize,
                            fillColor=track.scale_color)
             if tickangle > pi:
                 label.textAnchor = 'end'
-            # LP: This label_offset depends on ascent_descent data, which is not available for all 
+            # LP: This label_offset depends on ascent_descent data, which is not available for all
             # fonts, so has been deprecated.
             #if 0.5*pi < tickangle < 1.5*pi:
             #    y1 -= label_offset
@@ -834,17 +919,11 @@ class CircularDrawer(AbstractDrawer):
             labelgroup = None
         return tick, labelgroup
 
-
     def draw_test_tracks(self):
-        """ draw_test_tracks(self)
-
-            Draw blue ones indicating tracks to be drawn, with a green line
-            down the center.
-        """
-        #print 'drawing test tracks'
+        """Draw blue test tracks with grene line down their center."""
         # Add lines only for drawn tracks
         for track in self.drawn_tracks:
-            btm, ctr, top = self.track_radii[track]            
+            btm, ctr, top = self.track_radii[track]
             self.drawing.add(Circle(self.xcenter, self.ycenter, top,
                                     strokeColor=colors.blue,
                                     fillColor=None))  # top line
@@ -855,17 +934,13 @@ class CircularDrawer(AbstractDrawer):
                                     strokeColor=colors.blue,
                                     fillColor=None))  # bottom line
 
-
     def draw_greytrack(self, track):
-        """ draw_greytrack(self)
+        """Drawing element for grey background to passed track.
 
             o track     Track object
-
-            Put in a grey background to the current track, if the track
-            specifies that we should
         """
-        greytrack_bgs = []      # Holds track backgrounds
-        greytrack_labels = []   # Holds track foreground labels
+        greytrack_bgs = [] # Holds track backgrounds
+        greytrack_labels = [] # Holds track foreground labels
 
         if not track.greytrack: # No greytrack required, return early
             return [], []
@@ -873,20 +948,29 @@ class CircularDrawer(AbstractDrawer):
         # Get track location
         btm, ctr, top = self.track_radii[self.current_track_level]
 
-        # Make background
-        if self.sweep < 1:
-            #Make a partial circle, a large arc box
-            #This method assumes the correct center for us.
-            bg = self._draw_arc(btm, top, 0, 2*pi*self.sweep,
-                                colors.Color(0.96, 0.96, 0.96))
-        else:
-            #Make a full circle (using a VERY thick linewidth)
-            bg = Circle(self.xcenter, self.ycenter, ctr, 
-                        strokeColor = colors.Color(0.96, 0.96, 0.96),
-                        fillColor=None, strokeWidth=top-btm)
-        greytrack_bgs.append(bg)
+        start, end = self._current_track_start_end()
+        startangle, startcos, startsin = self.canvas_angle(start)
+        endangle, endcos, endsin = self.canvas_angle(end)
 
-        if track.greytrack_labels:  # Labels are required for this track
+        # Make background
+        if track.start is not None or track.end is not None:
+            # Draw an arc, leaving out the wedge
+            p = ArcPath(strokeColor=track.scale_color, fillColor=None)
+            greytrack_bgs.append(self._draw_arc(btm, top, startangle, endangle,
+                                 colors.Color(0.96, 0.96, 0.96)))
+        elif self.sweep < 1:
+            # Make a partial circle, a large arc box
+            # This method assumes the correct center for us.
+            greytrack_bgs.append(self._draw_arc(btm, top, 0, 2*pi*self.sweep,
+                                 colors.Color(0.96, 0.96, 0.96)))
+        else:
+            # Make a full circle (using a VERY thick linewidth)
+            greytrack_bgs.append(Circle(self.xcenter, self.ycenter, ctr,
+                                 strokeColor = colors.Color(0.96, 0.96, 0.96),
+                                 fillColor=None, strokeWidth=top-btm))
+
+        if track.greytrack_labels:
+            # Labels are required for this track
             labelstep = self.length//track.greytrack_labels  # label interval
             for pos in range(self.start, self.end, labelstep):
                 label = String(0, 0, track.name,            # Add a new label at
@@ -894,10 +978,12 @@ class CircularDrawer(AbstractDrawer):
                            fontSize=track.greytrack_fontsize,
                            fillColor=track.greytrack_fontcolor)
                 theta, costheta, sintheta = self.canvas_angle(pos)
+                if theta < startangle or endangle < theta:
+                    continue
                 x,y = self.xcenter+btm*sintheta, self.ycenter+btm*costheta  # start text halfway up marker
                 labelgroup = Group(label)
                 labelangle = self.sweep*2*pi*(pos-self.start)/self.length - pi/2
-                if theta > pi:  
+                if theta > pi:
                     label.textAnchor = 'end'    # Anchor end of text to inner radius
                     labelangle += pi            # and reorient it
                 cosA, sinA = cos(labelangle), sin(labelangle)
@@ -908,18 +994,29 @@ class CircularDrawer(AbstractDrawer):
 
         return greytrack_bgs, greytrack_labels
 
-
     def canvas_angle(self, base):
-        """ canvas_angle(self, base) -> (float, float, float)
-        """
+        """Given base-pair position, return (angle, cosine, sin)."""
         angle = self.sweep*2*pi*(base-self.start)/self.length
         return (angle, cos(angle), sin(angle))
 
+    def _draw_sigil_box(self, bottom, center, top,
+                        startangle, endangle, strand,
+                        **kwargs):
+        """Draw BOX sigil."""
+        if strand == 1:
+            inner_radius = center
+            outer_radius = top
+        elif strand == -1:
+            inner_radius = bottom
+            outer_radius = center
+        else:
+            inner_radius = bottom
+            outer_radius = top
+        return self._draw_arc(inner_radius, outer_radius, startangle, endangle, **kwargs)
 
     def _draw_arc(self, inner_radius, outer_radius, startangle, endangle,
                  color, border=None, colour=None, **kwargs):
-        """ draw_arc(self, inner_radius, outer_radius, startangle, endangle, color)
-                -> Group
+        """Returns close path describing an arc box.
 
             o inner_radius  Float distance of inside of arc from drawing center
 
@@ -934,35 +1031,25 @@ class CircularDrawer(AbstractDrawer):
             o color        colors.Color object for arc (overridden by backwards
                            compatible argument with UK spelling, colour).
 
-            Returns a closed path object describing an arced box corresponding to
-            the passed values.  For very small angles, a simple four sided
-            polygon is used.
+        Returns a closed path object describing an arced box corresponding to
+        the passed values.  For very small angles, a simple four sided
+        polygon is used.
         """
-        #Let the UK spelling (colour) override the USA spelling (color)
+        # Let the UK spelling (colour) override the USA spelling (color)
         if colour is not None:
             color = colour
 
-        if border is None:
-            border = color
-
-        if color is None:
-            color = colour
-        if color == colors.white and border is None:   # Force black border on 
-            strokecolor = colors.black                 # white boxes with
-        elif border is None:                           # undefined border, else
-            strokecolor = color                        # use fill colour
-        elif border is not None:
-            strokecolor = border
+        strokecolor, color = _stroke_and_fill_colors(color, border)
 
         if abs(float(endangle - startangle))>.01:
             # Wide arc, must use full curves
             p = ArcPath(strokeColor=strokecolor,
                         fillColor=color,
                         strokewidth=0)
-            #Note reportlab counts angles anti-clockwise from the horizontal
-            #(as in mathematics, e.g. complex numbers and polar coordinates)
-            #but we use clockwise from the vertical.  Also reportlab uses
-            #degrees, but we use radians.
+            # Note reportlab counts angles anti-clockwise from the horizontal
+            # (as in mathematics, e.g. complex numbers and polar coordinates)
+            # but we use clockwise from the vertical.  Also reportlab uses
+            # degrees, but we use radians.
             p.addArc(self.xcenter, self.ycenter, inner_radius,
                      90 - (endangle * 180 / pi), 90 - (startangle * 180 / pi),
                      moveTo=True)
@@ -972,16 +1059,192 @@ class CircularDrawer(AbstractDrawer):
             p.closePath()
             return p
         else:
-            #Cheat and just use a four sided polygon.
+            # Cheat and just use a four sided polygon.
             # Calculate trig values for angle and coordinates
             startcos, startsin = cos(startangle), sin(startangle)
             endcos, endsin = cos(endangle), sin(endangle)
-            x0,y0 = self.xcenter, self.ycenter      # origin of the circle
+            x0,y0 = self.xcenter, self.ycenter # origin of the circle
             x1,y1 = (x0+inner_radius*startsin, y0+inner_radius*startcos)
             x2,y2 = (x0+inner_radius*endsin, y0+inner_radius*endcos)
             x3,y3 = (x0+outer_radius*endsin, y0+outer_radius*endcos)
             x4,y4 = (x0+outer_radius*startsin, y0+outer_radius*startcos)
             return draw_polygon([(x1,y1),(x2,y2),(x3,y3),(x4,y4)], color, border)
+
+    def _draw_arc_line(self, path, start_radius, end_radius, start_angle, end_angle,
+                       move=False):
+        """Adds a list of points to a path object.
+
+        Assumes angles given are in degrees!
+
+        Represents what would be a straight line on a linear diagram.
+        """
+        x0, y0 = self.xcenter, self.ycenter # origin of the circle
+        radius_diff = end_radius - start_radius
+        angle_diff = end_angle - start_angle
+        dx = 0.01 # heuristic
+        a = start_angle*pi/180
+        if move:
+            path.moveTo(x0+start_radius*cos(a), y0+start_radius*sin(a))
+        else:
+            path.lineTo(x0+start_radius*cos(a), y0+start_radius*sin(a))
+        x = dx
+        if 0.01 <= abs(dx):
+            while x < 1:
+                r = start_radius + x*radius_diff
+                a = (start_angle + x * (angle_diff)) * pi / 180  # to radians for sin/cos
+                #print x0+r*cos(a), y0+r*sin(a)
+                path.lineTo(x0+r*cos(a), y0+r*sin(a))
+                x += dx
+        a = end_angle*pi/180
+        path.lineTo(x0+end_radius*cos(a), y0+end_radius*sin(a))
+
+    def _draw_arc_poly(self, inner_radius, outer_radius,
+                       inner_startangle, inner_endangle,
+                       outer_startangle, outer_endangle,
+                       color, border=None, flip=False,
+                       **kwargs):
+        """Returns polygon path describing an arc."""
+        strokecolor, color = _stroke_and_fill_colors(color, border)
+
+        x0, y0 = self.xcenter, self.ycenter      # origin of the circle
+        if abs(inner_endangle - outer_startangle)>0.01 \
+        or abs(outer_endangle - inner_startangle)>0.01 \
+        or abs(inner_startangle - outer_startangle)>0.01 \
+        or abs(outer_startangle - outer_startangle)>0.01:
+            # Wide arc, must use full curves
+            p = ArcPath(strokeColor=strokecolor,
+                        fillColor=color,
+                        #default is mitre/miter which can stick out too much:
+                        strokeLineJoin=1,  # 1=round
+                        strokewidth=0)
+            #Note reportlab counts angles anti-clockwise from the horizontal
+            #(as in mathematics, e.g. complex numbers and polar coordinates)
+            #but we use clockwise from the vertical.  Also reportlab uses
+            #degrees, but we use radians.
+            i_start = 90 - (inner_startangle * 180 / pi)
+            i_end = 90 - (inner_endangle * 180 / pi)
+            o_start = 90 - (outer_startangle * 180 / pi)
+            o_end = 90 - (outer_endangle * 180 / pi)
+            p.addArc(x0, y0, inner_radius, i_end, i_start,
+                     moveTo=True, reverse=True)
+            if flip:
+                #Flipped, join end to start,
+                self._draw_arc_line(p, inner_radius, outer_radius, i_end, o_start)
+                p.addArc(x0, y0, outer_radius, o_end, o_start, reverse=True)
+                self._draw_arc_line(p, outer_radius, inner_radius, o_end, i_start)
+            else:
+                #Not flipped, join start to start, end to end
+                self._draw_arc_line(p, inner_radius, outer_radius, i_end, o_end)
+                p.addArc(x0, y0, outer_radius, o_end, o_start,
+                         reverse=False)
+                self._draw_arc_line(p, outer_radius, inner_radius, o_start, i_start)
+            p.closePath()
+            return p
+        else:
+            #Cheat and just use a four sided polygon.
+            # Calculate trig values for angle and coordinates
+            inner_startcos, inner_startsin = cos(inner_startangle), sin(inner_startangle)
+            inner_endcos, inner_endsin = cos(inner_endangle), sin(inner_endangle)
+            outer_startcos, outer_startsin = cos(outer_startangle), sin(outer_startangle)
+            outer_endcos, outer_endsin = cos(outer_endangle), sin(outer_endangle)
+            x1,y1 = (x0+inner_radius*inner_startsin, y0+inner_radius*inner_startcos)
+            x2,y2 = (x0+inner_radius*inner_endsin, y0+inner_radius*inner_endcos)
+            x3,y3 = (x0+outer_radius*outer_endsin, y0+outer_radius*outer_endcos)
+            x4,y4 = (x0+outer_radius*outer_startsin, y0+outer_radius*outer_startcos)
+            return draw_polygon([(x1,y1),(x2,y2),(x3,y3),(x4,y4)], color, border,
+                                #default is mitre/miter which can stick out too much:
+                                strokeLineJoin=1,  # 1=round
+                                )
+
+    def _draw_sigil_cut_corner_box(self, bottom, center, top,
+                          startangle, endangle, strand,
+                          color, border=None, corner=0.5,
+                          **kwargs):
+        """Draw OCTO sigil, box with corners cut off."""
+        if strand == 1:
+            inner_radius = center
+            outer_radius = top
+        elif strand == -1:
+            inner_radius = bottom
+            outer_radius = center
+        else:
+            inner_radius = bottom
+            outer_radius = top
+
+        strokecolor, color = _stroke_and_fill_colors(color, border)
+
+        startangle, endangle = min(startangle, endangle), max(startangle, endangle)
+        angle = float(endangle - startangle)
+
+        middle_radius = 0.5*(inner_radius+outer_radius)
+        boxheight = outer_radius - inner_radius
+
+        corner_len = min(0.5*boxheight, 0.5*boxheight*corner)
+        shaft_inner_radius = inner_radius + corner_len
+        shaft_outer_radius = outer_radius - corner_len
+
+        cornerangle_delta = max(0.0,min(abs(boxheight)*0.5*corner/middle_radius, abs(angle*0.5)))
+        if angle < 0:
+            cornerangle_delta *= -1  # reverse it
+
+        # Calculate trig values for angle and coordinates
+        startcos, startsin = cos(startangle), sin(startangle)
+        endcos, endsin = cos(endangle), sin(endangle)
+        x0, y0 = self.xcenter, self.ycenter      # origin of the circle
+        p = ArcPath(strokeColor=strokecolor,
+                    fillColor=color,
+                    strokeLineJoin=1,  # 1=round
+                    strokewidth=0,
+                    **kwargs)
+        #Inner curved edge
+        p.addArc(self.xcenter, self.ycenter, inner_radius,
+                 90 - ((endangle-cornerangle_delta) * 180 / pi),
+                 90 - ((startangle+cornerangle_delta) * 180 / pi),
+                 moveTo=True)
+        #Corner edge - straight lines assumes small angle!
+        #TODO - Use self._draw_arc_line(p, ...) here if we expose corner setting
+        p.lineTo(x0+shaft_inner_radius*startsin, y0+shaft_inner_radius*startcos)
+        p.lineTo(x0+shaft_outer_radius*startsin, y0+shaft_outer_radius*startcos)
+        #Outer curved edge
+        p.addArc(self.xcenter, self.ycenter, outer_radius,
+                 90 - ((endangle-cornerangle_delta) * 180 / pi),
+                 90 - ((startangle+cornerangle_delta) * 180 / pi),
+                 reverse=True)
+        #Corner edges
+        p.lineTo(x0+shaft_outer_radius*endsin, y0+shaft_outer_radius*endcos)
+        p.lineTo(x0+shaft_inner_radius*endsin, y0+shaft_inner_radius*endcos)
+        p.closePath()
+        return p
+
+    def _draw_sigil_arrow(self, bottom, center, top,
+                          startangle, endangle, strand,
+                          **kwargs):
+        """Draw ARROW sigil."""
+        if strand == 1:
+            inner_radius = center
+            outer_radius = top
+            orientation = "right"
+        elif strand == -1:
+            inner_radius = bottom
+            outer_radius = center
+            orientation = "left"
+        else:
+            inner_radius = bottom
+            outer_radius = top
+            orientation = "right"  # backwards compatibility
+        return self._draw_arc_arrow(inner_radius, outer_radius, startangle, endangle,
+                                    orientation=orientation, **kwargs)
+
+    def _draw_sigil_big_arrow(self, bottom, center, top,
+                              startangle, endangle, strand,
+                              **kwargs):
+        """Draw BIGARROW sigil, like ARROW but straddles the axis."""
+        if strand == -1:
+            orientation = "left"
+        else:
+            orientation = "right"
+        return self._draw_arc_arrow(bottom, top, startangle, endangle,
+                                    orientation=orientation, **kwargs)
 
     def _draw_arc_arrow(self, inner_radius, outer_radius, startangle, endangle,
                   color, border=None,
@@ -992,17 +1255,7 @@ class CircularDrawer(AbstractDrawer):
         if colour is not None:
             color = colour
 
-        if border is None:
-            border = color
-
-        if color is None:
-            color = colour
-        if color == colors.white and border is None:   # Force black border on 
-            strokecolor = colors.black                 # white boxes with
-        elif border is None:                           # undefined border, else
-            strokecolor = color                        # use fill colour
-        elif border is not None:
-            strokecolor = border
+        strokecolor, color = _stroke_and_fill_colors(color, border)
 
         #if orientation == 'right':
         #    startangle, endangle = min(startangle, endangle), max(startangle, endangle)
@@ -1011,7 +1264,7 @@ class CircularDrawer(AbstractDrawer):
         #else:
         startangle, endangle = min(startangle, endangle), max(startangle, endangle)
         if orientation != "left" and orientation != "right":
-            raise ValueError("Invalid orientation %s, should be 'left' or 'right'" \
+            raise ValueError("Invalid orientation %s, should be 'left' or 'right'"
                              % repr(orientation))
 
         angle = float(endangle - startangle)    # angle subtended by arc
@@ -1022,7 +1275,7 @@ class CircularDrawer(AbstractDrawer):
         shaft_outer_radius = middle_radius + 0.5*shaft_height
         headangle_delta = max(0.0,min(abs(boxheight)*head_length_ratio/middle_radius, abs(angle)))
         if angle < 0:
-            headangle_delta *= -1 #reverse it
+            headangle_delta *= -1  # reverse it
         if orientation=="right":
             headangle = endangle-headangle_delta
         else:
@@ -1034,7 +1287,6 @@ class CircularDrawer(AbstractDrawer):
         assert startangle <= headangle <= endangle \
             or endangle <= headangle <= startangle, \
             (startangle, headangle, endangle, angle)
-        
 
         # Calculate trig values for angle and coordinates
         startcos, startsin = cos(startangle), sin(startangle)
@@ -1057,13 +1309,13 @@ class CircularDrawer(AbstractDrawer):
             return Polygon([x1,y1,x2,y2,x3,y3],
                            strokeColor=border or color,
                            fillColor=color,
-                           strokeLineJoin=1, #1=round, not mitre!
+                           strokeLineJoin=1,  # 1=round, not mitre!
                            strokewidth=0)
         elif orientation=="right":
             p = ArcPath(strokeColor=strokecolor,
                         fillColor=color,
                         #default is mitre/miter which can stick out too much:
-                        strokeLineJoin=1, #1=round
+                        strokeLineJoin=1,  # 1=round
                         strokewidth=0,
                         **kwargs)
             #Note reportlab counts angles anti-clockwise from the horizontal
@@ -1076,33 +1328,24 @@ class CircularDrawer(AbstractDrawer):
             p.addArc(self.xcenter, self.ycenter, shaft_outer_radius,
                      90 - (headangle * 180 / pi), 90 - (startangle * 180 / pi),
                      reverse=True)
-            p.lineTo(x0+outer_radius*headsin, y0+outer_radius*headcos)
             if abs(angle) < 0.5:
+                p.lineTo(x0+outer_radius*headsin, y0+outer_radius*headcos)
                 p.lineTo(x0+middle_radius*endsin, y0+middle_radius*endcos)
                 p.lineTo(x0+inner_radius*headsin, y0+inner_radius*headcos)
             else:
-                dx = min(0.1, abs(angle)/50.0) #auto-scale number of steps
-                x = dx
-                while x < 1:
-                    r = outer_radius - x*(outer_radius-middle_radius)
-                    a = headangle + x*(endangle-headangle)
-                    p.lineTo(x0+r*sin(a), y0+r*cos(a))
-                    x += dx
-                p.lineTo(x0+middle_radius*endsin, y0+middle_radius*endcos)
-                x = dx
-                while x < 1:
-                    r = middle_radius - x*(middle_radius-inner_radius)
-                    a = headangle + (1-x)*(endangle-headangle)
-                    p.lineTo(x0+r*sin(a), y0+r*cos(a))
-                    x += dx
-                p.lineTo(x0+inner_radius*headsin, y0+inner_radius*headcos)
+                self._draw_arc_line(p, outer_radius, middle_radius,
+                                    90 - (headangle * 180 / pi),
+                                    90 - (endangle * 180 / pi))
+                self._draw_arc_line(p, middle_radius, inner_radius,
+                                    90 - (endangle * 180 / pi),
+                                    90 - (headangle * 180 / pi))
             p.closePath()
             return p
         else:
             p = ArcPath(strokeColor=strokecolor,
                         fillColor=color,
                         #default is mitre/miter which can stick out too much:
-                        strokeLineJoin=1, #1=round
+                        strokeLineJoin=1,  # 1=round
                         strokewidth=0,
                         **kwargs)
             #Note reportlab counts angles anti-clockwise from the horizontal
@@ -1115,28 +1358,111 @@ class CircularDrawer(AbstractDrawer):
             p.addArc(self.xcenter, self.ycenter, shaft_outer_radius,
                      90 - (endangle * 180 / pi), 90 - (headangle * 180 / pi),
                      reverse=False)
-            p.lineTo(x0+outer_radius*headsin, y0+outer_radius*headcos)
-            #TODO - two staight lines is only a good approximation for small
+            #Note - two staight lines is only a good approximation for small
             #head angle, in general will need to curved lines here:
             if abs(angle) < 0.5:
+                p.lineTo(x0+outer_radius*headsin, y0+outer_radius*headcos)
                 p.lineTo(x0+middle_radius*startsin, y0+middle_radius*startcos)
                 p.lineTo(x0+inner_radius*headsin, y0+inner_radius*headcos)
             else:
-                dx = min(0.1, abs(angle)/50.0) #auto-scale number of steps
-                x = dx
-                while x < 1:
-                    r = outer_radius - x*(outer_radius-middle_radius)
-                    a = headangle + x*(startangle-headangle)
-                    p.lineTo(x0+r*sin(a), y0+r*cos(a))
-                    x += dx
-                p.lineTo(x0+middle_radius*startsin, y0+middle_radius*startcos)
-                x = dx
-                while x < 1:
-                    r = middle_radius - x*(middle_radius-inner_radius)
-                    a = headangle + (1-x)*(startangle-headangle)
-                    p.lineTo(x0+r*sin(a), y0+r*cos(a))
-                    x += dx
-                p.lineTo(x0+inner_radius*headsin, y0+inner_radius*headcos)
+                self._draw_arc_line(p, outer_radius, middle_radius,
+                                    90 - (headangle * 180 / pi),
+                                    90 - (startangle * 180 / pi))
+                self._draw_arc_line(p, middle_radius, inner_radius,
+                                    90 - (startangle * 180 / pi),
+                                    90 - (headangle * 180 / pi))
             p.closePath()
             return p
 
+    def _draw_sigil_jaggy(self, bottom, center, top,
+                          startangle, endangle, strand,
+                          color, border=None,
+                          **kwargs):
+        """Draw JAGGY sigil.
+
+        Although we may in future expose the head/tail jaggy lengths, for now
+        both the left and right edges are drawn jagged.
+        """
+        if strand == 1:
+            inner_radius = center
+            outer_radius = top
+            teeth = 2
+        elif strand == -1:
+            inner_radius = bottom
+            outer_radius = center
+            teeth = 2
+        else:
+            inner_radius = bottom
+            outer_radius = top
+            teeth = 4
+
+        #TODO, expose these settings?
+        tail_length_ratio = 1.0
+        head_length_ratio = 1.0
+
+        strokecolor, color = _stroke_and_fill_colors(color, border)
+
+        startangle, endangle = min(startangle, endangle), max(startangle, endangle)
+        angle = float(endangle - startangle)    # angle subtended by arc
+        height = outer_radius - inner_radius
+
+        assert startangle <= endangle and angle >= 0
+        if head_length_ratio and tail_length_ratio:
+            headangle = max(endangle - min(height*head_length_ratio/(center*teeth), angle*0.5), startangle)
+            tailangle = min(startangle + min(height*tail_length_ratio/(center*teeth), angle*0.5), endangle)
+            #With very small features, can due to floating point calculations
+            #violate the assertion below that start <= tail <= head <= end
+            tailangle = min(tailangle, headangle)
+        elif head_length_ratio:
+            headangle = max(endangle - min(height*head_length_ratio/(center*teeth), angle), startangle)
+            tailangle = startangle
+        else:
+            headangle = endangle
+            tailangle = min(startangle + min(height*tail_length_ratio/(center*teeth), angle), endangle)
+
+        assert startangle <= tailangle <= headangle <= endangle, \
+            (startangle, tailangle, headangle, endangle, angle)
+
+        # Calculate trig values for angle and coordinates
+        startcos, startsin = cos(startangle), sin(startangle)
+        headcos, headsin = cos(headangle), sin(headangle)
+        endcos, endsin = cos(endangle), sin(endangle)
+        x0,y0 = self.xcenter, self.ycenter      # origin of the circle
+
+        p = ArcPath(strokeColor=strokecolor,
+                    fillColor=color,
+                    #default is mitre/miter which can stick out too much:
+                    strokeLineJoin=1,  # 1=round
+                    strokewidth=0,
+                    **kwargs)
+        #Note reportlab counts angles anti-clockwise from the horizontal
+        #(as in mathematics, e.g. complex numbers and polar coordinates)
+        #but we use clockwise from the vertical.  Also reportlab uses
+        #degrees, but we use radians.
+        p.addArc(self.xcenter, self.ycenter, inner_radius,
+                 90 - (headangle * 180 / pi), 90 - (tailangle * 180 / pi),
+                 moveTo=True)
+        for i in range(0, teeth):
+            p.addArc(self.xcenter, self.ycenter, inner_radius+i*height/teeth,
+                     90 - (tailangle * 180 / pi), 90 - (startangle * 180 / pi))
+            #Curved line needed when drawing long jaggies
+            self._draw_arc_line(p,
+                                inner_radius+i*height/teeth,
+                                inner_radius+(i+1)*height/teeth,
+                                90 - (startangle * 180 / pi),
+                                90 - (tailangle * 180 / pi))
+        p.addArc(self.xcenter, self.ycenter, outer_radius,
+                 90 - (headangle * 180 / pi), 90 - (tailangle * 180 / pi),
+                 reverse=True)
+        for i in range(0, teeth):
+            p.addArc(self.xcenter, self.ycenter, outer_radius-i*height/teeth,
+                     90 - (endangle * 180 / pi), 90 - (headangle * 180 / pi),
+                     reverse=True)
+            #Curved line needed when drawing long jaggies
+            self._draw_arc_line(p,
+                                outer_radius-i*height/teeth,
+                                outer_radius-(i+1)*height/teeth,
+                                90 - (endangle * 180 / pi),
+                                90 - (headangle * 180 / pi))
+        p.closePath()
+        return p

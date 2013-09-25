@@ -7,7 +7,7 @@
 
 Bio.Pathway is a lightweight class library designed to support the following tasks:
 
- - Data interchange and preprocessing between pathway databases and analysis software. 
+ - Data interchange and preprocessing between pathway databases and analysis software.
  - Quick prototyping of pathway analysis algorithms
 
 The basic object in the Bio.Pathway model is Interaction, which represents an arbitrary
@@ -16,12 +16,12 @@ interaction between any number of biochemical species.
 Network objects are used to represent the connectivity between species in pathways
 and reaction networks.
 
-For applications where it is not neccessary to explicitly represent network connectivity,
+For applications where it is not necessary to explicitly represent network connectivity,
 the specialized classes Reaction and System should be used in place of Interacton and
 Network.
 
 The Bio.Pathway classes, especially Interaction, are intentionally
-desgined to be very flexible. Their intended use are as wrappers around database
+designed to be very flexible. Their intended use are as wrappers around database
 specific records, such as BIND objects. The value-added in this module is a
 framework for representing collections of reactions in a way that supports
 graph theoretic and numeric analysis.
@@ -30,12 +30,10 @@ Note: This module should be regarded as a prototype only. API changes are likely
       Comments and feature requests are most welcome.
 """
 
-
-from Bio.Pathway.Rep.HashSet import *
 from Bio.Pathway.Rep.MultiGraph import *
 
 
-class Reaction:
+class Reaction(object):
     """Abstraction for a biochemical transformation.
 
     This class represents a (potentially reversible) biochemical
@@ -67,7 +65,7 @@ class Reaction:
     for all C in catalysts: catalysts[C] != 0
 
     """
-    
+
     def __init__(self, reactants = {}, catalysts = [],
                  reversible = 0, data = None):
         """Initializes a new Reaction object."""
@@ -77,8 +75,8 @@ class Reaction:
         for r, value in reactants.iteritems():
             if value == 0:
                 del self.reactants[r]
-        self.catalysts  = HashSet(catalysts).list()
-        self.data       = data
+        self.catalysts = sorted(set(catalysts))
+        self.data = data
         self.reversible = reversible
 
     def __eq__(self, r):
@@ -88,7 +86,7 @@ class Reaction:
                self.catalysts == r.catalysts and \
                self.data == r.data and \
                self.reversible == r.reversible
-        
+
     def __ne__(self, r):
         """Returns true iff self is not equal to r."""
         return not self.__eq__(r)
@@ -109,7 +107,7 @@ class Reaction:
     def __str__(self):
         """Returns a string representation of self."""
         substrates = ""
-        products   = ""
+        products = ""
         all_species = sorted(self.reactants)
         for species in all_species:
             stoch = self.reactants[species]
@@ -147,7 +145,7 @@ class Reaction:
         return self.reactants.keys()
 
 
-class System:
+class System(object):
     """Abstraction for a collection of reactions.
 
     This class is used in the Bio.Pathway framework to represent an arbitrary
@@ -155,17 +153,17 @@ class System:
 
     Attributes:
 
-    None    
+    None
     """
-    
+
     def __init__(self, reactions = []):
         """Initializes a new System object."""
-        self.__reactions = HashSet(reactions)
+        self.__reactions = set(reactions)
 
     def __repr__(self):
         """Returns a debugging string representation of self."""
-        return "System(" + ",".join(map(repr,self.__reactions.list())) + ")"
-    
+        return "System(" + ",".join(map(repr,self.__reactions)) + ")"
+
     def __str__(self):
         """Returns a string representation of self."""
         return "System of " + str(len(self.__reactions)) + \
@@ -181,14 +179,17 @@ class System:
         self.__reactions.remove(reaction)
 
     def reactions(self):
-        """Returns a list of the reactions in this system."""
-        return self.__reactions.list()
+        """Returns a list of the reactions in this system.
+
+        Note the order is arbitrary!
+        """
+        #TODO - Define __lt__ so that Reactions can be sorted on Python?
+        return list(self.__reactions)
 
     def species(self):
         """Returns a list of the species in this system."""
-        s = HashSet(reduce(lambda s,x: s + x,
-                           [x.species() for x in self.reactions()], []))
-        return s.list()
+        return sorted(set(reduce(lambda s,x: s + x,
+                          [x.species() for x in self.reactions()], [])))
 
     def stochiometry(self):
         """Computes the stoichiometry matrix for self.
@@ -217,10 +218,10 @@ class System:
         return (species, reactions, stoch)
 
 
-class Interaction:
+class Interaction(object):
     """An arbitrary interaction between any number of species.
 
-    This class definition is inteded solely as a minimal wrapper interface that should
+    This class definition is intended solely as a minimal wrapper interface that should
     be implemented and extended by more specific abstractions.
 
     Attributes:
@@ -236,15 +237,15 @@ class Interaction:
         return hash(self.data)
 
     def __repr__(self):
-        """Returns a debugging string representation of self.""" 
+        """Returns a debugging string representation of self."""
         return "Interaction(" + repr(self.data) + ")"
 
     def __str__(self):
         """Returns a string representation of self."""
         return "<" + str(self.data) + ">"
-    
 
-class Network:
+
+class Network(object):
     """A set of species that are explicitly linked by interactions.
 
     The network is a directed multigraph with labeled edges. The nodes in the graph
@@ -255,7 +256,6 @@ class Network:
     Attributes:
 
     None
-    
     """
 
     def __init__(self, species = []):
@@ -302,8 +302,3 @@ class Network:
     def interactions(self):
         """Returns list of the unique interactions in this network."""
         return self.__graph.labels()
-
-
-
-
-

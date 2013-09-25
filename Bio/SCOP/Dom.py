@@ -10,15 +10,15 @@
 """ Handle the SCOP DOMain file.
 
 The DOM file has been officially deprecated. For more information see
-the SCOP"release notes.":http://scop.berkeley.edu/release-notes-1.55.html 
-The DOM files for older releases can be found 
+the SCOP"release notes.":http://scop.berkeley.edu/release-notes-1.55.html
+The DOM files for older releases can be found
 "elsewhere at SCOP.":http://scop.mrc-lmb.cam.ac.uk/scop/parse/
 """
 
-
 from Residues import Residues
 
-class Record:
+
+class Record(object):
     """Holds information for one SCOP domain.
 
     sid -- The SCOP ID of the entry, e.g. d1anu1
@@ -36,7 +36,7 @@ class Record:
 
     def _process(self, line):
         """Parses DOM records.
-    
+
         Records consist of 4 tab deliminated fields;
         sid, pdbid, residues, hierarchy
         """
@@ -55,7 +55,6 @@ class Record:
         self.residues = Residues(res)
         self.residues.pdbid =pdbid
 
-
     def __str__(self):
         s = []
         s.append(self.sid)
@@ -69,9 +68,9 @@ def parse(handle):
     in the file.
 
     Arguments:
-        
+
         handle -- file-like object.
-    """ 
+    """
     for line in handle:
         if line.startswith('#'):
             continue

@@ -4,6 +4,9 @@
 # as part of this package.
 """Implementation of sequence motifs (PRIVATE).
 """
+
+from __future__ import print_function
+
 from Bio.Seq import Seq
 from Bio.SubsMat import FreqTable
 from Bio.Alphabet import IUPAC
@@ -32,14 +35,15 @@ class Motif(object):
         self.name=""
 
     def _check_length(self, len):
-        if self.length==None:
+        # TODO - Change parameter name (len clashes with built in function)?
+        if self.length is None:
             self.length = len
         elif self.length != len:
-            print "len",self.length,self.instances, len
-            raise ValueError("You can't change the length of the motif")
+            raise ValueError("You can't change the length of the motif "
+                             "%r %r %r" % (self.length, self.instances, len))
 
     def _check_alphabet(self,alphabet):
-        if self.alphabet==None:
+        if self.alphabet is None:
             self.alphabet=alphabet
         elif self.alphabet != alphabet:
                 raise ValueError("Wrong Alphabet")
@@ -106,7 +110,10 @@ class Motif(object):
                 #counting the occurences of letters in instances
                 for seq in self.instances:
                     #dict[seq[i]]=dict[seq[i]]+1
-                    dict[seq[i]]+=1
+                    try:
+                        dict[seq[i]]+=1
+                    except KeyError: #we need to ignore non-alphabet letters
+                        pass
             self._pwm.append(FreqTable.FreqTable(dict,FreqTable.COUNT,self.alphabet)) 
         self._pwm_is_current=1
         return self._pwm
@@ -302,7 +309,7 @@ class Motif(object):
         min_o=-1
         d_s=[]
         for offset in range(-self.length+1,other.length):
-            #print "%2.3d"%offset,
+            #print("%2.3d"%offset)
             if offset<0:
                 d = self.dist_dpq_at(other,-offset)
                 overlap = self.length+offset
@@ -310,16 +317,16 @@ class Motif(object):
                 d = other.dist_dpq_at(self,offset)
                 overlap = other.length-offset
             overlap = min(self.length,other.length,overlap)
-            out = self.length+other.length-2*overlap
-            #print d,1.0*(overlap+out)/overlap,d*(overlap+out)/overlap
+            out = self.length+other.length - 2*overlap
+            #print("%f %f %f" % (d,1.0*(overlap+out)/overlap,d*(overlap+out)/overlap))
             #d = d/(2*overlap)
             d = (d/(out+overlap))*(2*overlap+out)/(2*overlap)
-            #print d
-            d_s.append((offset,d))
-            if min_d> d:
-                min_d=d
-                min_o=-offset
-        return min_d,min_o#,d_s
+            #print(d)
+            d_s.append((offset, d))
+            if min_d > d:
+                min_d = d
+                min_o = -offset
+        return min_d, min_o #,d_s
             
     def dist_dpq_at(self,other,offset):
         """
@@ -376,7 +383,7 @@ class Motif(object):
 
         Please use this method (i.e. invoke len(m)) instead of refering to the m.length directly.
         """
-        if self.length==None:
+        if self.length is None:
             return 0
         else:
             return self.length
@@ -439,7 +446,7 @@ class Motif(object):
 
         self.counts = {}
         self.has_counts=True
-        if letters==None:
+        if letters is None:
             letters=self.alphabet.letters
         self.length=0
         for i in letters:
@@ -450,14 +457,14 @@ class Motif(object):
                 self.counts[k].append(v)
             self.length+=1
         self.set_mask("*"*self.length)
-        if make_instances==True:
+        if make_instances is True:
             self.make_instances_from_counts()
         return self
         
     def _from_horiz_matrix(self,stream,letters=None,make_instances=False):
         """reads a horizontal count matrix from stream and fill in the counts.
         """
-        if letters==None:
+        if letters is None:
             letters=self.alphabet.letters
         self.counts = {}
         self.has_counts=True
@@ -467,18 +474,18 @@ class Motif(object):
             #if there is a letter in the beginning, ignore it
             if ln[0]==i:
                 ln=ln[1:]
-            #print ln
+            #print(ln)
             try:
                 self.counts[i]=map(int,ln)
             except ValueError: #not integers
                 self.counts[i]=map(float,ln) #map(lambda s: int(100*float(s)),ln)
-            #print counts[i]
+            #print(counts[i])
         
         s = sum(self.counts[nuc][0] for nuc in letters)
         l = len(self.counts[letters[0]])
         self.length=l
         self.set_mask("*"*l)
-        if make_instances==True:
+        if make_instances is True:
             self.make_instances_from_counts()
         return self
         
@@ -500,15 +507,15 @@ class Motif(object):
             for n in self.alphabet.letters:
                 col[i] = col[i]+ (n*(self.counts[n][i]))
             if len(col[i])<s:
-                print "WARNING, column too short",len(col[i]),s
+                print("WARNING, column too short %i %i" % (len(col[i]),s))
                 col[i]+=(alpha*s)[:(s-len(col[i]))]
-            #print i,col[i]
+            #print("column %i, %s" % (i, col[i]))
         #iterate over instances
         for i in range(s): 
             inst="" #start with empty seq
             for j in range(self.length): #iterate over positions
                 inst+=col[j][i]
-            #print i,inst
+            #print("%i %s" % (i,inst)
             inst=Seq(inst,self.alphabet)                
             self.add_instance(inst)
         return self.instances
@@ -697,7 +704,7 @@ class Motif(object):
         """Return string representation of the motif as  a matrix.
         
         """
-        if letters==None:
+        if letters is None:
             letters=self.alphabet.letters
         self._pwm_is_current=False
         pwm=self.pwm(laplace=False)
@@ -711,7 +718,7 @@ class Motif(object):
         """Return string representation of the motif as  a matrix.
         
         """
-        if letters==None:
+        if letters is None:
             letters=self.alphabet.letters
         res=""
         if normalized: #output PWM
@@ -764,10 +771,13 @@ class Motif(object):
         - the sequence can only be a DNA sequence
         - the search is performed only on one strand
         """
-        if self.alphabet!=IUPAC.unambiguous_dna:
-            raise ValueError("Wrong alphabet! Use only with DNA motifs")
-        if seq.alphabet!=IUPAC.unambiguous_dna:
-            raise ValueError("Wrong alphabet! Use only with DNA sequences")
+        #TODO - Code itself tolerates ambiguous bases (as NaN).
+        if not isinstance(self.alphabet, IUPAC.IUPACUnambiguousDNA):
+            raise ValueError("PSSM has wrong alphabet: %s - Use only with DNA motifs" \
+                                 % self.alphabet)
+        if not isinstance(seq.alphabet, IUPAC.IUPACUnambiguousDNA):
+            raise ValueError("Sequence has wrong alphabet: %r - Use only with DNA sequences" \
+                                 % sequence.alphabet)
 
         seq = seq.tostring()
 
@@ -794,7 +804,7 @@ class Motif(object):
             for j in xrange(m):
                 c = sequence[i+j]
                 temp = logodds[j].get(c)
-                if temp==None:
+                if temp is None:
                     break
                 score += temp
             else:

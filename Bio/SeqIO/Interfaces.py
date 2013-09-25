@@ -2,16 +2,21 @@
 # This code is part of the Biopython distribution and governed by its
 # license.  Please see the LICENSE file that should have been included
 # as part of this package.
-"""
-Bio.SeqIO support module (not for general use).
+"""Bio.SeqIO support module (not for general use).
 
 Unless you are writing a new parser or writer for Bio.SeqIO, you should not
 use this module.  It provides base classes to try and simplify things.
 """
 
-from Bio.Alphabet import generic_alphabet
+from __future__ import print_function
 
-class SequenceIterator:
+from Bio.Alphabet import generic_alphabet
+from Bio.Seq import Seq, MutableSeq
+from Bio.SeqRecord import SeqRecord
+
+# TODO - Review self.next() method for Python 3 support...
+
+class SequenceIterator(object):
     """Base class for building SeqRecord iterators.
 
     You should write a next() method to return SeqRecord
@@ -56,32 +61,16 @@ class SequenceIterator:
         myFile = open("example.fasta","r")
         myFastaReader = FastaIterator(myFile)
         for record in myFastaReader:
-            print record.id
-            print record.seq
+            print(record.id)
+            print(record.seq)
         myFile.close()"""
         return iter(self.next, None)
 
+
 class InterlacedSequenceIterator(SequenceIterator):
-    """Base class for any iterator of a non-sequential file type.
+    """Base class for any iterator of a non-sequential file type (DEPRECATED).
 
-    This object is not intended for use directly.
-    
-    When writing a parser for any interlaced sequence file where the whole
-    file must be read in order to extract any single record, then you should
-    subclass this object.
-
-    All you need to do is to define your own:
-    (1) __init__ method to parse the file and call self.move_start()
-    (2) __len__ method to return the number of records
-    (3) __getitem__ to return any requested record.
-
-    This class will then provide the iterator methods including next(), but relies
-    on knowing the total number of records and tracking the pending record index in
-    as self._n
-
-    It is up to the subclassed object to decide if it wants to generate a cache of
-    SeqRecords when initialised, or simply use its own lists and dicts and create
-    SeqRecords on request.
+    This object was not intended for direct use, and is now deprecated.
     """
 
     def __init__(self):
@@ -122,16 +111,17 @@ class InterlacedSequenceIterator(SequenceIterator):
     def next(self):
         next_record = self._n
         if next_record < len(self):
-            self._n = next_record+1
+            self._n = next_record + 1
             return self[next_record]
         else:
             #StopIteration
             return None
-    
+
     def __iter__(self):
         return iter(self.next, None)
 
-class SequenceWriter:
+
+class SequenceWriter(object):
     """This class should be subclassed.
 
     Interlaced file formats (e.g. Clustal) should subclass directly.
@@ -147,26 +137,20 @@ class SequenceWriter:
 
     def _get_seq_string(self, record):
         """Use this to catch errors like the sequence being None."""
-        try:
-            #The tostring() method is part of the Seq API, we could instead
-            #use str(record.seq) but that would give a string "None" if the
-            #sequence was None, and unpredicatable output if an unexpected
-            #object was present.
-            return record.seq.tostring()
-        except AttributeError:
-            if record.seq is None:
-                #We could silently treat this as an empty sequence, Seq(""),
-                #but that would be an implict assumption we should avoid.
-                raise TypeError("SeqRecord (id=%s) has None for its sequence." \
-                                % record.id)
-            else:
-                raise TypeError("SeqRecord (id=%s) has an invalid sequence." \
-                                % record.id)
+        if not isinstance(record, SeqRecord):
+            raise TypeError("Expected a SeqRecord object")
+        if record.seq is None:
+            raise TypeError("SeqRecord (id=%s) has None for its sequence."
+                            % record.id)
+        elif not isinstance(record.seq, (Seq, MutableSeq)):
+            raise TypeError("SeqRecord (id=%s) has an invalid sequence."
+                            % record.id)
+        return str(record.seq)
 
     def clean(self, text):
         """Use this to avoid getting newlines in the output."""
         return text.replace("\n", " ").replace("\r", " ").replace("  ", " ")
-    
+
     def write_file(self, records):
         """Use this to write an entire file containing the given records.
 
@@ -181,6 +165,7 @@ class SequenceWriter:
         #####################################################
         # You SHOULD subclass this                          #
         #####################################################
+
 
 class SequentialSequenceWriter(SequenceWriter):
     """This class should be subclassed.
@@ -199,7 +184,7 @@ class SequentialSequenceWriter(SequenceWriter):
     the file format concerned doesn't have a header or footer.
     This is to try and make life as easy as possible when
     switching the output format.
-    
+
     Note that write_header() cannot require any assumptions about
     the number of records.
     """
@@ -214,7 +199,7 @@ class SequentialSequenceWriter(SequenceWriter):
         assert not self._record_written, "You have aleady called write_record() or write_records()"
         assert not self._footer_written, "You have aleady called write_footer()"
         self._header_written = True
-        
+
     def write_footer(self):
         assert self._header_written, "You must call write_header() first"
         assert self._record_written, "You have not called write_record() or write_records() yet"

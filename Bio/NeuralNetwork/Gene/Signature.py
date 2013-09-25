@@ -13,14 +13,15 @@ from Bio.Seq import Seq
 # local stuff
 from Pattern import PatternRepository
 
-class SignatureFinder:
+
+class SignatureFinder(object):
     """Find Signatures in a group of sequence records.
 
     In this simple implementation, signatures are just defined as a
     two motifs separated by a gap. We need something a lot smarter than
     this to find more complicated signatures.
     """
-    def __init__(self, alphabet_strict = 1):
+    def __init__(self, alphabet_strict=1):
         """Initialize a finder to get signatures.
 
         Arguments:
@@ -75,11 +76,11 @@ class SignatureFinder:
             largest_sig_size = sig_size * 2 + max_gap
             for start in range(len(seq_record.seq) - (largest_sig_size - 1)):
                 # find the first part of the signature
-                first_sig = seq_record.seq[start:start + sig_size].tostring()
+                first_sig = str(seq_record.seq[start:start + sig_size])
 
                 # now find all of the second parts of the signature
                 for second in range(start + 1, (start + 1) + max_gap):
-                    second_sig = seq_record.seq[second: second + sig_size].tostring()
+                    second_sig = str(seq_record.seq[second: second + sig_size])
 
                     # if we are being alphabet strict, make sure both parts
                     # of the sig fall within the specified alphabet
@@ -110,7 +111,8 @@ class SignatureFinder:
 
         return sig_dict
 
-class SignatureCoder:
+
+class SignatureCoder(object):
     """Convert a Sequence into its signature representatives.
 
     This takes a sequence and a set of signatures, and converts the
@@ -170,7 +172,7 @@ class SignatureCoder:
         # otherwise just return an empty list
         if len(self._signatures) == 0:
             return []
-        
+
         # initialize a dictionary to hold the signature counts
         sequence_sigs = {}
         for sig in self._signatures:
@@ -180,7 +182,7 @@ class SignatureCoder:
         all_first_sigs = []
         for sig_start, sig_end in self._signatures:
             all_first_sigs.append(sig_start)
-        
+
         # count all of the signatures we are looking for in the sequence
         sig_size = len(self._signatures[0][0])
         smallest_sig_size = sig_size * 2
@@ -188,11 +190,11 @@ class SignatureCoder:
         for start in range(len(sequence) - (smallest_sig_size - 1)):
             # if the first part matches any of the signatures we are looking
             # for, then expand out to look for the second part
-            first_sig = sequence[start:start + sig_size].tostring()
+            first_sig = str(sequence[start:start + sig_size])
             if first_sig in all_first_sigs:
                 for second in range(start + sig_size,
                                     (start + sig_size + 1) + self._max_gap):
-                    second_sig = sequence[second:second + sig_size].tostring()
+                    second_sig = str(sequence[second:second + sig_size])
 
                     # if we find the motif, increase the counts for it
                     if (first_sig, second_sig) in sequence_sigs:
@@ -203,7 +205,7 @@ class SignatureCoder:
         max_count = max(sequence_sigs.values())
 
         # as long as we have some signatures present, normalize them
-        # otherwise we'll just return 0 for everything 
+        # otherwise we'll just return 0 for everything
         if max_count > 0:
             for sig in sequence_sigs:
                 sequence_sigs[sig] = (float(sequence_sigs[sig] - min_count)
@@ -215,4 +217,3 @@ class SignatureCoder:
             sig_amounts.append(sequence_sigs[sig])
 
         return sig_amounts
-        

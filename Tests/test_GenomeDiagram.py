@@ -9,6 +9,8 @@
 # IMPORTS
 
 # Builtins
+from __future__ import print_function
+
 import os
 import unittest
 import math
@@ -24,6 +26,15 @@ except ImportError:
     raise MissingPythonDependencyError(
             "Install reportlab if you want to use Bio.Graphics.")
 
+try:
+    import Image
+    from reportlab.graphics import renderPM
+except ImportError:
+    #This is an optional part of ReportLab, so may not be installed.
+    #We'll raise a missing dependency error if rendering to a
+    #bitmap format is attempted.
+    renderPM=None
+
 # Biopython core
 from Bio import SeqIO
 from Bio.SeqFeature import SeqFeature, FeatureLocation
@@ -31,6 +42,7 @@ from Bio import SeqUtils
 
 # Bio.Graphics.GenomeDiagram
 from Bio.Graphics.GenomeDiagram import FeatureSet, GraphSet, Track, Diagram
+from Bio.Graphics.GenomeDiagram import CrossLink
 #from Bio.Graphics.GenomeDiagram.Utilities import *
 
 #Currently private, but we test them here:
@@ -38,10 +50,21 @@ from Bio.Graphics.GenomeDiagram._Graph import GraphData
 from Bio.Graphics.GenomeDiagram._Colors import ColorTranslator
 
 
+def fill_and_border(base_color, alpha=0.5):
+    try:
+        c = base_color.clone()
+        c.alpha = alpha
+        return c, base_color
+    except AttributeError:
+        #Old ReportLab, no transparency and/or no clone
+        return base_color, base_color
+
 ###############################################################################
 # Utility functions for graph plotting, originally in GenomeDiagram.Utilities #
 # See Bug 2705 for discussion on where to put these functions in Biopython... #
 ###############################################################################
+
+
 def apply_to_window(sequence, window_size, function, step=None):
     """ apply_to_window(sequence, window_size, function) -> [(int, float),(int, float),...]
 
@@ -90,11 +113,12 @@ def apply_to_window(sequence, window_size, function, step=None):
         # Apply function to sequence fragment
         value = function(fragment)
         results.append((middle, value)) # Add results to list
-        
+
     # Check on last sequence
-    #print fragment
-    #print seq[-100:]
+    #print(fragment)
+    #print(seq[-100:])
     return results      # Return the list of (position, value) results
+
 
 def calc_gc_content(sequence):
     """ calc_gc_content(sequence)
@@ -108,8 +132,9 @@ def calc_gc_content(sequence):
         d[nt] = sequence.count(nt) + sequence.count(nt.lower())
     gc = d.get('G',0) + d.get('C',0)
 
-    if gc == 0: return 0
-    #print gc*100.0/(d['A'] +d['T'] + gc)
+    if gc == 0:
+        return 0
+    #print(gc*100.0/(d['A'] +d['T'] + gc))
     return gc*1./(d['A'] +d['T'] + gc)
 
 
@@ -125,7 +150,8 @@ def calc_at_content(sequence):
         d[nt] = sequence.count(nt) + sequence.count(nt.lower())
     at = d.get('A',0) + d.get('T',0)
 
-    if at == 0: return 0
+    if at == 0:
+        return 0
     return at*1./(d['G'] +d['G'] + at)
 
 
@@ -139,7 +165,7 @@ def calc_gc_skew(sequence):
     g = sequence.count('G') + sequence.count('g')
     c = sequence.count('C') + sequence.count('c')
     if g+c == 0:
-        return 0.0 #TODO - return NaN or None here?
+        return 0.0  # TODO - return NaN or None here?
     else:
         return (g-c)/float(g+c)
 
@@ -154,9 +180,10 @@ def calc_at_skew(sequence):
     a = sequence.count('A') + sequence.count('a')
     t = sequence.count('T') + sequence.count('t')
     if a+t == 0:
-        return 0.0 #TODO - return NaN or None here?
+        return 0.0  # TODO - return NaN or None here?
     else:
         return (a-t)/float(a+t)
+
 
 def calc_dinucleotide_counts(sequence):
     """Returns the total count of di-nucleotides repeats (e.g. "AA", "CC").
@@ -171,34 +198,35 @@ def calc_dinucleotide_counts(sequence):
     for letter in "ACTGUactgu":
         total += sequence.count(letter+letter)
     return total
-    
 
 ###############################################################################
 # End of utility functions for graph plotting                                 #
 ###############################################################################
+
 
 # Tests
 class TrackTest(unittest.TestCase):
     # TODO Bring code from Track.py, unsure about what test does
     pass
 
+
 class ColorsTest(unittest.TestCase):
     def test_color_conversions(self):
         """Test color translations.
         """
         translator = ColorTranslator()
-        
+
         # Does the translate method correctly convert the passed argument?
         assert translator.float1_color((0.5, 0.5, 0.5)) == translator.translate((0.5, 0.5, 0.5)), \
             "Did not correctly translate colour from floating point RGB tuple"
         assert translator.int255_color((1, 75, 240)) == translator.translate((1, 75, 240)), \
             "Did not correctly translate colour from integer RGB tuple"
         assert translator.artemis_color(7) == translator.translate(7), \
-            "Did not correctly translate colour from Artemis colour scheme"                        
+            "Did not correctly translate colour from Artemis colour scheme"
         assert translator.scheme_color(2) == translator.translate(2), \
             "Did not correctly translate colour from user-defined colour scheme"
 
-            
+
 class GraphTest(unittest.TestCase):
     def test_limits(self):
         """Check line graphs."""
@@ -208,7 +236,7 @@ class GraphTest(unittest.TestCase):
         data1 = [math.sin(x*scale) for x in range(points)]
         data2 = [math.cos(x*scale) for x in range(points)]
         data3 = [2*math.sin(2*x*scale) for x in range(points)]
-        
+
         gdd = Diagram('Test Diagram', circular=False,
                       y=0.01, yt=0.01, yb=0.01,
                       x=0.01, xl=0.01, xr=0.01)
@@ -228,21 +256,19 @@ class GraphTest(unittest.TestCase):
                  fragments=1,
                  start=0, end=points)
         gdd.write(os.path.join('Graphics', "line_graph.pdf"), "pdf")
-        #Circular diagram - move tracks to make an empty space in the middle
-        for track_number in gdd.tracks:
-            gdd.move_track(track_number,track_number+1)
+        #Circular diagram
         gdd.draw(tracklines=False,
                  pagesize=(15*cm,15*cm),
-                 circular=True, #Data designed to be periodic
-                 start=0, end=points)
+                 circular=True,  # Data designed to be periodic
+                 start=0, end=points, circle_core=0.5)
         gdd.write(os.path.join('Graphics', "line_graph_c.pdf"), "pdf")
-        
+
     def test_slicing(self):
         """Check GraphData slicing."""
         gd = GraphData()
         gd.set_data([(1, 10), (5, 15), (20, 40)])
         gd.add_point((10, 20))
-        
+
         assert gd[4:16] == [(5, 15), (10, 20)], \
                 "Unable to insert and retrieve points correctly"
 
@@ -269,18 +295,29 @@ class LabelTest(unittest.TestCase):
                       fragments=1,
                       start=0, end=400)
         self.gdd.write(os.path.join('Graphics', name+".pdf"), "pdf")
-        #For the tutorial this might be useful:
-        #self.gdd.write(os.path.join('Graphics', name+".png"), "png")
+        global renderPM
+        if renderPM:
+            try:
+                #For the tutorial this is useful:
+                self.gdd.write(os.path.join('Graphics', name+".png"), "png")
+            except renderPM.RenderPMError:
+                #Probably a font problem, e.g.
+                #RenderPMError: Can't setFont(Times-Roman) missing the T1 files?
+                #Originally <type 'exceptions.TypeError'>: makeT1Font() argument 2 must be string, not None
+                renderPM = None
+            except IOError:
+                #Probably a library problem, e.g.
+                #IOError: encoder zip not available
+                renderPM = None
         if circular:
-            #Circular diagram - move tracks to make an empty space in the middle
-            for track_number in self.gdd.tracks:
-                self.gdd.move_track(track_number,track_number+1)
+            #Circular diagram
             self.gdd.draw(tracklines=False,
                           pagesize=(15*cm,15*cm),
                           fragments=1,
+                          circle_core=0.5,
                           start=0, end=400)
             self.gdd.write(os.path.join('Graphics', name+"_c.pdf"), "pdf")
-    
+
     def add_track_with_sigils(self, **kwargs):
         self.gdt_features = self.gdd.new_track(1, greytrack=False)
         self.gds_features = self.gdt_features.new_set()
@@ -308,6 +345,7 @@ class LabelTest(unittest.TestCase):
         self.add_track_with_sigils()
         self.finish("labels_default")
 
+
 class SigilsTest(unittest.TestCase):
     """Check the different feature sigils.
 
@@ -317,9 +355,12 @@ class SigilsTest(unittest.TestCase):
                            y=0.01, yt=0.01, yb=0.01,
                            x=0.01, xl=0.01, xr=0.01)
 
-    def add_track_with_sigils(self, **kwargs):
+    def add_track_with_sigils(self, track_caption="", **kwargs):
         #Add a track of features,
-        self.gdt_features = self.gdd.new_track(1, greytrack=False)
+        self.gdt_features = self.gdd.new_track(1,
+                                               greytrack=(track_caption!=""),
+                                               name=track_caption,
+                                               greytrack_labels=1)
         #We'll just use one feature set for these features,
         self.gds_features = self.gdt_features.new_set()
         #Add three features to show the strand options,
@@ -345,22 +386,35 @@ class SigilsTest(unittest.TestCase):
                       fragments=1,
                       start=0, end=400)
         self.gdd.write(os.path.join('Graphics', name+".pdf"), "pdf")
-        #For the tutorial this might be useful:
-        #self.gdd.write(os.path.join('Graphics', name+".png"), "png")
+        global renderPM
+        if renderPM:
+            #For the tutorial this might be useful:
+            try:
+                self.gdd.write(os.path.join('Graphics', name+".png"), "png")
+            except renderPM.RenderPMError:
+                #Probably a font problem
+                renderPM = None
         if circular:
-            #Circular diagram - move tracks to make an empty space in the middle
-            for track_number in self.gdd.tracks:
-                self.gdd.move_track(track_number,track_number+1)
+            #Circular diagram
             self.gdd.draw(tracklines=False,
                           pagesize=(15*cm,15*cm),
                           fragments=1,
+                          circle_core=0.5,
                           start=0, end=400)
             self.gdd.write(os.path.join('Graphics', name+"_c.pdf"), "pdf")
+
+    def test_all_sigils(self):
+        """All sigils."""
+        for glyph in ["BOX", "OCTO", "JAGGY", "ARROW", "BIGARROW"]:
+            self.add_track_with_sigils(track_caption = '  sigil="%s"' % glyph,
+                                       sigil=glyph)
+        self.finish("GD_sigils")
 
     def test_labels(self):
         """Feature labels."""
         self.add_track_with_sigils(label=True)
         self.add_track_with_sigils(label=True, color="green",
+                                   #label_position left as default!
                                    label_size=25, label_angle=0)
         self.add_track_with_sigils(label=True, color="purple",
                                    label_position="end",
@@ -368,8 +422,11 @@ class SigilsTest(unittest.TestCase):
         self.add_track_with_sigils(label=True, color="blue",
                                    label_position="middle",
                                    label_size=6, label_angle=-90)
-        self.assertEqual(len(self.gdd.tracks), 4)
-        self.finish("GD_sigil_labels", circular=False)
+        self.add_track_with_sigils(label=True, color="cyan",
+                                   label_position="start",
+                                   label_size=6, label_angle=-90)
+        self.assertEqual(len(self.gdd.tracks), 5)
+        self.finish("GD_sigil_labels", circular=True)
 
     def test_arrow_shafts(self):
         """Feature arrow sigils, varying shafts."""
@@ -381,7 +438,19 @@ class SigilsTest(unittest.TestCase):
         self.add_track_with_sigils(sigil="ARROW", color="darkgreen",
                                    arrowshaft_height=0.1)
         self.assertEqual(len(self.gdd.tracks), 4)
-        self.finish("GD_sigil_arrow_shafts")        
+        self.finish("GD_sigil_arrow_shafts")
+
+    def test_big_arrow_shafts(self):
+        """Feature big-arrow sigils, varying shafts."""
+        self.add_track_with_sigils(sigil="BIGARROW")
+        self.add_track_with_sigils(sigil="BIGARROW", color="orange",
+                                   arrowshaft_height=1.0)
+        self.add_track_with_sigils(sigil="BIGARROW", color="teal",
+                                   arrowshaft_height=0.2)
+        self.add_track_with_sigils(sigil="BIGARROW", color="green",
+                                   arrowshaft_height=0.1)
+        self.assertEqual(len(self.gdd.tracks), 4)
+        self.finish("GD_sigil_bigarrow_shafts")
 
     def test_arrow_heads(self):
         """Feature arrow sigils, varying heads."""
@@ -391,7 +460,7 @@ class SigilsTest(unittest.TestCase):
         self.add_track_with_sigils(sigil="ARROW", color="orange",
                                    arrowhead_length=1)
         self.add_track_with_sigils(sigil="ARROW", color="red",
-                                   arrowhead_length=10000) #Triangles
+                                   arrowhead_length=10000)  # Triangles
         self.assertEqual(len(self.gdd.tracks), 4)
         self.finish("GD_sigil_arrows")
 
@@ -440,19 +509,34 @@ class SigilsTest(unittest.TestCase):
                                       arrowhead_length=0.05)
         self.finish("GD_sigil_arrows_small")
 
-    def test_long_arrow_heads(self):
-        """Feature arrow sigil heads within bounding box."""
+    def long_sigils(self, glyph):
+        """Check feature sigils within bounding box."""
         #Add a track of features, bigger height to emphasise any sigil errors
         self.gdt_features = self.gdd.new_track(1, greytrack=True, height=3)
-        #We'll just use one feature set for these features,
+        #We'll just use one feature set for these features if strand specific
         self.gds_features = self.gdt_features.new_set()
-        feature = SeqFeature(FeatureLocation(25, 375), strand=+1)
-        self.gds_features.add_feature(feature, color="lightblue")
-        self.gds_features.add_feature(feature, name="Forward", sigil="ARROW",
+        if glyph in ["BIGARROW"]:
+            #These straddle the axis, so don't want to draw them on top of each other
+            feature = SeqFeature(FeatureLocation(25, 375), strand=None)
+            self.gds_features.add_feature(feature, color="lightblue")
+            feature = SeqFeature(FeatureLocation(25, 375), strand=+1)
+        else:
+            feature = SeqFeature(FeatureLocation(25, 375), strand=+1)
+            self.gds_features.add_feature(feature, color="lightblue")
+        self.gds_features.add_feature(feature, name="Forward", sigil=glyph,
                                       color="blue", arrowhead_length=2.0)
-        feature = SeqFeature(FeatureLocation(25, 375), strand=-1)
-        self.gds_features.add_feature(feature, color="pink")
-        self.gds_features.add_feature(feature, name="Reverse", sigil="ARROW",
+
+        if glyph in ["BIGARROW"]:
+            #These straddle the axis, so don't want to draw them on top of each other
+            self.gdt_features = self.gdd.new_track(1, greytrack=True, height=3)
+            self.gds_features = self.gdt_features.new_set()
+            feature = SeqFeature(FeatureLocation(25, 375), strand=None)
+            self.gds_features.add_feature(feature, color="pink")
+            feature = SeqFeature(FeatureLocation(25, 375), strand=-1)
+        else:
+            feature = SeqFeature(FeatureLocation(25, 375), strand=-1)
+            self.gds_features.add_feature(feature, color="pink")
+        self.gds_features.add_feature(feature, name="Reverse", sigil=glyph,
                                       color="red", arrowhead_length=2.0)
         #Add another track of features, bigger height to emphasise any sigil errors
         self.gdt_features = self.gdd.new_track(1, greytrack=True, height=3)
@@ -460,9 +544,26 @@ class SigilsTest(unittest.TestCase):
         self.gds_features = self.gdt_features.new_set()
         feature = SeqFeature(FeatureLocation(25, 375), strand=None)
         self.gds_features.add_feature(feature, color="lightgreen")
-        self.gds_features.add_feature(feature, name="Standless", sigil="ARROW",
+        self.gds_features.add_feature(feature, name="Standless", sigil=glyph,
                                       color="green", arrowhead_length=2.0)
-        self.finish("GD_sigil_arrows_long")
+        self.finish("GD_sigil_long_%s" % glyph)
+
+    def test_long_arrow_heads(self):
+        """Feature ARROW sigil heads within bounding box."""
+        self.long_sigils("ARROW")
+
+    def test_long_arrow_heads(self):
+        """Feature ARROW sigil heads within bounding box."""
+        self.long_sigils("BIGARROW")
+
+    def test_long_octo_heads(self):
+        """Feature OCTO sigil heads within bounding box."""
+        self.long_sigils("OCTO")
+
+    def test_long_jaggy(self):
+        """Feature JAGGY sigil heads within bounding box."""
+        self.long_sigils("JAGGY")
+
 
 class DiagramTest(unittest.TestCase):
     """Creating feature sets, graph sets, tracks etc individually for the diagram."""
@@ -475,7 +576,7 @@ class DiagramTest(unittest.TestCase):
     def test_write_arguments(self):
         """Check how the write methods respond to output format arguments."""
         gdd = Diagram('Test Diagram')
-        gdd.drawing = None #Hack - need the ReportLab drawing object to be created.
+        gdd.drawing = None  # Hack - need the ReportLab drawing object to be created.
         filename = os.path.join("Graphics","error.txt")
         #We (now) allow valid formats in any case.
         for output in ["XXX","xxx",None,123,5.9]:
@@ -483,14 +584,14 @@ class DiagramTest(unittest.TestCase):
                 gdd.write(filename, output)
                 assert False, \
                        "Should have rejected %s as an output format" % output
-            except ValueError, e:
+            except ValueError as e:
                 #Good!
                 pass
             try:
                 gdd.write_to_string(output)
                 assert False, \
                        "Should have rejected %s as an output format" % output
-            except ValueError, e:
+            except ValueError as e:
                 #Good!
                 pass
 
@@ -499,7 +600,7 @@ class DiagramTest(unittest.TestCase):
         genbank_entry = self.record
         start = 6500
         end = 8750
-        
+
         gdd = Diagram('Test Diagram',
                       #For the circular diagram we don't want a closed cirle:
                       circular=False,
@@ -532,11 +633,11 @@ class DiagramTest(unittest.TestCase):
                       "?db=protein&id=%s" % feature.qualifiers["protein_id"][0]
             except KeyError :
                 url = None
-                
+
             #Note that I am using strings for color names, instead
             #of passing in color objects.  This should also work!
             if len(gds_features) % 2 == 0:
-                color = "white" #for testing the automatic black border!
+                color = "white"  # for testing the automatic black border!
             else:
                 color = "red"
             #Checking it can cope with the old UK spelling colour.
@@ -544,7 +645,7 @@ class DiagramTest(unittest.TestCase):
             gds_features.add_feature(feature, colour=color,
                                      url = url,
                                      sigil="ARROW",
-                                     label_position = "start",
+                                     label_position = None,
                                      label_size = 8,
                                      label_angle = 90,
                                      label=True)
@@ -608,8 +709,9 @@ class DiagramTest(unittest.TestCase):
                                   ("GGATCC","BamHI","purple")]:
             index = 0
             while True:
-                index  = genbank_entry.seq.find(site, start=index)
-                if index == -1 : break
+                index = genbank_entry.seq.find(site, start=index)
+                if index == -1:
+                    break
                 feature = SeqFeature(FeatureLocation(index, index+6), strand=None)
 
                 #This URL should work in SVG output from recent versions
@@ -639,24 +741,21 @@ class DiagramTest(unittest.TestCase):
 
         step = len(genbank_entry)//200
         gds_at_gc.new_graph(apply_to_window(genbank_entry.seq, step, calc_gc_content, step),
-                        'GC content', style='line', 
+                        'GC content', style='line',
                         color=colors.lightgreen,
                         altcolor=colors.darkseagreen)
         gds_at_gc.new_graph(apply_to_window(genbank_entry.seq, step, calc_at_content, step),
-                        'AT content', style='line', 
+                        'AT content', style='line',
                         color=colors.orange,
                         altcolor=colors.red)
-        
+
         #Finally draw it in both formats,
         gdd.draw(format='linear', orientation='landscape',
              tracklines=0, pagesize='A4', fragments=3)
         output_filename = os.path.join('Graphics', 'GD_by_meth_linear.pdf')
         gdd.write(output_filename, 'PDF')
 
-        #Change the order and leave an empty space in the center:
-        gdd.move_track(1,3)
-
-        gdd.draw(format='circular', tracklines=False,
+        gdd.draw(format='circular', tracklines=False, circle_core=0.8,
                  pagesize=(20*cm,20*cm), circular=True)
         output_filename = os.path.join('Graphics', 'GD_by_meth_circular.pdf')
         gdd.write(output_filename, 'PDF')
@@ -666,23 +765,104 @@ class DiagramTest(unittest.TestCase):
         genbank_entry = self.record
         gdd = Diagram('Test Diagram')
 
+        gdt1 = Track('CDS features', greytrack=True,
+                     scale_largetick_interval=1e4,
+                     scale_smalltick_interval=1e3,
+                     greytrack_labels=10,
+                     greytrack_font_color="red",
+                     scale_format = "SInt")
+        gdt2 = Track('gene features', greytrack=1,
+                   scale_largetick_interval=1e4)
+
         #First add some feature sets:
+        gdfsA = FeatureSet(name='CDS backgrounds')
+        gdfsB = FeatureSet(name='gene background')
+
         gdfs1 = FeatureSet(name='CDS features')
         gdfs2 = FeatureSet(name='gene features')
         gdfs3 = FeatureSet(name='misc_features')
         gdfs4 = FeatureSet(name='repeat regions')
+
+        prev_gene = None
+        cds_count = 0
+        for feature in genbank_entry.features:
+            if feature.type == 'CDS':
+                cds_count += 1
+                if prev_gene:
+                    #Assuming it goes with this CDS!
+                    if cds_count % 2 == 0:
+                        dark, light = colors.peru, colors.tan
+                    else:
+                        dark, light = colors.burlywood, colors.bisque
+                    #Background for CDS,
+                    a = gdfsA.add_feature(SeqFeature(FeatureLocation(feature.location.start, feature.location.end, strand=0)),
+                                         color=dark)
+                    #Background for gene,
+                    b = gdfsB.add_feature(SeqFeature(FeatureLocation(prev_gene.location.start, prev_gene.location.end, strand=0)),
+                                          color=dark)
+                    #Cross link,
+                    gdd.cross_track_links.append(CrossLink(a, b, light, dark))
+                    prev_gene = None
+            if feature.type == 'gene':
+                prev_gene = feature
+
+        #Some cross links on the same linear diagram fragment,
+        f, c = fill_and_border(colors.red)
+        a = gdfsA.add_feature(SeqFeature(FeatureLocation(2220,2230)), color=f, border=c)
+        b = gdfsB.add_feature(SeqFeature(FeatureLocation(2200,2210)), color=f, border=c)
+        gdd.cross_track_links.append(CrossLink(a, b, f, c))
+
+        f, c = fill_and_border(colors.blue)
+        a = gdfsA.add_feature(SeqFeature(FeatureLocation(2150,2200)), color=f, border=c)
+        b = gdfsB.add_feature(SeqFeature(FeatureLocation(2220,2290)), color=f, border=c)
+        gdd.cross_track_links.append(CrossLink(a, b, f, c, flip=True))
+
+        f, c = fill_and_border(colors.green)
+        a = gdfsA.add_feature(SeqFeature(FeatureLocation(2250,2560)), color=f, border=c)
+        b = gdfsB.add_feature(SeqFeature(FeatureLocation(2300,2860)), color=f, border=c)
+        gdd.cross_track_links.append(CrossLink(a, b, f, c))
+
+        #Some cross links where both parts are saddling the linear diagram fragment boundary,
+        f, c = fill_and_border(colors.red)
+        a = gdfsA.add_feature(SeqFeature(FeatureLocation(3155,3250)), color=f, border=c)
+        b = gdfsB.add_feature(SeqFeature(FeatureLocation(3130,3300)), color=f, border=c)
+        gdd.cross_track_links.append(CrossLink(a, b, f, c))
+        #Nestled within that (drawn on top),
+        f, c = fill_and_border(colors.blue)
+        a = gdfsA.add_feature(SeqFeature(FeatureLocation(3160,3275)), color=f, border=c)
+        b = gdfsB.add_feature(SeqFeature(FeatureLocation(3180,3225)), color=f, border=c)
+        gdd.cross_track_links.append(CrossLink(a, b, f, c, flip=True))
+
+        #Some cross links where two features are on either side of the linear diagram fragment boundary,
+        f, c = fill_and_border(colors.green)
+        a = gdfsA.add_feature(SeqFeature(FeatureLocation(6450,6550)), color=f, border=c)
+        b = gdfsB.add_feature(SeqFeature(FeatureLocation(6265,6365)), color=f, border=c)
+        gdd.cross_track_links.append(CrossLink(a, b, color=f, border=c))
+        f, c = fill_and_border(colors.gold)
+        a = gdfsA.add_feature(SeqFeature(FeatureLocation(6265,6365)), color=f, border=c)
+        b = gdfsB.add_feature(SeqFeature(FeatureLocation(6450,6550)), color=f, border=c)
+        gdd.cross_track_links.append(CrossLink(a, b, color=f, border=c))
+        f, c = fill_and_border(colors.red)
+        a = gdfsA.add_feature(SeqFeature(FeatureLocation(6275,6375)), color=f, border=c)
+        b = gdfsB.add_feature(SeqFeature(FeatureLocation(6430,6530)), color=f, border=c)
+        gdd.cross_track_links.append(CrossLink(a, b, color=f, border=c, flip=True))
+        f, c = fill_and_border(colors.blue)
+        a = gdfsA.add_feature(SeqFeature(FeatureLocation(6430,6530)), color=f, border=c)
+        b = gdfsB.add_feature(SeqFeature(FeatureLocation(6275,6375)), color=f, border=c)
+        gdd.cross_track_links.append(CrossLink(a, b, color=f, border=c, flip=True))
 
         cds_count = 0
         for feature in genbank_entry.features:
             if feature.type == 'CDS':
                 cds_count += 1
                 if cds_count % 2 == 0:
-                    gdfs1.add_feature(feature, color=colors.pink)
+                    gdfs1.add_feature(feature, color=colors.pink, sigil="ARROW")
                 else:
-                    gdfs1.add_feature(feature, color=colors.red)
+                    gdfs1.add_feature(feature, color=colors.red, sigil="ARROW")
 
             if feature.type == 'gene':
-                gdfs2.add_feature(feature)
+                #Note we set the colour of ALL the genes later on as a test,
+                gdfs2.add_feature(feature, sigil="ARROW")
 
             if feature.type == 'misc_feature':
                 gdfs3.add_feature(feature, color=colors.orange)
@@ -690,6 +870,7 @@ class DiagramTest(unittest.TestCase):
             if feature.type == 'repeat_region':
                 gdfs4.add_feature(feature, color=colors.purple)
 
+        #gdd.cross_track_links = gdd.cross_track_links[:1]
 
         gdfs1.set_all_features('label', 1)
         gdfs2.set_all_features('label', 1)
@@ -702,18 +883,12 @@ class DiagramTest(unittest.TestCase):
         #gdfs1.set_all_features('color', colors.red)
         gdfs2.set_all_features('color', colors.blue)
 
-        gdt1 = Track('CDS features', greytrack=True,
-                     scale_largetick_interval=1e4,
-                     scale_smalltick_interval=1e3,
-                     greytrack_labels=10,
-                     greytrack_font_color="red",
-                     scale_format = "SInt")
+        gdt1.add_set(gdfsA)  # Before CDS so under them!
         gdt1.add_set(gdfs1)
 
-        gdt2 = Track('gene features', greytrack=1,
-                   scale_largetick_interval=1e4)
+        gdt2.add_set(gdfsB)  # Before genes so under them!
         gdt2.add_set(gdfs2)
-                
+
         gdt3 = Track('misc features and repeats', greytrack=1,
                    scale_largetick_interval=1e4)
         gdt3.add_set(gdfs3)
@@ -725,62 +900,74 @@ class DiagramTest(unittest.TestCase):
         #between the bar and line graphs.
         step = len(genbank_entry)//200
         gdgs1 = GraphSet('GC skew')
-        
+
         graphdata1 = apply_to_window(genbank_entry.seq, step, calc_gc_skew, step)
         gdgs1.new_graph(graphdata1, 'GC Skew', style='bar',
                 color=colors.violet,
                 altcolor=colors.purple)
-        
-        gdt4 = Track(\
+
+        gdt4 = Track(
                 'GC Skew (bar)',
                 height=1.94, greytrack=1,
                 scale_largetick_interval=1e4)
         gdt4.add_set(gdgs1)
 
-
         gdgs2 = GraphSet('GC and AT Content')
         gdgs2.new_graph(apply_to_window(genbank_entry.seq, step, calc_gc_content, step),
-                        'GC content', style='line', 
+                        'GC content', style='line',
                         color=colors.lightgreen,
                         altcolor=colors.darkseagreen)
 
         gdgs2.new_graph(apply_to_window(genbank_entry.seq, step, calc_at_content, step),
-                        'AT content', style='line', 
+                        'AT content', style='line',
                         color=colors.orange,
-                        altcolor=colors.red)    
+                        altcolor=colors.red)
 
-        gdt5 = Track(\
+        gdt5 = Track(
                 'GC Content(green line), AT Content(red line)',
                 height=1.94, greytrack=1,
                 scale_largetick_interval=1e4)
         gdt5.add_set(gdgs2)
 
         gdgs3 = GraphSet('Di-nucleotide count')
-        step = len(genbank_entry)//400 #smaller step
+        step = len(genbank_entry) // 400  # smaller step
         gdgs3.new_graph(apply_to_window(genbank_entry.seq, step, calc_dinucleotide_counts, step),
-                        'Di-nucleotide count', style='heat', 
+                        'Di-nucleotide count', style='heat',
                         color=colors.red, altcolor=colors.orange)
         gdt6 = Track('Di-nucleotide count', height=0.5, greytrack=False, scale=False)
         gdt6.add_set(gdgs3)
 
         #Add the tracks (from both features and graphs)
-        #Leave some white space in the middle
-        gdd.add_track(gdt4, 3) # GC skew
-        gdd.add_track(gdt5, 4) # GC and AT content
-        gdd.add_track(gdt1, 5) # CDS features
-        gdd.add_track(gdt2, 6) # Gene features
-        gdd.add_track(gdt3, 7) # Misc features and repeat feature
-        gdd.add_track(gdt6, 8) # Feature depth
+        #Leave some white space in the middle/bottom
+        gdd.add_track(gdt4, 3)  # GC skew
+        gdd.add_track(gdt5, 4)  # GC and AT content
+        gdd.add_track(gdt1, 5)  # CDS features
+        gdd.add_track(gdt2, 6)  # Gene features
+        gdd.add_track(gdt3, 7)  # Misc features and repeat feature
+        gdd.add_track(gdt6, 8)  # Feature depth
 
-        #Finally draw it in both formats,
+        #Finally draw it in both formats, and full view and partial
         gdd.draw(format='circular', orientation='landscape',
-             tracklines=0, pagesize='A0', circular=True)
+             tracklines=0, pagesize='A0')
         output_filename = os.path.join('Graphics', 'GD_by_obj_circular.pdf')
+        gdd.write(output_filename, 'PDF')
+
+        gdd.circular=False
+        gdd.draw(format='circular', orientation='landscape',
+             tracklines=0, pagesize='A0', start=3000, end=6300)
+        output_filename = os.path.join('Graphics', 'GD_by_obj_frag_circular.pdf')
         gdd.write(output_filename, 'PDF')
 
         gdd.draw(format='linear', orientation='landscape',
              tracklines=0, pagesize='A0', fragments=3)
         output_filename = os.path.join('Graphics', 'GD_by_obj_linear.pdf')
+        gdd.write(output_filename, 'PDF')
+
+        gdd.set_all_tracks("greytrack_labels", 2)
+        gdd.draw(format='linear', orientation='landscape',
+             tracklines=0, pagesize=(30*cm,10*cm), fragments=1,
+             start=3000, end=6300)
+        output_filename = os.path.join('Graphics', 'GD_by_obj_frag_linear.pdf')
         gdd.write(output_filename, 'PDF')
 
 if __name__ == "__main__":

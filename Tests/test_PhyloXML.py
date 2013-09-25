@@ -11,19 +11,11 @@ import tempfile
 import unittest
 from itertools import chain
 
-# Python 2.4 doesn't have ElementTree, which PhyloXMLIO needs
-from Bio import MissingPythonDependencyError
-try:
-    from Bio.Phylo import PhyloXML as PX, PhyloXMLIO
-except ImportError:
-    raise MissingPythonDependencyError(
-            "Install an ElementTree implementation if you want to use "
-            "Bio.Phylo to parse phyloXML files.")
-
 from Bio import Alphabet
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
+from Bio.Phylo import PhyloXML as PX, PhyloXMLIO
 
 # Example PhyloXML files
 EX_APAF = 'PhyloXML/apaf.xml'
@@ -47,11 +39,13 @@ def _test_read_factory(source, count):
     phylogenies under the root.
     """
     fname = os.path.basename(source)
+
     def test_read(self):
         phx = PhyloXMLIO.read(source)
         self.assertTrue(phx)
         self.assertEqual(len(phx), count[0])
         self.assertEqual(len(phx.other), count[1])
+
     test_read.__doc__ = "Read %s to produce a phyloXML object." % fname
     return test_read
 
@@ -63,9 +57,11 @@ def _test_parse_factory(source, count):
     function and counts the total number of trees extracted.
     """
     fname = os.path.basename(source)
+
     def test_parse(self):
         trees = PhyloXMLIO.parse(source)
         self.assertEqual(len(list(trees)), count)
+
     test_parse.__doc__ = "Parse the phylogenies in %s." % fname
     return test_parse
 
@@ -77,6 +73,7 @@ def _test_shape_factory(source, shapes):
     clades deep.
     """
     fname = os.path.basename(source)
+
     def test_shape(self):
         trees = PhyloXMLIO.parse(source)
         for tree, shape_expect in zip(trees, shapes):
@@ -85,6 +82,7 @@ def _test_shape_factory(source, shapes):
                 self.assertEqual(len(clade), sub_expect[0])
                 for subclade, len_expect in zip(clade, sub_expect[1]):
                     self.assertEqual(len(subclade), len_expect)
+
     test_shape.__doc__ = "Check the branching structure of %s." % fname
     return test_shape
 
@@ -189,8 +187,8 @@ class TreeTests(unittest.TestCase):
         self.assertEqual(otr.namespace, 'http://example.org/align')
         self.assertEqual(len(otr.children), 3)
         for child, name, value in zip(otr, ('A', 'B', 'C'), (
-            'acgtcgcggcccgtggaagtcctctcct', 'aggtcgcggcctgtggaagtcctctcct',
-            'taaatcgc--cccgtgg-agtccc-cct')):
+          'acgtcgcggcccgtggaagtcctctcct', 'aggtcgcggcctgtggaagtcctctcct',
+          'taaatcgc--cccgtgg-agtccc-cct')):
             self.assertEqual(child.tag, 'seq')
             self.assertEqual(child.attributes['name'], name)
             self.assertEqual(child.value, value)
@@ -235,7 +233,11 @@ class TreeTests(unittest.TestCase):
 
     def test_BinaryCharacters(self):
         """Instantiation of BinaryCharacters objects."""
-        tree = PhyloXMLIO.parse(EX_DOLLO).next()
+        #Because we short circult interation, must close handle explicitly
+        #to avoid a ResourceWarning
+        handle = open(EX_DOLLO)
+        tree = next(PhyloXMLIO.parse(handle))
+        handle.close()
         bchars = tree.clade[0,0].binary_characters
         self.assertTrue(isinstance(bchars, PX.BinaryCharacters))
         self.assertEqual(bchars.type, 'parsimony inferred')
@@ -261,7 +263,10 @@ class TreeTests(unittest.TestCase):
 
     def test_Confidence(self):
         """Instantiation of Confidence objects."""
-        tree = PhyloXMLIO.parse(EX_MADE).next()
+        #Because we short circult interation, must close handle explicitly
+        handle = open(EX_MADE)
+        tree = next(PhyloXMLIO.parse(handle))
+        handle.close()
         self.assertEqual(tree.name, 'testing confidence')
         for conf, type, val in zip(tree.confidences,
                 ('bootstrap', 'probability'),
@@ -327,7 +332,10 @@ class TreeTests(unittest.TestCase):
 
         Also checks ProteinDomain type.
         """
-        tree = PhyloXMLIO.parse(EX_APAF).next()
+        #Because we short circult interation, must close handle explicitly
+        handle = open(EX_APAF)
+        tree = next(PhyloXMLIO.parse(handle))
+        handle.close()
         clade = tree.clade[0,0,0,0,0,0,0,0,0,0]
         darch = clade.sequences[0].domain_architecture
         self.assertTrue(isinstance(darch, PX.DomainArchitecture))
@@ -395,7 +403,11 @@ class TreeTests(unittest.TestCase):
 
     def test_Reference(self):
         """Instantiation of Reference objects."""
-        tree = PhyloXMLIO.parse(EX_DOLLO).next()
+        #Because we short circult interation, must close handle explicitly
+        #to avoid a ResourceWarning
+        handle = open(EX_DOLLO)
+        tree = next(PhyloXMLIO.parse(handle))
+        handle.close()
         reference = tree.clade[0,0,0,0,0,0].references[0]
         self.assertTrue(isinstance(reference, PX.Reference))
         self.assertEqual(reference.doi, '10.1038/nature06614')
@@ -425,7 +437,7 @@ class TreeTests(unittest.TestCase):
                 ('ADHX', 'RT4I1', 'ADHB'),
                 ('P81431', 'Q54II4', 'Q04945'),
                 ('Alcohol dehydrogenase class-3',
-                 'Reticulon-4-interacting protein 1 homolog, ' \
+                 'Reticulon-4-interacting protein 1 homolog, '
                          'mitochondrial precursor',
                  'NADH-dependent butanol dehydrogenase B'),
                 ('TDATGKPIKCMAAIAWEAKKPLSIEEVEVAPPKSGEVRIKILHSGVCHTD',
@@ -493,7 +505,7 @@ class TreeTests(unittest.TestCase):
 
 class WriterTests(unittest.TestCase):
     """Tests for serialization of objects to phyloXML format.
-    
+
     Modifies the globally defined filenames in order to run the other parser
     tests on files (re)generated by PhyloXMLIO's own writer.
     """

@@ -14,7 +14,7 @@ can read in the sequences within these alignmenta using Bio.SeqIO.
 Bio.AlignIO is also documented at U{http://biopython.org/wiki/AlignIO} and by
 a whole chapter in our tutorial:
  - U{http://biopython.org/DIST/docs/tutorial/Tutorial.html}
- - U{http://biopython.org/DIST/docs/tutorial/Tutorial.pdf}  
+ - U{http://biopython.org/DIST/docs/tutorial/Tutorial.pdf}
 
 Input
 =====
@@ -27,7 +27,7 @@ alignment):
 
     >>> from Bio import AlignIO
     >>> align = AlignIO.read("Phylip/interlaced.phy", "phylip")
-    >>> print align
+    >>> print(align)
     SingleLetterAlphabet() alignment with 3 rows and 384 columns
     -----MKVILLFVLAVFTVFVSS---------------RGIPPE...I-- CYS1_DICDI
     MAHARVLLLALAVLATAAVAVASSSSFADSNPIRPVTDRAASTL...VAA ALEU_HORVU
@@ -41,7 +41,7 @@ into a list:
 
     >>> from Bio import AlignIO
     >>> alignments = list(AlignIO.parse("Emboss/needle.txt", "emboss"))
-    >>> print alignments[2]
+    >>> print(alignments[2])
     SingleLetterAlphabet() alignment with 2 rows and 120 columns
     -KILIVDDQYGIRILLNEVFNKEGYQTFQAANGLQALDIVTKER...--- ref_rec
     LHIVVVDDDPGTCVYIESVFAELGHTCKSFVRPEAAEEYILTHP...HKE gi|94967506|receiver
@@ -94,7 +94,7 @@ File Formats
 When specifying the file format, use lowercase strings.  The same format
 names are also used in Bio.SeqIO and include the following:
 
- - clustal   - Ouput from Clustal W or X, see also the module Bio.Clustalw
+ - clustal   - Output from Clustal W or X, see also the module Bio.Clustalw
                which can be used to run the command line tool from Biopython.
  - emboss    - EMBOSS tools' "pairs" and "simple" alignment formats.
  - fasta     - The generic sequence file format where each record starts with
@@ -107,7 +107,9 @@ names are also used in Bio.SeqIO and include the following:
                MASE alignment format.
  - nexus     - Output from NEXUS, see also the module Bio.Nexus which can also
                read any phylogenetic trees in these files.
- - phylip    - Used by the PHLIP tools.
+ - phylip    - Interlaced PHYLIP, as used by the PHLIP tools.
+ - phylip-sequential - Sequential PHYLIP.
+ - phylip-relaxed - PHYLIP like format allowing longer names.
  - stockholm - A richly annotated alignment file format used by PFAM.
 
 Note that while Bio.AlignIO can read all the above file formats, it cannot
@@ -117,7 +119,11 @@ You can also use any file format supported by Bio.SeqIO, such as "fasta" or
 "ig" (which are listed above), PROVIDED the sequences in your file are all the
 same length.
 """
-__docformat__ = "epytext en" #not just plaintext
+
+
+from __future__ import print_function
+
+__docformat__ = "epytext en"  # not just plaintext
 
 #TODO
 # - define policy on reading aligned sequences with gaps in
@@ -131,15 +137,12 @@ __docformat__ = "epytext en" #not just plaintext
 #   parser would fail.
 #
 # - MSF multiple alignment format, aka GCG, aka PileUp format (*.msf)
-#   http://www.bioperl.org/wiki/MSF_multiple_alignment_format 
+#   http://www.bioperl.org/wiki/MSF_multiple_alignment_format
 
-#from cStringIO import StringIO
-from StringIO import StringIO
-from Bio.Seq import Seq
-from Bio.SeqRecord import SeqRecord
 from Bio.Align import MultipleSeqAlignment
 from Bio.Align.Generic import Alignment
 from Bio.Alphabet import Alphabet, AlphabetEncoder, _get_base_alphabet
+from Bio.File import as_handle
 
 import StockholmIO
 import ClustalIO
@@ -151,22 +154,27 @@ import FastaIO
 #Convention for format names is "mainname-subtype" in lower case.
 #Please use the same names as BioPerl and EMBOSS where possible.
 
-_FormatToIterator = {#"fasta" is done via Bio.SeqIO
-                     "clustal" : ClustalIO.ClustalIterator,
-                     "emboss" : EmbossIO.EmbossIterator,
-                     "fasta-m10" : FastaIO.FastaM10Iterator,
-                     "nexus" : NexusIO.NexusIterator,
-                     "phylip" : PhylipIO.PhylipIterator,
-                     "stockholm" : StockholmIO.StockholmIterator,
+_FormatToIterator = {  # "fasta" is done via Bio.SeqIO
+                     "clustal": ClustalIO.ClustalIterator,
+                     "emboss": EmbossIO.EmbossIterator,
+                     "fasta-m10": FastaIO.FastaM10Iterator,
+                     "nexus": NexusIO.NexusIterator,
+                     "phylip": PhylipIO.PhylipIterator,
+                     "phylip-sequential": PhylipIO.SequentialPhylipIterator,
+                     "phylip-relaxed": PhylipIO.RelaxedPhylipIterator,
+                     "stockholm": StockholmIO.StockholmIterator,
                      }
 
-_FormatToWriter = {#"fasta" is done via Bio.SeqIO
-                   #"emboss" : EmbossIO.EmbossWriter, (unfinished)
-                   "nexus" : NexusIO.NexusWriter,
-                   "phylip" : PhylipIO.PhylipWriter,
-                   "stockholm" : StockholmIO.StockholmWriter,
-                   "clustal" : ClustalIO.ClustalWriter,
+_FormatToWriter = {  # "fasta" is done via Bio.SeqIO
+                     # "emboss" : EmbossIO.EmbossWriter, (unfinished)
+                   "nexus": NexusIO.NexusWriter,
+                   "phylip": PhylipIO.PhylipWriter,
+                   "phylip-sequential": PhylipIO.SequentialPhylipWriter,
+                   "phylip-relaxed": PhylipIO.RelaxedPhylipWriter,
+                   "stockholm": StockholmIO.StockholmWriter,
+                   "clustal": ClustalIO.ClustalWriter,
                    }
+
 
 def write(alignments, handle, format):
     """Write complete set of alignments to a file.
@@ -194,43 +202,36 @@ def write(alignments, handle, format):
         raise ValueError("Format string '%s' should be lower case" % format)
 
     if isinstance(alignments, Alignment):
-        #This raised an exception in order version of Biopython
+        #This raised an exception in older versions of Biopython
         alignments = [alignments]
 
-    if isinstance(handle, basestring):
-        handle = open(handle, "w")
-        handle_close = True
-    else:
-        handle_close = False
-
-    #Map the file format to a writer class
-    if format in _FormatToIterator:
-        writer_class = _FormatToWriter[format]
-        count = writer_class(handle).write_file(alignments)
-    elif format in SeqIO._FormatToWriter:
-        #Exploit the existing SeqIO parser to the dirty work!
-        #TODO - Can we make one call to SeqIO.write() and count the alignments?
-        count = 0
-        for alignment in alignments:
-            if not isinstance(alignment, Alignment):
-                raise TypeError(\
-                    "Expect a list or iterator of Alignment objects.")
-            SeqIO.write(alignment, handle, format)
-            count += 1
-    elif format in _FormatToIterator or format in SeqIO._FormatToIterator:
-        raise ValueError("Reading format '%s' is supported, but not writing" \
-                         % format)
-    else:
-        raise ValueError("Unknown format '%s'" % format)
+    with as_handle(handle, 'w') as fp:
+        #Map the file format to a writer class
+        if format in _FormatToWriter:
+            writer_class = _FormatToWriter[format]
+            count = writer_class(fp).write_file(alignments)
+        elif format in SeqIO._FormatToWriter:
+            #Exploit the existing SeqIO parser to do the dirty work!
+            #TODO - Can we make one call to SeqIO.write() and count the alignments?
+            count = 0
+            for alignment in alignments:
+                if not isinstance(alignment, Alignment):
+                    raise TypeError(
+                        "Expect a list or iterator of Alignment objects.")
+                SeqIO.write(alignment, fp, format)
+                count += 1
+        elif format in _FormatToIterator or format in SeqIO._FormatToIterator:
+            raise ValueError("Reading format '%s' is supported, but not writing"
+                             % format)
+        else:
+            raise ValueError("Unknown format '%s'" % format)
 
     assert isinstance(count, int), "Internal error - the underlying %s " \
            "writer should have returned the alignment count, not %s" \
            % (format, repr(count))
 
-    if handle_close:
-        handle.close()
-
     return count
+
 
 #This is a generator function!
 def _SeqIO_to_alignment_iterator(handle, format, alphabet=None, seq_count=None):
@@ -271,6 +272,7 @@ def _SeqIO_to_alignment_iterator(handle, format, alphabet=None, seq_count=None):
             yield MultipleSeqAlignment(records, alphabet)
     raise StopIteration
 
+
 def _force_alphabet(alignment_iterator, alphabet):
     """Iterate over alignments, over-riding the alphabet (PRIVATE)."""
     #Assume the alphabet argument has been pre-validated
@@ -278,25 +280,26 @@ def _force_alphabet(alignment_iterator, alphabet):
     for align in alignment_iterator:
         if not isinstance(_get_base_alphabet(align._alphabet),
                           given_base_class):
-            raise ValueError("Specified alphabet %s clashes with "\
-                             "that determined from the file, %s" \
+            raise ValueError("Specified alphabet %s clashes with "
+                             "that determined from the file, %s"
                              % (repr(alphabet), repr(align._alphabet)))
         for record in align:
             if not isinstance(_get_base_alphabet(record.seq.alphabet),
                               given_base_class):
-                raise ValueError("Specified alphabet %s clashes with "\
-                                 "that determined from the file, %s" \
+                raise ValueError("Specified alphabet %s clashes with "
+                                 "that determined from the file, %s"
                            % (repr(alphabet), repr(record.seq.alphabet)))
             record.seq.alphabet = alphabet
         align._alphabet = alphabet
         yield align
+
 
 def parse(handle, format, seq_count=None, alphabet=None):
     """Iterate over an alignment file as MultipleSeqAlignment objects.
 
     Arguments:
      - handle    - handle to the file, or the filename as a string
-                   (note older verions of Biopython only took a handle).
+                   (note older versions of Biopython only took a handle).
      - format    - string describing the file format.
      - alphabet  - optional Alphabet object, useful when the sequence type
                    cannot be automatically inferred from the file itself
@@ -310,7 +313,7 @@ def parse(handle, format, seq_count=None, alphabet=None):
     >>> filename = "Emboss/needle.txt"
     >>> format = "emboss"
     >>> for alignment in AlignIO.parse(filename, format):
-    ...     print "Alignment of length", alignment.get_alignment_length()
+    ...     print("Alignment of length %i" % alignment.get_alignment_length())
     Alignment of length 124
     Alignment of length 119
     Alignment of length 120
@@ -327,13 +330,6 @@ def parse(handle, format, seq_count=None, alphabet=None):
     """
     from Bio import SeqIO
 
-    handle_close = False
-
-    if isinstance(handle, basestring):
-        handle = open(handle, "rU")
-        #TODO - On Python 2.5+ use with statement to close handle
-        handle_close = True
-
     #Try and give helpful error messages:
     if not isinstance(format, basestring):
         raise TypeError("Need a string for the file format (lower case)")
@@ -341,46 +337,46 @@ def parse(handle, format, seq_count=None, alphabet=None):
         raise ValueError("Format required (lower case string)")
     if format != format.lower():
         raise ValueError("Format string '%s' should be lower case" % format)
-    if alphabet is not None and not (isinstance(alphabet, Alphabet) or \
+    if alphabet is not None and not (isinstance(alphabet, Alphabet) or
                                      isinstance(alphabet, AlphabetEncoder)):
         raise ValueError("Invalid alphabet, %s" % repr(alphabet))
     if seq_count is not None and not isinstance(seq_count, int):
         raise TypeError("Need integer for seq_count (sequences per alignment)")
 
-    #Map the file format to a sequence iterator:
-    if format in _FormatToIterator:
-        iterator_generator = _FormatToIterator[format]
-        if alphabet is None : 
-            i = iterator_generator(handle, seq_count)
+    with as_handle(handle, 'rU') as fp:
+        #Map the file format to a sequence iterator:
+        if format in _FormatToIterator:
+            iterator_generator = _FormatToIterator[format]
+            if alphabet is None:
+                i = iterator_generator(fp, seq_count)
+            else:
+                try:
+                    #Initially assume the optional alphabet argument is supported
+                    i = iterator_generator(fp, seq_count, alphabet=alphabet)
+                except TypeError:
+                    #It isn't supported.
+                    i = _force_alphabet(iterator_generator(fp, seq_count),
+                                        alphabet)
+
+        elif format in SeqIO._FormatToIterator:
+            #Exploit the existing SeqIO parser to the dirty work!
+            i = _SeqIO_to_alignment_iterator(fp, format,
+                                                alphabet=alphabet,
+                                                seq_count=seq_count)
         else:
-            try:
-                #Initially assume the optional alphabet argument is supported
-                i = iterator_generator(handle, seq_count, alphabet=alphabet)
-            except TypeError:
-                #It isn't supported.
-                i = _force_alphabet(iterator_generator(handle, seq_count),
-                                    alphabet)
+            raise ValueError("Unknown format '%s'" % format)
 
-    elif format in SeqIO._FormatToIterator:
-        #Exploit the existing SeqIO parser to the dirty work!
-        i = _SeqIO_to_alignment_iterator(handle, format,
-                                            alphabet=alphabet,
-                                            seq_count=seq_count)
-    else:
-        raise ValueError("Unknown format '%s'" % format)
+        #This imposes some overhead... wait until we drop Python 2.4 to fix it
+        for a in i:
+            yield a
 
-    #This imposes some overhead... wait until we drop Python 2.4 to fix it
-    for a in i:
-        yield a
-    if handle_close:
-        handle.close()
 
 def read(handle, format, seq_count=None, alphabet=None):
     """Turns an alignment file into a single MultipleSeqAlignment object.
 
     Arguments:
      - handle    - handle to the file, or the filename as a string
-                   (note older verions of Biopython only took a handle).
+                   (note older versions of Biopython only took a handle).
      - format    - string describing the file format.
      - alphabet  - optional Alphabet object, useful when the sequence type
                    cannot be automatically inferred from the file itself
@@ -396,7 +392,7 @@ def read(handle, format, seq_count=None, alphabet=None):
     >>> filename = "Clustalw/protein.aln"
     >>> format = "clustal"
     >>> alignment = AlignIO.read(filename, format)
-    >>> print "Alignment of length", alignment.get_alignment_length()
+    >>> print("Alignment of length %i" % alignment.get_alignment_length())
     Alignment of length 411
 
     If however you want the first alignment from a file containing
@@ -415,8 +411,8 @@ def read(handle, format, seq_count=None, alphabet=None):
     >>> from Bio import AlignIO
     >>> filename = "Emboss/needle.txt"
     >>> format = "emboss"
-    >>> alignment = AlignIO.parse(filename, format).next()
-    >>> print "First alignment has length", alignment.get_alignment_length()
+    >>> alignment = next(AlignIO.parse(filename, format))
+    >>> print("First alignment has length %i" % alignment.get_alignment_length())
     First alignment has length 124
 
     You must use the Bio.AlignIO.parse() function if you want to read multiple
@@ -424,20 +420,21 @@ def read(handle, format, seq_count=None, alphabet=None):
     """
     iterator = parse(handle, format, seq_count, alphabet)
     try:
-        first = iterator.next()
+        first = next(iterator)
     except StopIteration:
         first = None
     if first is None:
         raise ValueError("No records found in handle")
     try:
-        second = iterator.next()
+        second = next(iterator)
     except StopIteration:
         second = None
     if second is not None:
         raise ValueError("More than one record found in handle")
     if seq_count:
-        assert len(first)==seq_count
+        assert len(first) == seq_count
     return first
+
 
 def convert(in_file, in_format, out_file, out_format, alphabet=None):
     """Convert between two alignment files, returns number of alignments.
@@ -453,56 +450,20 @@ def convert(in_file, in_format, out_file, out_format, alphabet=None):
     conversion is aborted (e.g. an invalid out_format name is given).
     """
     #TODO - Add optimised versions of important conversions
-    #For now just off load the work to SeqIO parse/write    
-    if isinstance(in_file, basestring):
-        in_handle = open(in_file, "rU")
-        in_close = True
-    else:
-        in_handle = in_file
-        in_close = False
-    #This will check the arguments and issue error messages,
-    alignments = parse(in_handle, in_format, None, alphabet)
-    #Don't open the output file until we've checked the input is OK:
-    if isinstance(out_file, basestring):
-        out_handle = open(out_file, "w")
-        out_close = True
-    else:
-        out_handle = out_file
-        out_close = False
-    #This will check the arguments and issue error messages,
-    #after we have opened the file which is a shame.
-    count = write(alignments, out_handle, out_format)
-    #Must now close any handles we opened
-    if in_close:
-        in_handle.close()
-    if out_close:
-        out_handle.close()
+    #For now just off load the work to SeqIO parse/write
+    with as_handle(in_file, 'rU') as in_handle:
+        #Don't open the output file until we've checked the input is OK:
+        alignments = parse(in_handle, in_format, None, alphabet)
+
+        #This will check the arguments and issue error messages,
+        #after we have opened the file which is a shame.
+        with as_handle(out_file, 'w') as out_handle:
+            count = write(alignments, out_handle, out_format)
+
     return count
 
-def _test():
-    """Run the Bio.AlignIO module's doctests.
-
-    This will try and locate the unit tests directory, and run the doctests
-    from there in order that the relative paths used in the examples work.
-    """
-    import doctest
-    import os
-    if os.path.isdir(os.path.join("..", "..", "Tests")):
-        print "Runing doctests..."
-        cur_dir = os.path.abspath(os.curdir)
-        os.chdir(os.path.join("..", "..", "Tests"))
-        doctest.testmod()
-        os.chdir(cur_dir)
-        del cur_dir
-        print "Done"
-    elif os.path.isdir(os.path.join("Tests", "Fasta")):
-        print "Runing doctests..."
-        cur_dir = os.path.abspath(os.curdir)
-        os.chdir(os.path.join("Tests"))
-        doctest.testmod()
-        os.chdir(cur_dir)
-        del cur_dir
-        print "Done"
 
 if __name__ == "__main__":
-    _test()
+    from Bio._utils import run_doctest
+    run_doctest()
+

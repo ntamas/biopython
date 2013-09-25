@@ -3,8 +3,12 @@
 # as part of this package.
 
 #TODO - Don't use "from XXX import *"
+from __future__ import print_function
+
 try:
     from numpy import *
+    from numpy import dot  # missing in old PyPy's micronumpy
+    from numpy.linalg import svd, det # Missing in PyPy 2.0 numpypy
 except ImportError:
     from Bio import MissingPythonDependencyError
     raise MissingPythonDependencyError(
@@ -45,6 +49,7 @@ y_on_x1=dot(y, rot)+tran
 # same thing
 y_on_x2=sup.get_transformed()
 
+
 def simple_matrix_print(matrix):
     """Simple string to display a floating point matrix
 
@@ -62,14 +67,14 @@ def simple_matrix_print(matrix):
     #If and when Biopython requires Python 2.4 or later,
     #it would be slightly nicer to use generator expressions.
     return "[" \
-    + "\n ".join(["[" \
-                 + " ".join(["% 1.4f" % val for val in row]) \
+    + "\n ".join(["["
+                 + " ".join(["% 1.4f" % val for val in row])
                  + "]" for row in matrix]) \
     + "]"
 
 # output results
-print simple_matrix_print(y_on_x1)
-print
-print simple_matrix_print(y_on_x2)
-print
-print "%.2f" % rms
+print(simple_matrix_print(y_on_x1))
+print("")
+print(simple_matrix_print(y_on_x2))
+print("")
+print("%.2f" % rms)

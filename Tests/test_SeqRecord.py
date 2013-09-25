@@ -16,6 +16,7 @@ from Bio.SeqRecord import SeqRecord
 from Bio.SeqFeature import SeqFeature, FeatureLocation, ExactPosition
 from Bio.SeqFeature import WithinPosition, BeforePosition, AfterPosition, OneOfPosition
 
+
 class SeqRecordCreation(unittest.TestCase):
     """Test basic creation of SeqRecords."""
     def test_annotations(self):
@@ -41,7 +42,7 @@ class SeqRecordCreation(unittest.TestCase):
         try:
             rec.letter_annotations["bad"] = "abc"
             self.assertTrue(False, "Adding a bad letter_annotation should fail!")
-        except (TypeError, ValueError), e:
+        except (TypeError, ValueError) as e:
             pass
         #Now try setting it afterwards to a bad value...
         rec = SeqRecord(Seq("ACGT", generic_dna),
@@ -49,7 +50,7 @@ class SeqRecordCreation(unittest.TestCase):
         try:
             rec.letter_annotations={"test" : [1, 2, 3]}
             self.assertTrue(False, "Changing to bad letter_annotations should fail!")
-        except (TypeError, ValueError), e:
+        except (TypeError, ValueError) as e:
             pass
         #Now try setting it at creation time to a bad value...
         try:
@@ -57,8 +58,9 @@ class SeqRecordCreation(unittest.TestCase):
                             id="Test", name="Test", description="Test",
                             letter_annotations={"test" : [1, 2, 3]})
             self.assertTrue(False, "Wrong length letter_annotations should fail!")
-        except (TypeError, ValueError), e:
+        except (TypeError, ValueError) as e:
             pass
+
 
 class SeqRecordMethods(unittest.TestCase):
     """Test SeqRecord methods."""
@@ -67,9 +69,9 @@ class SeqRecordMethods(unittest.TestCase):
         f0 = SeqFeature(FeatureLocation(0,26), type="source",
                         qualifiers={"mol_type":["fake protein"]})
         f1 = SeqFeature(FeatureLocation(0,ExactPosition(10)))
-        f2 = SeqFeature(FeatureLocation(WithinPosition(12,3),BeforePosition(22)))
+        f2 = SeqFeature(FeatureLocation(WithinPosition(12, left=12,right=15),BeforePosition(22)))
         f3 = SeqFeature(FeatureLocation(AfterPosition(16),
-                                        OneOfPosition([ExactPosition(25),AfterPosition(26)])))
+                                        OneOfPosition(26, [ExactPosition(25),AfterPosition(26)])))
         self.record = SeqRecord(Seq("ABCDEFGHIJKLMNOPQRSTUVWZYX", generic_protein),
                                 id="TestID", name="TestName", description="TestDescr",
                                 dbxrefs=["TestXRef"], annotations={"k":"v"},
@@ -80,7 +82,8 @@ class SeqRecordMethods(unittest.TestCase):
         """Simple slices using different start/end values"""
         for start in range(-30,30)+[None] :
             for end in range(-30,30)+[None] :
-                if start is None and end is None : continue
+                if start is None and end is None:
+                    continue
                 rec = self.record[start:end]
                 seq = self.record.seq[start:end]
                 seq_str = str(self.record.seq)[start:end]
@@ -111,6 +114,14 @@ class SeqRecordMethods(unittest.TestCase):
             self.assertEqual(str(sub.features[0].extract(sub.seq)), str(sub.seq))
             self.assertEqual(sub.features[0].extract(str(sub.seq)), str(sub.seq))
 
+    def test_slice_zero(self):
+        """Zero slice"""
+        rec = self.record
+        self.assertEqual(len(rec), 26)
+        self.assertEqual(len(rec[2:-2]), 22)
+        self.assertEqual(len(rec[5:2]), 0)
+        self.assertEqual(len(rec[5:2][2:-2]), 0)
+
     def test_add_simple(self):
         """Simple addition"""
         rec = self.record + self.record
@@ -138,7 +149,7 @@ class SeqRecordMethods(unittest.TestCase):
             self.assertEqual(len(rec.features), len(self.record.features))
             self.assertEqual(rec.features[0].type, "source")
             self.assertEqual(rec.features[0].location.nofuzzy_start, 0)
-            self.assertEqual(rec.features[0].location.nofuzzy_end, 26) #not +3
+            self.assertEqual(rec.features[0].location.nofuzzy_end, 26)  # not +3
 
     def test_add_seqrecord(self):
         """Simple left addition of SeqRecord from genbank file."""
@@ -157,7 +168,7 @@ class SeqRecordMethods(unittest.TestCase):
                          len(self.record.features) + len(other.features))
         self.assertEqual(rec.features[0].type, "source")
         self.assertEqual(rec.features[0].location.nofuzzy_start, 0)
-        self.assertEqual(rec.features[0].location.nofuzzy_end, len(self.record)) #not +3
+        self.assertEqual(rec.features[0].location.nofuzzy_end, len(self.record))  # not +3
         i = len(self.record.features)
         self.assertEqual(rec.features[i].type, "source")
         self.assertEqual(rec.features[i].location.nofuzzy_start, len(self.record))
@@ -179,7 +190,7 @@ class SeqRecordMethods(unittest.TestCase):
             self.assertEqual(rec.features[0].type, "source")
             self.assertEqual(rec.features[0].location.nofuzzy_start, 3)
             self.assertEqual(rec.features[0].location.nofuzzy_end, 26+3)
-            
+
     def test_slice_add_simple(self):
         """Simple slice and add"""
         for cut in range(27) :
@@ -207,7 +218,7 @@ class SeqRecordMethods(unittest.TestCase):
             self.assertEqual(rec.annotations, {}) # May change this...
             self.assertEqual(rec.letter_annotations, {"fake":"X"*26})
             self.assertTrue(len(rec.features) <= len(self.record.features))
-            
+
 if __name__ == "__main__":
     runner = unittest.TextTestRunner(verbosity = 2)
     unittest.main(testRunner=runner)

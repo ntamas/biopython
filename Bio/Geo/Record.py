@@ -4,8 +4,7 @@
 # license.  Please see the LICENSE file that should have been included
 # as part of this package.
 
-"""
-Hold GEO data in a straightforward format.
+"""Hold GEO data in a straightforward format.
 
 classes:
 o Record - All of the information in an GEO record.
@@ -13,7 +12,10 @@ o Record - All of the information in an GEO record.
 See http://www.ncbi.nlm.nih.gov/geo/
 """
 
-class Record:
+
+from __future__ import print_function
+
+class Record(object):
     """Hold GEO information in a format similar to the original record.
 
     The Record class is meant to make data easy to get to when you are
@@ -42,18 +44,18 @@ class Record:
         att_keys.sort()
         for key in att_keys:
             contents = self.entity_attributes[ key ]
-            if( type( contents ) == type( [] ) ):
+            if isinstance(contents, list):
                 for item in contents:
                     try:
                         output = output + '%s: %s\n' % ( key, item[ :40 ] )
                         output = output + out_block( item[ 40: ] )
                     except:
                         pass
-            elif( type( contents ) == type( '' ) ):
+            elif isinstance(contents, str):
                 output = output + '%s: %s\n' % ( key, contents[ :40 ] )
                 output = output + out_block( contents[ 40: ] )
             else:
-                print contents
+                print(contents)
                 output = output + '%s: %s\n' % ( key, val[ :40 ] )
                 output = output + out_block( val[ 40: ] )
         col_keys = self.col_defs.keys()
@@ -78,12 +80,13 @@ class Record:
             for col in row:
                 output = output + '%s\t' % col
             output = output + '\n'
-            
+
         return output
+
 
 def out_block( text, prefix = '' ):
     output = ''
     for j in range( 0, len( text ), 80 ):
-        output = output + '%s%s\n'  % ( prefix, text[ j: j + 80 ] )
+        output = output + '%s%s\n' % ( prefix, text[ j: j + 80 ] )
     output = output + '\n'
     return output

@@ -12,7 +12,6 @@ from Bio.Seq import MutableSeq
 # local stuff
 from Bio.GA import Organism
 
-    
 
 # -- utility functions
 class TestAlphabet(Alphabet.Alphabet):
@@ -20,10 +19,12 @@ class TestAlphabet(Alphabet.Alphabet):
     """
     letters = ["1", "2", "3", "4"]
 
+
 def genome_generator():
     """Generate a genome for testing purposes.
     """
     return MutableSeq("1234", TestAlphabet())
+
 
 def fitness_calculator(genome):
     """Calculate fitness for testing purposes.
@@ -31,7 +32,8 @@ def fitness_calculator(genome):
     assert isinstance(genome, MutableSeq), "Expected MutableSeq for a genome."
 
     regular_seq = genome.toseq()
-    return int(regular_seq.tostring())
+    return int(str(regular_seq))
+
 
 class CreatePopulationTest(unittest.TestCase):
     """Tests for utility functions for creating populations.
@@ -102,6 +104,7 @@ class CreatePopulationTest(unittest.TestCase):
             new_pop = Organism.random_population(alphabet, 5, 10,
                                                  test_fitness)
 
+
 class OrganismTest(unittest.TestCase):
     """Tests for an organism in a GA population.
     """
@@ -130,7 +133,7 @@ class OrganismTest(unittest.TestCase):
         """
         assert self.organism.fitness == 1234, \
                "Unexpected fitness %s" % self.organism.fitness
-        
+
         new_genome = MutableSeq("1111", self.alphabet)
         self.organism.genome = new_genome
         self.organism.recalculate_fitness()
